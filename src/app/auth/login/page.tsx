@@ -7,8 +7,13 @@ import { ShieldCheck, ArrowLeft, Lock, Mail, Loader2, AlertCircle } from "lucide
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
@@ -22,41 +27,40 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
       });
 
-      if (authError) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok) {
         setError(
-          authError.message === "Invalid login credentials"
-            ? "E-mail ou senha incorretos."
-            : authError.message
+          payload.error ||
+            "Não foi possível autenticar. Verifique suas credenciais."
         );
         setLoading(false);
         return;
       }
 
-      if (!data.user) {
-        setError("Usuário não encontrado.");
-        setLoading(false);
-        return;
-      }
-
-      // Valida role admin
-      const role = data.user.user_metadata?.role;
-      if (role !== "admin") {
-        await supabase.auth.signOut();
-        setError("Acesso restrito. Este usuário não possui a permissão 'admin'.");
-        setLoading(false);
-        return;
-      }
-
-      // Navegação completa para garantir que os cookies da sessão sejam enviados no cabeçalho HTTP
-      window.location.href = "/admin";
-    } catch (err: any) {
-      setError(err?.message || "Ocorreu um erro ao tentar entrar. Tente novamente.");
+      // Navegação completa garante o envio imediato dos cookies HttpOnly no cabeçalho HTTP
+      window.location.assign(new URL("/admin", window.location.origin).toString());
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Ocorreu um erro de rede ao tentar entrar. Tente novamente.";
+      setError(message);
       setLoading(false);
     }
   };
@@ -114,6 +118,10 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="admin@exemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

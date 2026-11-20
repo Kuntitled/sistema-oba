@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Trophy,
   Plus,
   Trash2,
   Save,
@@ -11,25 +10,47 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { saveTournamentResultsAction } from "@/app/admin/actions";
-import { RANKING_POINTS_BY_POSITION, DEFAULT_RANKING_POINTS } from "@/lib/constants";
-import type { Blader, Tournament } from "@/types/domain";
+import {
+  calculateOfficialTournamentPoints,
+  OBA_PODIUM_POINTS,
+  OBA_SWISS_LEADER_BONUS,
+  OBA_SWISS_WIN_POINTS,
+  type ObaTournamentCategory,
+} from "@/lib/constants";
+import {
+  TOURNAMENT_CATEGORY_LABELS,
+  TOURNAMENT_FORMAT_LABELS,
+  type Blader,
+  type Tournament,
+} from "@/types/domain";
 
 interface ResultRow {
   blader_id: string;
   final_position: number;
+  swiss_wins: number;
+  is_swiss_leader: boolean;
+  points_earned: number;
+}
+
+interface ExistingResultInput {
+  blader_id: string;
+  final_position: number;
+  swiss_wins?: number;
+  is_swiss_leader?: boolean;
   points_earned: number;
 }
 
 interface TournamentResultsEditorProps {
   tournament: Tournament;
   bladers: Blader[];
-  existingResults: ResultRow[];
+  existingResults: ExistingResultInput[];
 }
 
 export function TournamentResultsEditor({
@@ -38,63 +59,111 @@ export function TournamentResultsEditor({
   existingResults,
 }: TournamentResultsEditorProps) {
   const router = useRouter();
+  const category: ObaTournamentCategory =
+    tournament.category === "oficial" ? "oficial" : "semanal";
+  const supportsSwissLeaderBonus = tournament.format !== "swiss_only";
 
-  // Se já existirem resultados, inicializa com eles; senão, inicializa com as 3 primeiras posições
+  const computeSuggested = React.useCallback(
+    (finalPosition: number, swissWins: number, isSwissLeader: boolean) => {
+      return calculateOfficialTournamentPoints({
+        category,
+        format: tournament.format,
+        finalPosition,
+        swissWins,
+        isSwissLeader,
+      }).totalPoints;
+    },
+    [category, tournament.format]
+  );
+
   const [rows, setRows] = React.useState<ResultRow[]>(() => {
     if (existingResults.length > 0) {
-      return existingResults;
+      return existingResults.map((r) => ({
+        blader_id: r.blader_id,
+        final_position: r.final_position,
+        swiss_wins: r.swiss_wins ?? 0,
+        is_swiss_leader: Boolean(r.is_swiss_leader),
+        points_earned: r.points_earned,
+      }));
     }
-    return [
-      { blader_id: "", final_position: 1, points_earned: RANKING_POINTS_BY_POSITION[1] },
-      { blader_id: "", final_position: 2, points_earned: RANKING_POINTS_BY_POSITION[2] },
-      { blader_id: "", final_position: 3, points_earned: RANKING_POINTS_BY_POSITION[3] },
-    ];
+    return [1, 2, 3].map((pos) => ({
+      blader_id: "",
+      final_position: pos,
+      swiss_wins: 0,
+      is_swiss_leader: pos === 1 && tournament.format !== "swiss_only",
+      points_earned: OBA_PODIUM_POINTS[category][pos] ?? 0,
+    }));
   });
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
 
-  // Adiciona nova linha de resultado
   const addRow = () => {
     const nextPos = rows.length + 1;
-    const defaultPts =
-      RANKING_POINTS_BY_POSITION[nextPos] ?? DEFAULT_RANKING_POINTS;
     setRows([
       ...rows,
       {
         blader_id: "",
         final_position: nextPos,
-        points_earned: defaultPts,
+        swiss_wins: 0,
+        is_swiss_leader: false,
+        points_earned: computeSuggested(nextPos, 0, false),
       },
     ]);
   };
 
-  // Remove linha de resultado
   const removeRow = (index: number) => {
     const updated = rows.filter((_, i) => i !== index);
-    // Reajusta posições sequenciais
-    const reindexed = updated.map((r, i) => ({
-      ...r,
-      final_position: i + 1,
-      points_earned:
-        RANKING_POINTS_BY_POSITION[i + 1] ?? DEFAULT_RANKING_POINTS,
-    }));
+    const reindexed = updated.map((r, i) => {
+      const pos = i + 1;
+      return {
+        ...r,
+        final_position: pos,
+        points_earned: computeSuggested(
+          pos,
+          r.swiss_wins,
+          supportsSwissLeaderBonus && r.is_swiss_leader
+        ),
+      };
+    });
     setRows(reindexed);
   };
 
-  const updateRow = (index: number, field: keyof ResultRow, value: any) => {
-    const updated = [...rows];
-    updated[index] = { ...updated[index], [field]: value };
-
-    // Se mudou a posição e o usuário ainda não alterou pontos manualmente, sugere pontuação padrão
-    if (field === "final_position") {
-      const pos = parseInt(value, 10);
-      if (!isNaN(pos)) {
-        updated[index].points_earned =
-          RANKING_POINTS_BY_POSITION[pos] ?? DEFAULT_RANKING_POINTS;
+  const updateRowField = <K extends keyof ResultRow>(
+    index: number,
+    field: K,
+    value: ResultRow[K]
+  ) => {
+    const updated = rows.map((row, idx) => {
+      if (idx === index) {
+        const nextRow: ResultRow = { ...row, [field]: value };
+        if (
+          field === "final_position" ||
+          field === "swiss_wins" ||
+          field === "is_swiss_leader"
+        ) {
+          nextRow.points_earned = computeSuggested(
+            nextRow.final_position,
+            nextRow.swiss_wins,
+            supportsSwissLeaderBonus && nextRow.is_swiss_leader
+          );
+        }
+        return nextRow;
       }
-    }
+
+      if (field === "is_swiss_leader" && value === true) {
+        const cleared: ResultRow = { ...row, is_swiss_leader: false };
+        cleared.points_earned = computeSuggested(
+          cleared.final_position,
+          cleared.swiss_wins,
+          false
+        );
+        return cleared;
+      }
+
+      return row;
+    });
 
     setRows(updated);
   };
@@ -103,24 +172,22 @@ export function TournamentResultsEditor({
     setError(null);
     setSuccess(false);
 
-    // Validações
     for (let i = 0; i < rows.length; i++) {
       if (!rows[i].blader_id) {
-        setError(`A linha da ${rows[i].final_position}ª posição precisa ter um Blader selecionado.`);
+        setError(
+          `A linha da ${rows[i].final_position}ª posição precisa ter um Blader selecionado.`
+        );
         return;
       }
     }
 
-    // Verifica duplicatas de blader
     const bladerIds = rows.map((r) => r.blader_id);
-    const hasDuplicates = new Set(bladerIds).size !== bladerIds.length;
-    if (hasDuplicates) {
+    if (new Set(bladerIds).size !== bladerIds.length) {
       setError("O mesmo Blader não pode ser selecionado em mais de uma posição.");
       return;
     }
 
     setLoading(true);
-
     const result = await saveTournamentResultsAction(tournament.id, rows);
 
     if (result.error) {
@@ -132,7 +199,7 @@ export function TournamentResultsEditor({
       setTimeout(() => {
         router.push("/admin/torneios");
         router.refresh();
-      }, 1500);
+      }, 1400);
     }
   };
 
@@ -149,24 +216,38 @@ export function TournamentResultsEditor({
         <div className="p-3.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>
-            Resultados salvos com sucesso! O ranking geral da liga foi recalculado.
+            Resultados salvos com sucesso! O ranking da temporada foi recalculado.
           </span>
         </div>
       )}
 
-      {/* Regra de Pontuação Rápida */}
+      {/* Regra Oficial OBA aplicada */}
       <div className="p-3.5 rounded-lg bg-muted/30 border border-border/40 text-xs text-muted-foreground flex items-start gap-2.5">
         <HelpCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
         <p>
-          Os pontos são sugeridos automaticamente pela tabela oficial (1º = 100pts, 2º = 75pts, 3º = 60pts, 4º = 50pts...). Você pode editar os pontos manualmente se necessário.
+          Regra aplicada:{" "}
+          <strong className="text-foreground">
+            {TOURNAMENT_CATEGORY_LABELS[category]}
+          </strong>{" "}
+          (1º = {OBA_PODIUM_POINTS[category][1]} pts, 2º ={" "}
+          {OBA_PODIUM_POINTS[category][2]} pts, 3º ={" "}
+          {OBA_PODIUM_POINTS[category][3]} pts) •{" "}
+          <strong className="text-foreground">
+            {TOURNAMENT_FORMAT_LABELS[tournament.format]}
+          </strong>{" "}
+          • +{OBA_SWISS_WIN_POINTS} pts por vitória no Suíço
+          {supportsSwissLeaderBonus
+            ? ` • +${OBA_SWISS_LEADER_BONUS} pts para o Líder da fase Suíça`
+            : " (sem bônus de liderança)"}
+          .
         </p>
       </div>
 
       {/* Tabela de Linhas */}
       <Card className="border-border/60 bg-card/60">
         <CardHeader className="p-5 pb-3">
-          <CardTitle className="text-base font-bold flex items-center justify-between">
-            <span>Posições Finais dos Bladers</span>
+          <CardTitle className="text-base font-bold flex items-center justify-between gap-2">
+            <span>Posições Finais e Pontuação OBA</span>
             <Button
               type="button"
               variant="outline"
@@ -184,21 +265,19 @@ export function TournamentResultsEditor({
           {rows.map((row, index) => (
             <div
               key={index}
-              className="p-3 rounded-lg border border-border/50 bg-background/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+              className="p-3 rounded-lg border border-border/50 bg-background/50 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs"
             >
-              {/* Posição */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="font-black text-sm text-foreground w-8 text-center bg-muted/60 py-1 rounded">
+              <div className="flex items-center gap-2 w-full lg:w-auto">
+                <span className="font-black text-sm text-foreground w-8 text-center bg-muted/60 py-1 rounded shrink-0">
                   {row.final_position}º
                 </span>
 
-                {/* Seleção de Blader */}
                 <select
                   value={row.blader_id}
                   onChange={(e) =>
-                    updateRow(index, "blader_id", e.target.value)
+                    updateRowField(index, "blader_id", e.target.value)
                   }
-                  className="flex-1 sm:w-64 h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="flex-1 lg:w-64 h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">Selecione o Blader...</option>
                   {bladers.map((b) => (
@@ -209,23 +288,62 @@ export function TournamentResultsEditor({
                 </select>
               </div>
 
-              {/* Pontos + Remover */}
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
                 <div className="flex items-center gap-1.5">
                   <Label className="text-[11px] text-muted-foreground whitespace-nowrap">
-                    Pontos:
+                    Vit. Suíço:
                   </Label>
                   <Input
                     type="number"
-                    value={row.points_earned}
+                    min={0}
+                    max={15}
+                    value={row.swiss_wins}
                     onChange={(e) =>
-                      updateRow(
+                      updateRowField(
                         index,
-                        "points_earned",
-                        parseInt(e.target.value, 10) || 0
+                        "swiss_wins",
+                        Math.max(0, parseInt(e.target.value, 10) || 0)
                       )
                     }
-                    className="w-20 h-8 text-xs text-center font-bold"
+                    className="w-16 h-8 text-xs text-center font-bold"
+                  />
+                </div>
+
+                {supportsSwissLeaderBonus && (
+                  <label className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-border/60 bg-card/60 cursor-pointer text-[11px] font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={row.is_swiss_leader}
+                      onChange={(e) =>
+                        updateRowField(
+                          index,
+                          "is_swiss_leader",
+                          e.target.checked
+                        )
+                      }
+                      className="accent-primary"
+                    />
+                    <Crown className="h-3.5 w-3.5 text-fire-yellow" />
+                    <span>Líder Suíço (+{OBA_SWISS_LEADER_BONUS})</span>
+                  </label>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">
+                    Total Pts:
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.points_earned}
+                    onChange={(e) =>
+                      updateRowField(
+                        index,
+                        "points_earned",
+                        Math.max(0, parseInt(e.target.value, 10) || 0)
+                      )
+                    }
+                    className="w-20 h-8 text-xs text-center font-black text-primary"
                   />
                 </div>
 
@@ -245,7 +363,6 @@ export function TournamentResultsEditor({
         </CardContent>
       </Card>
 
-      {/* Botões de Ação */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button
           type="button"

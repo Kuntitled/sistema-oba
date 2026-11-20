@@ -4,9 +4,7 @@ import {
   Swords,
   Trophy,
   Flame,
-  PlusCircle,
-  ExternalLink,
-  ChevronRight,
+  Radio,
   ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +42,13 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/admin/arenas">
+            <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10">
+              <Radio className="h-3.5 w-3.5" />
+              Arenas ao Vivo
+            </Button>
+          </Link>
           <Link href="/admin/bladers">
             <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 border-border/80">
               <Users className="h-3.5 w-3.5 text-fire-orange" />

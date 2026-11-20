@@ -97,11 +97,11 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 **Objetivo:** Permitir que organizadores gerenciem múltiplos Beystadiums simultâneos durante o evento e juízes lancem placares lance a lance pelo celular.
 
 **Funcionalidades Definidas:**
-1. **Formato Híbrido (Suíço + Top Cut Mata-Mata):**
-   - **Fase 1 (Suíço):** Rodadas em que todos jogam (ex: 3 a 5 rodadas para 16-32 jogadores).
-   - **Critérios de desempate automáticos:** 1º Vitórias, 2º Buchholz (força dos adversários), 3º Saldo de pontos das arenas.
-   - **Corte de Classificados (Top Cut):** Botão para avançar os Top 4, Top 8 ou Top 16 para o Mata-mata.
-   - **Fase 2 (Mata-Mata):** Geração automática da chave (Quartas, Semifinal, 3º Lugar e Grande Final).
+1. **Formato Híbrido (Suíço + Top Cut Mata-Mata) & Exclusivamente Suíço:**
+   - **Fase 1 (Suíço):** Rodadas em que todos jogam (padrão 4 rodadas), sem eliminação imediata, somando `+10 pts` por vitória.
+   - **Critérios de desempate oficiais OBA (sem Buchholz):** ordenação exclusiva por Finishes computados em `match_games` (`stage = 'swiss'`): 1º Vitórias, 2º Extreme Finishes (`xtreme`), 3º Burst Finishes (`burst`), 4º Over Finishes (`over`), 5º Spin Finishes (`spin`).
+   - **Empate absoluto pela liderança do Suíço:** sinalização automática e botão para partida extra (`is_tiebreaker = true`), que define a liderança sem conceder `+10 pts` extras no ranking.
+   - **Corte de Classificados (Top Cut):** Botão para avançar os Top 4, Top 8 ou Top 16 para o Mata-mata (Oitavas, Quartas, Semifinal, Disputa de 3º Lugar e Grande Final) em torneios `swiss_top_cut`.
 2. **Gestor de Arenas Físicas (Multi-Stadium):**
    - Criação e acompanhamento de arenas simultâneas (ex: *Arena 1 - Xtreme Stadium*, *Arena 2 - Standard*).
    - Fila de partidas da rodada com atribuição: o organizador designa qual partida vai para qual arena.
@@ -113,7 +113,7 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
      - `+2 Burst Finish`
      - `+3 Xtreme Finish`
      - `Desfazer (Undo)` para correção imediata de toques acidentais.
-   - Detecção automática de *Match Point* e *Vitória* (padrão de 4 pontos).
+   - Detecção automática de *Match Point*, *Vitória* (padrão de 4 pontos) e avanço automático nas chaves do Top Cut.
    - Sincronização em tempo real via Supabase Realtime para telão e público.
 
 ---
@@ -132,24 +132,49 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 ---
 
-## ⚖️ Regras de Negócio Estabelecidas
+## ⚖️ Regras de Negócio Estabelecidas (Regulamento Oficial OBA)
 
 Todas as regras estão centralizadas em [`src/lib/constants.ts`](file:///home/kuntitled/Projects/Sistema%20OBA/src/lib/constants.ts) para facilitar alterações decididas pela diretoria:
 
-### Pontuação de Ranking por Etapa (Acumulado da Liga)
+### Temporadas Anuais (`seasons`)
+- O ranking oficial é **anual** (ex: Temporada 2026 válida de `01/01/2026` a `31/12/2026`).
+- Na virada do ano, a temporada anterior é encerrada e preservada como histórico consultável no ranking público, e a nova temporada inicia zerada.
+
+### Categorias, Formatos e Pontuação Acumulativa no Ranking
+- **Categorias (Peso do Pódio):**
+  - `semanal`: **1º** = `+100 pts` | **2º** = `+75 pts` | **3º** = `+50 pts`
+  - `oficial`: **1º** = `+200 pts` | **2º** = `+150 pts` | **3º** = `+100 pts`
+- **Formatos:**
+  - `swiss_top_cut` (Suíço + Eliminatórias/Top Cut): em média 4 rodadas suíças seguidas de mata-mata. O **1º colocado da fase suíça** ganha **+15 pontos de bônus de liderança** uma única vez, independente da posição final no mata-mata.
+  - `swiss_only` (Exclusivamente Suíço): sem eliminatórias e **sem bônus de +15 pontos** para o líder do Suíço.
+- **Vitórias no Suíço:** cada vitória na fase suíça vale **+10 pontos** (mesmo para quem não avança às eliminatórias).
+- **Exemplos de validação:**
+  - Campeão `swiss_only` semanal com 4 vitórias: `40 + 100 = 140 pts`.
+  - Campeão `swiss_top_cut` semanal com 4 vitórias e líder do suíço: `40 + 15 + 100 = 155 pts`.
+
 ```ts
-export const RANKING_POINTS_BY_POSITION: Record<number, number> = {
-  1: 100, // Campeão
-  2: 75,  // Vice-campeão
-  3: 60,  // 3º Lugar
-  4: 50,  // 4º Lugar
-  5: 40,  // 5º Lugar
-  6: 32,  // 6º Lugar
-  7: 25,  // 7º Lugar
-  8: 20,  // 8º Lugar
-};
-export const DEFAULT_RANKING_POINTS = 10; // Para colocações da 9ª em diante
+export const OBA_PODIUM_POINTS = {
+  semanal: { 1: 100, 2: 75, 3: 50 },
+  oficial: { 1: 200, 2: 150, 3: 100 },
+} as const;
+export const OBA_SWISS_WIN_POINTS = 10;
+export const OBA_SWISS_LEADER_BONUS = 15; // Apenas em torneios swiss_top_cut
 ```
+
+### Desempate na Fase Suíça (Não usa Buchholz)
+Em caso de empate em número de vitórias no Suíço, a ordem de desempate é apurada diretamente nos registros `match_games` das partidas regulares (`stage = 'swiss'` e `is_tiebreaker = false`):
+1. Maior quantidade de **Extreme Finishes** (`xtreme`)
+2. Maior quantidade de **Burst Finishes** (`burst`)
+3. Maior quantidade de **Over Finishes** (`over`)
+4. Maior quantidade de **Spin Finishes** (`spin`)
+- **Empate absoluto pela liderança do Suíço:** o sistema sinaliza o empate e permite gerar partida extra de desempate (`is_tiebreaker = true`), que define o líder sem somar `+10 pts` extras no ranking.
+
+### Desempate do Ranking Geral da Temporada
+Em caso de empate na pontuação total acumulada na temporada:
+1. **Melhor colocação no pódio** (`1º > 2º > 3º > nenhum pódio`)
+2. **Maior quantidade de pódios** conquistados na temporada (soma de 1º, 2º e 3º lugares)
+3. **Maior número de vitórias no Suíço** acumuladas na temporada
+4. **Desempate técnico:** ordem do primeiro registro do jogador na tabela (`created_at ASC`)
 
 ### Pontuação de Partida (Regras Oficiais Beyblade X)
 ```ts
@@ -234,16 +259,16 @@ Sistema OBA/
 
 ## 🗄️ Modelagem do Banco de Dados (Supabase)
 
-### Tabelas em Produção (Fase 1)
+### Tabelas em Produção e Fase 2 (`001`–`004`)
+- `seasons`: Id, year (único), name, starts_at, ends_at, is_active (índice parcial único para temporada ativa), timestamps.
 - `bladers`: Id, user_id (opcional), name, nickname (único), city, avatar_url, bio, is_active, timestamps.
-- `tournaments`: Id, name, slug (único), description, location, event_date, format, status (`draft`, `open`, `ongoing`, `finished`), max_players, created_by, timestamps.
-- `tournament_results`: Id, tournament_id, blader_id, final_position, points_earned (unique por tournament + blader e tournament + final_position).
-- `ranking`: Id, blader_id (único), total_points, tournaments_played, best_position, updated_at.
-
-### Tabelas Planejadas para a Fase 2
-- `arenas`: Id, tournament_id, name (ex: "Arena 1 - Beystadium Xtreme"), status (`available`, `in_match`, `maintenance`), current_match_id.
-- `matches`: Id, tournament_id, arena_id, round, stage (`swiss`, `top_cut`), player1_id, player2_id, player1_score, player2_score, winner_id, status (`pending`, `in_progress`, `finished`), timestamps.
-- `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`), points_awarded, timestamp.
+- `tournaments`: Id, season_id, name, slug (único), description, location, event_date, category (`semanal`, `oficial`), format (`swiss_top_cut`, `swiss_only`, legados `swiss`, `single_elim`, `double_elim`), swiss_rounds, top_cut_size (`4`, `8`, `16`), status (`draft`, `open`, `ongoing`, `finished`), max_players, created_by, timestamps.
+- `tournament_participants`: Id, tournament_id, blader_id, seed, is_dropped, created_at (unique por tournament + blader).
+- `tournament_results`: Id, tournament_id, blader_id, final_position, swiss_wins, swiss_points, is_swiss_leader, swiss_leader_bonus, podium_points, points_earned (unique por tournament + blader e tournament + final_position).
+- `ranking`: Id, season_id, blader_id (unique por season + blader), total_points, tournaments_played, swiss_wins, podiums_count, first_places, second_places, third_places, best_podium, best_position, created_at, updated_at.
+- `arenas`: Id, tournament_id, name, display_order, status (`available`, `in_match`, `maintenance`), current_match_id, timestamps.
+- `matches`: Id, tournament_id, arena_id, round, match_number, stage (`swiss`, `top_cut`), bracket_label, player1_id, player2_id, player1_score, player2_score, target_score, winner_id, status (`pending`, `in_progress`, `finished`, `cancelled`), is_bye, is_tiebreaker, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, timestamps.
+- `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, timestamp.
 
 ---
 
@@ -290,9 +315,9 @@ Na próxima conversa, o foco imediato será o **Motor de Torneios ao Vivo & Gest
 3. **Tela Touch do Juiz de Arena (Mobile Referee):**
    - Placar gigante em tempo real com botões de finish (+1 Spin, +2 Over, +2 Burst, +3 Xtreme, Desfazer).
    - Encerramento automático ao atingir 4 pontos e sincronização instantânea.
-4. **Gerador de Chaveamento Híbrido:**
-   - Implementar algoritmo do Sistema Suíço com cálculo de Buchholz e saldo de pontos.
-   - Botão para gerar o corte para o Mata-mata (Top 4 / Top 8 / Top 16).
+4. **Gerador de Chaveamento Híbrido (Regras OBA):**
+   - Implementar algoritmo do Sistema Suíço com pareamento sem rematches, BYE e desempate por Finishes (`xtreme > burst > over > spin`) + desempate de liderança (`is_tiebreaker`).
+   - Corte para o Mata-mata (Top 4 / Top 8 / Top 16) com avanço automático e publicação oficial no ranking anual por temporada.
 
 ---
 

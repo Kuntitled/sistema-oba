@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Trophy, Calendar } from "lucide-react";
+import { ChevronLeft, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBladers } from "@/lib/services/league";
 import { TournamentResultsEditor } from "@/components/admin/TournamentResultsEditor";
@@ -32,7 +32,7 @@ export default async function AdminResultadosPage({
   // Busca resultados já lançados (se houver)
   const { data: existingResults } = await supabase
     .from("tournament_results")
-    .select("blader_id, final_position, points_earned")
+    .select("blader_id, final_position, swiss_wins, is_swiss_leader, points_earned")
     .eq("tournament_id", id)
     .order("final_position", { ascending: true });
 

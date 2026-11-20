@@ -1,39 +1,57 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Flame, Trophy, Swords, Shield, Zap, Sparkles, ChevronRight } from "lucide-react";
+import { Flame, Trophy, Swords, Shield, Zap, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { RankingTable } from "@/components/ranking/RankingTable";
-import { getRanking, getTournaments } from "@/lib/services/league";
+import { HomeLiveTournamentBanner } from "@/components/tournament/HomeLiveTournamentBanner";
+import { getSeasonRanking, getTournaments } from "@/lib/services/league";
+import { getArenasOverview } from "@/lib/services/arenas";
+import {
+  OBA_PODIUM_POINTS,
+  OBA_SWISS_LEADER_BONUS,
+  OBA_SWISS_WIN_POINTS,
+} from "@/lib/constants";
 
- // Revalida a cada 60s
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>;
+}) {
+  const { season: seasonParam } = await searchParams;
+  const [{ ranking, seasons, activeSeason, selectedSeason }, tournaments] =
+    await Promise.all([getSeasonRanking(seasonParam), getTournaments()]);
 
-export default async function HomePage() {
-  const [ranking, tournaments] = await Promise.all([
-    getRanking(),
-    getTournaments(),
-  ]);
-
-  const ongoingTournament = tournaments.find((t) => t.status === "ongoing" || t.status === "open");
-  const finishedCount = tournaments.filter((t) => t.status === "finished").length;
+  const ongoingTournament =
+    tournaments.find((t) => t.status === "ongoing") ??
+    tournaments.find((t) => t.status === "open");
+  const liveArenas =
+    ongoingTournament?.status === "ongoing"
+      ? (await getArenasOverview(ongoingTournament.id)).arenas
+      : [];
+  const finishedCount = tournaments.filter((t) =>
+    selectedSeason?.id
+      ? t.status === "finished" && t.season_id === selectedSeason.id
+      : t.status === "finished"
+  ).length;
 
   return (
     <div className="flex flex-col gap-10 pb-16">
       {/* ─── Hero Section ────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-b border-border/40 bg-gradient-to-b from-card/80 via-background to-background pt-10 pb-12 sm:pt-16 sm:pb-20">
-        {/* Glow de fundo */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/20 blur-[120px] rounded-full pointer-events-none" />
 
         <div className="container mx-auto px-4 sm:px-6 relative">
           <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
-            {/* Badge de status */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary text-xs font-bold uppercase tracking-wider mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
               <Flame className="h-3.5 w-3.5 text-fire-orange" />
-              <span>Temporada Oficial Beyblade X Amazonas</span>
+              <span>
+                {activeSeason
+                  ? `${activeSeason.name} — Beyblade X Amazonas`
+                  : "Temporada Oficial Beyblade X Amazonas"}
+              </span>
             </div>
 
-            {/* Logo Destaque */}
             <div className="relative mb-6 group">
               <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-fire-orange via-primary to-fire-yellow opacity-75 blur-md group-hover:opacity-100 transition duration-300" />
               <div className="relative h-24 w-24 sm:h-28 sm:w-28 rounded-full overflow-hidden border-2 border-background shadow-2xl">
@@ -47,7 +65,6 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Título Principal */}
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight text-foreground">
               ORGANIZAÇÃO DE <br />
               <span className="text-fire-gradient">BEYBLADE DO AMAZONAS</span>
@@ -57,7 +74,6 @@ export default async function HomePage() {
               Sistema oficial de ranking estadual, gestão de torneios e histórico de batalhas de Beyblade X. Acompanhe a elite dos Bladers rumo ao topo!
             </p>
 
-            {/* Ações Rápidas */}
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link href="/torneios">
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/25 gap-2 px-6 h-11">
@@ -66,48 +82,32 @@ export default async function HomePage() {
                 </Button>
               </Link>
               <Link href="/bladers">
-                <Button variant="outline" className="border-border/80 hover:bg-muted font-semibold gap-2 px-6 h-11">
+                <Button
+                  variant="outline"
+                  className="border-border/80 hover:bg-muted font-semibold gap-2 px-6 h-11"
+                >
                   Lista de Bladers
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </Link>
             </div>
 
-            {/* Banner de Torneio Ativo se houver */}
             {ongoingTournament && (
-              <div className="mt-8 w-full max-w-xl">
-                <Link href={`/torneios/${ongoingTournament.slug}`}>
-                  <Card className="border-fire-orange/40 bg-fire-orange/10 hover:bg-fire-orange/15 transition-colors p-4">
-                    <div className="flex items-center justify-between gap-3 text-left">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-fire-orange/20 text-fire-orange flex items-center justify-center shrink-0">
-                          <Flame className="h-5 w-5 animate-pulse" />
-                        </div>
-                        <div>
-                          <Badge className="bg-fire-orange text-slate-950 font-bold text-[10px] mb-1">
-                            {ongoingTournament.status === "ongoing" ? "Torneio em Andamento!" : "Inscrições Abertas!"}
-                          </Badge>
-                          <h4 className="font-bold text-sm text-foreground">
-                            {ongoingTournament.name}
-                          </h4>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                    </div>
-                  </Card>
-                </Link>
-              </div>
+              <HomeLiveTournamentBanner
+                tournament={ongoingTournament}
+                initialArenas={liveArenas}
+              />
             )}
           </div>
         </div>
       </section>
 
-      {/* ─── Regras de Pontuação Beyblade X ─────────────────────── */}
-      <section className="container mx-auto px-4 sm:px-6">
-        <div className="text-center mb-6">
+      {/* ─── Regras de Pontuação Beyblade X + Ranking OBA ─────────── */}
+      <section className="container mx-auto px-4 sm:px-6 space-y-4">
+        <div className="text-center">
           <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center gap-1.5">
             <Zap className="h-3.5 w-3.5 text-fire-yellow" />
-            Sistema de Pontuação Oficial (Takara Tomy)
+            Sistema de Pontuação Oficial (Takara Tomy &amp; Regulamento OBA)
           </h2>
         </div>
 
@@ -118,7 +118,9 @@ export default async function HomePage() {
                 Spin Finish
               </span>
               <div className="text-2xl font-black text-foreground mt-1">1 pt</div>
-              <p className="text-[10px] text-muted-foreground mt-1">Girar por mais tempo</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Girar por mais tempo
+              </p>
             </CardContent>
           </Card>
 
@@ -127,8 +129,12 @@ export default async function HomePage() {
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">
                 Over Finish
               </span>
-              <div className="text-2xl font-black text-fire-orange mt-1">2 pts</div>
-              <p className="text-[10px] text-muted-foreground mt-1">Lançar no bolsão lateral</p>
+              <div className="text-2xl font-black text-fire-orange mt-1">
+                2 pts
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Lançar no bolsão lateral
+              </p>
             </CardContent>
           </Card>
 
@@ -137,8 +143,12 @@ export default async function HomePage() {
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">
                 Burst Finish
               </span>
-              <div className="text-2xl font-black text-fire-orange mt-1">2 pts</div>
-              <p className="text-[10px] text-muted-foreground mt-1">Desmontar o Beyblade rival</p>
+              <div className="text-2xl font-black text-fire-orange mt-1">
+                2 pts
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Desmontar o Beyblade rival
+              </p>
             </CardContent>
           </Card>
 
@@ -148,8 +158,50 @@ export default async function HomePage() {
                 <Flame className="h-3 w-3 text-fire-yellow" />
                 Xtreme Finish
               </span>
-              <div className="text-2xl font-black text-fire-gradient mt-1">3 pts</div>
-              <p className="text-[10px] text-muted-foreground mt-1">Lançar no Xtreme Pocket</p>
+              <div className="text-2xl font-black text-fire-gradient mt-1">
+                3 pts
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Lançar no Xtreme Pocket
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Resumo de Pontos de Ranking OBA */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <Card className="border-border/50 bg-card/40">
+            <CardContent className="p-3.5 flex items-center justify-between">
+              <span className="text-muted-foreground font-medium">
+                Etapa Semanal (1º / 2º / 3º)
+              </span>
+              <span className="font-black text-primary">
+                {OBA_PODIUM_POINTS.semanal[1]} / {OBA_PODIUM_POINTS.semanal[2]} /{" "}
+                {OBA_PODIUM_POINTS.semanal[3]} pts
+              </span>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/40">
+            <CardContent className="p-3.5 flex items-center justify-between">
+              <span className="text-muted-foreground font-medium">
+                Etapa Oficial (1º / 2º / 3º)
+              </span>
+              <span className="font-black text-fire-yellow">
+                {OBA_PODIUM_POINTS.oficial[1]} / {OBA_PODIUM_POINTS.oficial[2]} /{" "}
+                {OBA_PODIUM_POINTS.oficial[3]} pts
+              </span>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/40">
+            <CardContent className="p-3.5 flex items-center justify-between">
+              <span className="text-muted-foreground font-medium">
+                Fase Suíça + Bônus Top Cut
+              </span>
+              <span className="font-black text-foreground">
+                +{OBA_SWISS_WIN_POINTS}/vit • +{OBA_SWISS_LEADER_BONUS} Líder
+              </span>
             </CardContent>
           </Card>
         </div>
@@ -162,11 +214,12 @@ export default async function HomePage() {
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" />
               <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-                Ranking Geral da Liga
+                Ranking Geral{" "}
+                {selectedSeason ? `— ${selectedSeason.name}` : "da Liga"}
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Pontuação acumulada em todos os torneios oficiais da temporada.
+              Pontuação oficial acumulada em etapas Semanais, Oficiais e Fase Suíça.
             </p>
           </div>
 
@@ -178,8 +231,12 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Tabela Interativa */}
-        <RankingTable initialRanking={ranking} />
+        <RankingTable
+          initialRanking={ranking}
+          seasons={seasons}
+          selectedSeason={selectedSeason}
+          activeSeason={activeSeason}
+        />
       </section>
     </div>
   );

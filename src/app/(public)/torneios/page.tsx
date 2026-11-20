@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Swords, Calendar, MapPin, Users, Trophy, ChevronRight, Flame } from "lucide-react";
+import { Swords, Calendar, MapPin, Users, ChevronRight, Flame, Radio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
 import {
+  TOURNAMENT_CATEGORY_LABELS,
   TOURNAMENT_FORMAT_LABELS,
   TOURNAMENT_STATUS_LABELS,
 } from "@/types/domain";
@@ -102,9 +103,24 @@ export default async function TorneiosPage() {
                     <div className="space-y-2 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {getStatusBadge(tournament.status)}
+                        <Badge
+                          variant="outline"
+                          className={`text-xs font-bold ${
+                            tournament.category === "oficial"
+                              ? "border-fire-yellow/50 text-fire-yellow bg-fire-yellow/10"
+                              : "border-primary/40 text-primary"
+                          }`}
+                        >
+                          {TOURNAMENT_CATEGORY_LABELS[tournament.category ?? "semanal"]}
+                        </Badge>
                         <Badge variant="outline" className="border-border/60 text-xs font-medium">
                           {TOURNAMENT_FORMAT_LABELS[tournament.format]}
                         </Badge>
+                        {tournament.season && (
+                          <Badge variant="secondary" className="text-[11px]">
+                            {tournament.season.name}
+                          </Badge>
+                        )}
                       </div>
 
                       <h2 className="text-lg sm:text-xl font-bold text-foreground group-hover:text-primary transition-colors">
@@ -138,14 +154,25 @@ export default async function TorneiosPage() {
                     </div>
 
                     <div className="flex items-center justify-end shrink-0 pt-2 sm:pt-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="group-hover:translate-x-1 transition-transform gap-1.5 text-primary font-bold text-xs"
-                      >
-                        Ver Detalhes
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                      {tournament.status === "ongoing" ? (
+                        <Button
+                          size="sm"
+                          className="bg-fire-orange hover:bg-fire-orange/90 text-slate-950 font-black text-xs gap-1.5 shadow-sm"
+                        >
+                          <Radio className="h-3.5 w-3.5 animate-pulse" />
+                          Acompanhar Ao Vivo
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="group-hover:translate-x-1 transition-transform gap-1.5 text-primary font-bold text-xs"
+                        >
+                          Ver Detalhes
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

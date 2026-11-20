@@ -1,55 +1,191 @@
 import { createClient } from "@/lib/supabase/server";
-import type { RankingEntry, Tournament, Blader } from "@/types/domain";
+import { sortSeasonRankingEntries } from "@/lib/engine/tournament-engine";
+import { isMissingTableError } from "@/lib/services/arena-queries";
+import type {
+  Blader,
+  BladerRow,
+  RankingEntry,
+  Season,
+  Tournament,
+  TournamentResult,
+} from "@/types/domain";
+
+export interface SeasonRankingData {
+  ranking: RankingEntry[];
+  seasons: Season[];
+  activeSeason: Season | null;
+  selectedSeason: Season | null;
+  schemaMissing: boolean;
+}
 
 /**
- * Obtém a tabela de classificação geral da liga OBA.
+ * Lista todas as temporadas cadastradas (mais recente primeiro).
  */
-export async function getRanking(): Promise<RankingEntry[]> {
+export async function getSeasons(): Promise<{
+  seasons: Season[];
+  schemaMissing: boolean;
+}> {
   try {
     const supabase = await createClient();
-
     const { data, error } = await supabase
-      .from("ranking")
-      .select(`
-        id,
-        blader_id,
-        total_points,
-        tournaments_played,
-        best_position,
-        updated_at,
-        bladers:blader_id (
-          id,
-          name,
-          nickname,
-          city,
-          avatar_url,
-          bio,
-          is_active
-        )
-      `)
-      .order("total_points", { ascending: false });
+      .from("seasons")
+      .select("*")
+      .order("year", { ascending: false });
 
     if (error) {
-      console.error("Erro ao buscar ranking:", error);
-      return [];
+      if (isMissingTableError(error)) {
+        return { seasons: [], schemaMissing: true };
+      }
+      console.error("Erro ao buscar temporadas:", error);
+      return { seasons: [], schemaMissing: false };
     }
 
-    if (!data) return [];
-
-    return data.map((item: any, index: number) => ({
-      id: item.id,
-      blader_id: item.blader_id,
-      total_points: item.total_points,
-      tournaments_played: item.tournaments_played,
-      best_position: item.best_position,
-      updated_at: item.updated_at,
-      position: index + 1,
-      blader: Array.isArray(item.bladers) ? item.bladers[0] : item.bladers,
-    }));
+    return { seasons: data ?? [], schemaMissing: false };
   } catch (err) {
-    console.error("Exceção ao buscar ranking:", err);
-    return [];
+    console.error("Exceção ao buscar temporadas:", err);
+    return { seasons: [], schemaMissing: false };
   }
+}
+
+/**
+ * Obtém o ranking oficial de uma temporada (ou da temporada ativa por padrão),
+ * ordenado pelos 4 critérios oficiais de desempate da OBA.
+ */
+export async function getSeasonRanking(
+  seasonParam?: string
+): Promise<SeasonRankingData> {
+  try {
+    const supabase = await createClient();
+    const { seasons, schemaMissing } = await getSeasons();
+
+    if (schemaMissing) {
+      // Fallback seguro enquanto migration 004 não foi aplicada
+      const { data: legacyRows } = await supabase
+        .from("ranking")
+        .select("*")
+        .order("total_points", { ascending: false });
+
+      const bladerIds = (legacyRows ?? []).map((r) => r.blader_id);
+      const { data: bladerRows } =
+        bladerIds.length > 0
+          ? await supabase.from("bladers").select("*").in("id", bladerIds)
+          : { data: [] as BladerRow[] };
+
+      const bladersById = new Map<string, BladerRow>();
+      for (const b of bladerRows ?? []) {
+        bladersById.set(b.id, b);
+      }
+
+      const entries: RankingEntry[] = (legacyRows ?? []).map((r, index) => ({
+        ...r,
+        season_id: r.season_id ?? "",
+        swiss_wins: r.swiss_wins ?? 0,
+        podiums_count: r.podiums_count ?? 0,
+        first_places: r.first_places ?? 0,
+        second_places: r.second_places ?? 0,
+        third_places: r.third_places ?? 0,
+        best_podium:
+          r.best_podium ??
+          (r.best_position && r.best_position <= 3 ? r.best_position : null),
+        created_at: r.created_at ?? r.updated_at,
+        position: index + 1,
+        blader: bladersById.get(r.blader_id),
+      }));
+
+      return {
+        ranking: sortSeasonRankingEntries(entries),
+        seasons: [],
+        activeSeason: null,
+        selectedSeason: null,
+        schemaMissing: true,
+      };
+    }
+
+    const activeSeason =
+      seasons.find((s) => s.is_active) ?? seasons[0] ?? null;
+    const trimmedParam = seasonParam?.trim();
+    const selectedSeason =
+      (trimmedParam
+        ? seasons.find(
+            (s) => String(s.year) === trimmedParam || s.id === trimmedParam
+          )
+        : null) ?? activeSeason;
+
+    if (!selectedSeason) {
+      return {
+        ranking: [],
+        seasons,
+        activeSeason,
+        selectedSeason: null,
+        schemaMissing: false,
+      };
+    }
+
+    const { data: rankingRows, error } = await supabase
+      .from("ranking")
+      .select("*")
+      .eq("season_id", selectedSeason.id);
+
+    if (error) {
+      console.error("Erro ao buscar ranking da temporada:", error);
+      return {
+        ranking: [],
+        seasons,
+        activeSeason,
+        selectedSeason,
+        schemaMissing: false,
+      };
+    }
+
+    const rows = rankingRows ?? [];
+    const bladerIds = Array.from(new Set(rows.map((r) => r.blader_id)));
+    const { data: bladerRows } =
+      bladerIds.length > 0
+        ? await supabase
+            .from("bladers")
+            .select("*")
+            .in("id", bladerIds)
+            .eq("is_active", true)
+        : { data: [] as BladerRow[] };
+
+    const bladersById = new Map<string, BladerRow>();
+    for (const b of bladerRows ?? []) {
+      bladersById.set(b.id, b);
+    }
+
+    const entries: RankingEntry[] = rows
+      .filter((r) => bladersById.has(r.blader_id))
+      .map((r) => ({
+        ...r,
+        blader: bladersById.get(r.blader_id),
+        season: selectedSeason,
+      }));
+
+    return {
+      ranking: sortSeasonRankingEntries(entries),
+      seasons,
+      activeSeason,
+      selectedSeason,
+      schemaMissing: false,
+    };
+  } catch (err) {
+    console.error("Exceção ao buscar ranking por temporada:", err);
+    return {
+      ranking: [],
+      seasons: [],
+      activeSeason: null,
+      selectedSeason: null,
+      schemaMissing: false,
+    };
+  }
+}
+
+/**
+ * Atalho compatível para obter o ranking da temporada ativa.
+ */
+export async function getRanking(seasonParam?: string): Promise<RankingEntry[]> {
+  const { ranking } = await getSeasonRanking(seasonParam);
+  return ranking;
 }
 
 /**
@@ -59,17 +195,30 @@ export async function getTournaments(): Promise<Tournament[]> {
   try {
     const supabase = await createClient();
 
-    const { data, error } = await supabase
-      .from("tournaments")
-      .select("*")
-      .order("event_date", { ascending: false });
+    const [{ data, error }, { seasons }] = await Promise.all([
+      supabase
+        .from("tournaments")
+        .select("*")
+        .order("event_date", { ascending: false }),
+      getSeasons(),
+    ]);
 
     if (error) {
       console.error("Erro ao buscar torneios:", error);
       return [];
     }
 
-    return (data as Tournament[]) ?? [];
+    const seasonsById = new Map<string, Season>();
+    for (const s of seasons) {
+      seasonsById.set(s.id, s);
+    }
+
+    return (data ?? []).map((t) => ({
+      ...t,
+      category: t.category ?? "semanal",
+      swiss_rounds: t.swiss_rounds ?? 4,
+      season: t.season_id ? (seasonsById.get(t.season_id) ?? null) : null,
+    }));
   } catch (err) {
     console.error("Exceção ao buscar torneios:", err);
     return [];
@@ -93,41 +242,56 @@ export async function getTournamentBySlug(slug: string) {
       return null;
     }
 
-    // Busca os resultados com os bladers associados
-    const { data: results, error: resError } = await supabase
-      .from("tournament_results")
-      .select(`
-        id,
-        tournament_id,
-        blader_id,
-        final_position,
-        points_earned,
-        bladers:blader_id (
-          id,
-          name,
-          nickname,
-          city,
-          avatar_url
-        )
-      `)
-      .eq("tournament_id", tournament.id)
-      .order("final_position", { ascending: true });
+    const [seasonRes, resultsRes] = await Promise.all([
+      tournament.season_id
+        ? supabase
+            .from("seasons")
+            .select("*")
+            .eq("id", tournament.season_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null as Season | null, error: null }),
+      supabase
+        .from("tournament_results")
+        .select("*")
+        .eq("tournament_id", tournament.id)
+        .order("final_position", { ascending: true }),
+    ]);
 
-    if (resError) {
-      console.error("Erro ao buscar resultados do torneio:", resError);
+    if (resultsRes.error) {
+      console.error("Erro ao buscar resultados do torneio:", resultsRes.error);
     }
 
-    const formattedResults = (results ?? []).map((r: any) => ({
-      id: r.id,
-      tournament_id: r.tournament_id,
-      blader_id: r.blader_id,
-      final_position: r.final_position,
-      points_earned: r.points_earned,
-      blader: Array.isArray(r.bladers) ? r.bladers[0] : r.bladers,
+    const rawResults = resultsRes.data ?? [];
+    const bladerIds = Array.from(new Set(rawResults.map((r) => r.blader_id)));
+    const { data: bladerRows } =
+      bladerIds.length > 0
+        ? await supabase.from("bladers").select("*").in("id", bladerIds)
+        : { data: [] as BladerRow[] };
+
+    const bladersById = new Map<string, BladerRow>();
+    for (const b of bladerRows ?? []) {
+      bladersById.set(b.id, b);
+    }
+
+    const formattedResults: TournamentResult[] = rawResults.map((r) => ({
+      ...r,
+      swiss_wins: r.swiss_wins ?? 0,
+      swiss_points: r.swiss_points ?? 0,
+      is_swiss_leader: r.is_swiss_leader ?? false,
+      swiss_leader_bonus: r.swiss_leader_bonus ?? 0,
+      podium_points: r.podium_points ?? 0,
+      blader: bladersById.get(r.blader_id),
     }));
 
+    const hydratedTournament: Tournament = {
+      ...tournament,
+      category: tournament.category ?? "semanal",
+      swiss_rounds: tournament.swiss_rounds ?? 4,
+      season: seasonRes.data ?? null,
+    };
+
     return {
-      tournament: tournament as Tournament,
+      tournament: hydratedTournament,
       results: formattedResults,
     };
   } catch (err) {
@@ -137,33 +301,54 @@ export async function getTournamentBySlug(slug: string) {
 }
 
 /**
- * Obtém todos os Bladers cadastrados.
+ * Obtém todos os Bladers cadastrados com pontuação da temporada ativa.
  */
 export async function getBladers(): Promise<Blader[]> {
   try {
     const supabase = await createClient();
 
-    const { data, error } = await supabase
-      .from("bladers")
-      .select(`
-        *,
-        ranking (
-          total_points,
-          tournaments_played,
-          best_position
-        )
-      `)
-      .eq("is_active", true)
-      .order("name", { ascending: true });
+    const [{ data: bladerRows, error }, { seasons, schemaMissing }] =
+      await Promise.all([
+        supabase
+          .from("bladers")
+          .select("*")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        getSeasons(),
+      ]);
 
     if (error) {
       console.error("Erro ao buscar bladers:", error);
       return [];
     }
 
-    return (data ?? []).map((b: any) => ({
+    const activeSeason =
+      seasons.find((s) => s.is_active) ?? seasons[0] ?? null;
+
+    let rankingQuery = supabase.from("ranking").select("*");
+    if (!schemaMissing && activeSeason) {
+      rankingQuery = rankingQuery.eq("season_id", activeSeason.id);
+    }
+
+    const { data: rankingRows } = await rankingQuery;
+    const rankingByBladerId = new Map<string, RankingEntry>();
+    for (const r of rankingRows ?? []) {
+      rankingByBladerId.set(r.blader_id, {
+        ...r,
+        season_id: r.season_id ?? activeSeason?.id ?? "",
+        swiss_wins: r.swiss_wins ?? 0,
+        podiums_count: r.podiums_count ?? 0,
+        first_places: r.first_places ?? 0,
+        second_places: r.second_places ?? 0,
+        third_places: r.third_places ?? 0,
+        best_podium: r.best_podium ?? null,
+        created_at: r.created_at ?? r.updated_at,
+      });
+    }
+
+    return (bladerRows ?? []).map((b) => ({
       ...b,
-      ranking: Array.isArray(b.ranking) ? b.ranking[0] : b.ranking,
+      ranking: rankingByBladerId.get(b.id),
     }));
   } catch (err) {
     console.error("Exceção ao buscar bladers:", err);

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Loader2, CheckCircle2, AlertCircle, History } from "lucide-react";
+import { PlusCircle, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createTournamentAction } from "@/app/admin/actions";
+import { DEFAULT_SWISS_ROUNDS } from "@/lib/constants";
 
 export function TournamentForm() {
   const router = useRouter();
@@ -43,13 +44,17 @@ export function TournamentForm() {
       setTimeout(() => {
         setOpen(false);
         setSuccess(false);
-        // Se for um torneio retroativo/encerrado, vai direto para a tela de lançamento de resultados
         if (result.tournament?.id && status === "finished") {
           router.push(`/admin/torneios/${result.tournament.id}/resultados`);
+        } else if (
+          result.tournament?.id &&
+          (status === "ongoing" || status === "open")
+        ) {
+          router.push(`/admin/torneios/${result.tournament.id}/chaveamento`);
         } else {
           router.refresh();
         }
-      }, 1000);
+      }, 900);
     }
   };
 
@@ -80,7 +85,7 @@ export function TournamentForm() {
         {success && (
           <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>Torneio criado! Redirecionando para lançar resultados...</span>
+            <span>Torneio criado! Redirecionando...</span>
           </div>
         )}
 
@@ -92,7 +97,7 @@ export function TournamentForm() {
             <Input
               id="name"
               name="name"
-              placeholder="Ex: OBA Cup #1 — Abertura"
+              placeholder="Ex: OBA Semanal #12 — Manaus"
               required
               className="h-9 text-xs"
             />
@@ -119,12 +124,12 @@ export function TournamentForm() {
               <select
                 id="status"
                 name="status"
-                defaultValue="finished"
+                defaultValue="open"
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="finished">🏆 Encerrado (Torneio Retroativo)</option>
-                <option value="open">🟢 Inscrições Abertas</option>
-                <option value="ongoing">🔥 Em Andamento</option>
+                <option value="open">🟢 Inscrições Abertas (Ao Vivo)</option>
+                <option value="ongoing">🔥 Em Andamento (Ao Vivo)</option>
+                <option value="finished">🏆 Encerrado (Retroativo)</option>
                 <option value="draft">📝 Rascunho</option>
               </select>
             </div>
@@ -132,22 +137,53 @@ export function TournamentForm() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="format" className="text-xs font-semibold">
-                Formato
+              <Label htmlFor="category" className="text-xs font-semibold">
+                Categoria (Peso do Pódio)
               </Label>
               <select
-                id="format"
-                name="format"
-                defaultValue="swiss"
+                id="category"
+                name="category"
+                defaultValue="semanal"
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="swiss">Sistema Suíço</option>
-                <option value="single_elim">Mata-mata Simples</option>
-                <option value="double_elim">Mata-mata Duplo</option>
+                <option value="semanal">Semanal (100 / 75 / 50)</option>
+                <option value="oficial">Oficial (200 / 150 / 100)</option>
               </select>
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="format" className="text-xs font-semibold">
+                Formato OBA
+              </Label>
+              <select
+                id="format"
+                name="format"
+                defaultValue="swiss_top_cut"
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="swiss_top_cut">Suíço + Top Cut (+15 Líder)</option>
+                <option value="swiss_only">Exclusivamente Suíço</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="swiss_rounds" className="text-xs font-semibold">
+                Rodadas Suíço
+              </Label>
+              <Input
+                id="swiss_rounds"
+                name="swiss_rounds"
+                type="number"
+                min={1}
+                max={10}
+                defaultValue={DEFAULT_SWISS_ROUNDS}
+                className="h-9 text-xs text-center font-bold"
+              />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
               <Label htmlFor="location" className="text-xs font-semibold">
                 Local
               </Label>

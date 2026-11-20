@@ -1,14 +1,24 @@
 import Link from "next/link";
-import { Swords, Calendar, MapPin, Users, Trophy, ExternalLink } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Swords,
+  Calendar,
+  MapPin,
+  Users,
+  Trophy,
+  ExternalLink,
+  GitBranch,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
 import { TournamentForm } from "@/components/admin/TournamentForm";
 import { TournamentStatusSelect } from "@/components/admin/TournamentStatusSelect";
 import { DeleteTournamentButton } from "@/components/admin/DeleteTournamentButton";
-import { TOURNAMENT_FORMAT_LABELS } from "@/types/domain";
-
+import {
+  TOURNAMENT_CATEGORY_LABELS,
+  TOURNAMENT_FORMAT_LABELS,
+} from "@/types/domain";
 
 export default async function AdminTorneiosPage() {
   const tournaments = await getTournaments();
@@ -29,7 +39,7 @@ export default async function AdminTorneiosPage() {
             Gestão de Torneios
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Crie etapas, altere o status das arenas e lance as colocações finais da rodada.
+            Crie etapas, gerencie o chaveamento híbrido ao vivo e publique resultados no ranking anual.
           </p>
         </div>
 
@@ -54,7 +64,7 @@ export default async function AdminTorneiosPage() {
           {tournaments.map((tournament) => (
             <Card
               key={tournament.id}
-              className="border-border/60 bg-card/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="border-border/60 bg-card/60 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
             >
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -62,9 +72,24 @@ export default async function AdminTorneiosPage() {
                     tournamentId={tournament.id}
                     currentStatus={tournament.status}
                   />
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-bold ${
+                      tournament.category === "oficial"
+                        ? "border-fire-yellow/50 text-fire-yellow bg-fire-yellow/10"
+                        : "border-primary/40 text-primary"
+                    }`}
+                  >
+                    {TOURNAMENT_CATEGORY_LABELS[tournament.category ?? "semanal"]}
+                  </Badge>
                   <Badge variant="outline" className="text-[10px]">
                     {TOURNAMENT_FORMAT_LABELS[tournament.format]}
                   </Badge>
+                  {tournament.season && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {tournament.season.name}
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="font-bold text-base text-foreground">
@@ -91,18 +116,36 @@ export default async function AdminTorneiosPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/40">
                 <Link href={`/torneios/${tournament.slug}`} target="_blank">
-                  <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
+                  >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Ver Público
                   </Button>
                 </Link>
 
+                <Link href={`/admin/torneios/${tournament.id}/chaveamento`}>
+                  <Button
+                    size="sm"
+                    className="h-8 bg-emerald-600 hover:bg-emerald-600/90 text-white font-semibold text-xs gap-1.5 shadow-sm"
+                  >
+                    <GitBranch className="h-3.5 w-3.5" />
+                    Chaveamento / Ao Vivo
+                  </Button>
+                </Link>
+
                 <Link href={`/admin/torneios/${tournament.id}/resultados`}>
-                  <Button size="sm" className="h-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5 shadow-sm">
-                    <Trophy className="h-3.5 w-3.5" />
-                    Lançar Resultados
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 font-semibold text-xs gap-1.5 border-border/80"
+                  >
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                    Manual
                   </Button>
                 </Link>
 

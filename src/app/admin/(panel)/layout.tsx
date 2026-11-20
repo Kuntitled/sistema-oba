@@ -4,10 +4,9 @@ import {
   LayoutDashboard,
   Users,
   Swords,
+  Radio,
   ExternalLink,
   LogOut,
-  Flame,
-  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/auth/actions";
@@ -44,8 +43,34 @@ export default function AdminLayout({
               </div>
             </Link>
 
-            <div className="flex md:hidden items-center gap-1">
+            <div className="flex md:hidden items-center gap-1.5">
               <ThemeToggle />
+              <Link
+                href="/"
+                title="Ver Vitrine Pública"
+                aria-label="Ver Vitrine Pública"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </Link>
+              <form action={logoutAction}>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Sair do Painel"
+                  aria-label="Sair do Painel"
+                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </form>
             </div>
           </div>
 
@@ -73,6 +98,14 @@ export default function AdminLayout({
             >
               <Swords className="h-4 w-4 text-fire-yellow" />
               <span>Torneios</span>
+            </Link>
+
+            <Link
+              href="/admin/arenas"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <Radio className="h-4 w-4 text-emerald-500" />
+              <span>Arenas ao Vivo</span>
             </Link>
           </nav>
         </div>

@@ -3,7 +3,13 @@
  * Abstraem os tipos brutos do banco com semântica de negócio.
  */
 
+import { MATCH_POINTS } from "@/lib/constants";
 import type { Database } from "./database";
+
+// ─── Temporadas ───────────────────────────────────────────────────────────────
+
+export type SeasonRow = Database["public"]["Tables"]["seasons"]["Row"];
+export type Season = SeasonRow;
 
 // ─── Blader ───────────────────────────────────────────────────────────────────
 
@@ -17,12 +23,22 @@ export interface Blader extends BladerRow {
 
 export type TournamentRow = Database["public"]["Tables"]["tournaments"]["Row"];
 
-export type TournamentFormat = "swiss" | "single_elim" | "double_elim";
-export type TournamentStatus = "draft" | "open" | "ongoing" | "finished";
+export type TournamentCategory =
+  Database["public"]["Enums"]["tournament_category"];
+export type TournamentFormat = Database["public"]["Enums"]["tournament_format"];
+export type TournamentStatus = Database["public"]["Enums"]["tournament_status"];
 
 export interface Tournament extends TournamentRow {
+  season?: SeasonRow | null;
   results?: TournamentResult[];
   player_count?: number;
+}
+
+export type TournamentParticipantRow =
+  Database["public"]["Tables"]["tournament_participants"]["Row"];
+
+export interface TournamentParticipant extends TournamentParticipantRow {
+  blader?: BladerRow | null;
 }
 
 // ─── Resultados ───────────────────────────────────────────────────────────────
@@ -41,24 +57,93 @@ export type RankingRow = Database["public"]["Tables"]["ranking"]["Row"];
 
 export interface RankingEntry extends RankingRow {
   blader?: BladerRow;
+  season?: SeasonRow;
   position?: number; // Posição calculada (1º, 2º, etc.)
+}
+
+// ─── Arenas & Partidas (Fase 2) ───────────────────────────────────────────────
+
+export type ArenaRow = Database["public"]["Tables"]["arenas"]["Row"];
+export type ArenaStatus = Database["public"]["Enums"]["arena_status"];
+
+export interface Arena extends ArenaRow {
+  tournament?: TournamentRow | null;
+  current_match?: Match | null;
+}
+
+export type MatchRow = Database["public"]["Tables"]["matches"]["Row"];
+export type MatchStage = Database["public"]["Enums"]["match_stage"];
+export type MatchStatus = Database["public"]["Enums"]["match_status"];
+
+export interface Match extends MatchRow {
+  player1?: BladerRow | null;
+  player2?: BladerRow | null;
+  winner?: BladerRow | null;
+  arena?: ArenaRow | null;
+  tournament?: TournamentRow | null;
+  games?: MatchGame[];
+}
+
+export type MatchGameRow = Database["public"]["Tables"]["match_games"]["Row"];
+
+export interface MatchGame extends MatchGameRow {
+  scoring_player?: BladerRow | null;
+}
+
+// ─── Motor de Chaveamento OBA ─────────────────────────────────────────────────
+
+export interface SwissStandingRow {
+  position: number;
+  bladerId: string;
+  blader: BladerRow | null;
+  isDropped: boolean;
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  swissPoints: number;
+  xtremeFinishes: number;
+  burstFinishes: number;
+  overFinishes: number;
+  spinFinishes: number;
+  tiebreakerWins: number;
+  hadBye: boolean;
+  opponents: string[];
+}
+
+export interface FinalTournamentResultPreview {
+  bladerId: string;
+  blader: BladerRow | null;
+  finalPosition: number;
+  swissWins: number;
+  swissPoints: number;
+  isSwissLeader: boolean;
+  swissLeaderBonus: number;
+  podiumPoints: number;
+  pointsEarned: number;
 }
 
 // ─── Pontuação Beyblade X ─────────────────────────────────────────────────────
 
-export type FinishType = "spin" | "over" | "burst" | "xtreme" | "draw";
+export type FinishType = Database["public"]["Enums"]["finish_type"];
 
 export const FINISH_POINTS: Record<FinishType, number> = {
-  spin: 1,    // Spin Finish
-  over: 2,    // Over Finish
-  burst: 2,   // Burst Finish
-  xtreme: 3,  // Xtreme Finish
-  draw: 0,    // Empate
+  spin: MATCH_POINTS.SPIN_FINISH,
+  over: MATCH_POINTS.OVER_FINISH,
+  burst: MATCH_POINTS.BURST_FINISH,
+  xtreme: MATCH_POINTS.XTREME_FINISH,
+  draw: MATCH_POINTS.DRAW,
 } as const;
 
-// ─── Formatos de Torneio ──────────────────────────────────────────────────────
+// ─── Labels de Domínio ────────────────────────────────────────────────────────
+
+export const TOURNAMENT_CATEGORY_LABELS: Record<TournamentCategory, string> = {
+  semanal: "Semanal",
+  oficial: "Oficial",
+} as const;
 
 export const TOURNAMENT_FORMAT_LABELS: Record<TournamentFormat, string> = {
+  swiss_top_cut: "Suíço + Top Cut",
+  swiss_only: "Exclusivamente Suíço",
   swiss: "Sistema Suíço",
   single_elim: "Mata-mata Simples",
   double_elim: "Mata-mata Duplo",
@@ -69,6 +154,32 @@ export const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
   open: "Inscrições Abertas",
   ongoing: "Em Andamento",
   finished: "Encerrado",
+} as const;
+
+export const ARENA_STATUS_LABELS: Record<ArenaStatus, string> = {
+  available: "Livre",
+  in_match: "Em Partida",
+  maintenance: "Manutenção",
+} as const;
+
+export const MATCH_STAGE_LABELS: Record<MatchStage, string> = {
+  swiss: "Fase Suíça",
+  top_cut: "Top Cut",
+} as const;
+
+export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
+  pending: "Na Fila",
+  in_progress: "Ao Vivo",
+  finished: "Finalizada",
+  cancelled: "Cancelada",
+} as const;
+
+export const FINISH_TYPE_LABELS: Record<FinishType, string> = {
+  spin: "Spin Finish",
+  over: "Over Finish",
+  burst: "Burst Finish",
+  xtreme: "Xtreme Finish",
+  draw: "Empate",
 } as const;
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────

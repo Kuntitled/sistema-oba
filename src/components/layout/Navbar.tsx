@@ -11,7 +11,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -104,20 +103,23 @@ export function Navbar() {
         {/* Mobile Actions & Menu */}
         <div className="flex md:hidden items-center gap-2">
           <ThemeToggle />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsOpen(true)}
+            className="h-9 w-9 text-foreground touch-manipulation"
+            aria-label="Abrir menu de navegação"
+            aria-expanded={isOpen}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
-            <SheetTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 text-foreground"
-                  aria-label="Abrir menu de navegação"
-                />
-              }
+            <SheetContent
+              side="right"
+              className="w-72 max-w-[85vw] bg-card border-l border-border/60 p-6 flex flex-col justify-between"
             >
-              <Menu className="h-5 w-5" />
-            </SheetTrigger>
-            <SheetContent side="right" className="w-72 bg-card border-l border-border/60 p-6 flex flex-col justify-between">
               <div>
                 <SheetHeader className="text-left pb-6 border-b border-border/40">
                   <div className="flex items-center gap-3">
