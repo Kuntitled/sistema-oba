@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getRequestIsHttps } from "@/lib/supabase/route-cookies";
 
 /**
  * Atualiza a sessão do Supabase em cada request.
@@ -7,9 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
-  const isHttps =
-    request.nextUrl.protocol === "https:" ||
-    request.headers.get("x-forwarded-proto") === "https";
+  const isHttps = getRequestIsHttps(request);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

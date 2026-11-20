@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthHashListener } from "@/components/auth/AuthHashListener";
 import {
   APP_NAME,
   APP_FULL_NAME,
@@ -77,6 +78,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AuthHashListener />
           {children}
         </ThemeProvider>
       </body>
