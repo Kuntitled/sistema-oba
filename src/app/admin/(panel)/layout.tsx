@@ -141,7 +141,7 @@ export default function AdminLayout({
               className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
             >
               <Settings className="h-4 w-4 text-primary" />
-              <span>Configurações / PIX</span>
+              <span>Configurações &amp; Admins</span>
             </Link>
           </nav>
         </div>

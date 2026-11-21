@@ -124,7 +124,7 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
   - [x] **`ComboBuilder.tsx` Reutilizável & Card Público:** seleção obrigatória de sistema (`BX`/`BXE`/`UX`/`UXE`/`CX`/`CXE`), slots dinâmicos (sem tag de sistema em Ratchet/Bit, ocultamento de Ratchet em `UXE`, filtro de Simple Ratchet para `ClockMirage`, bloqueio de Bit para `Operate`/`Turbo`) e exibição completa no `BladerCardModal.tsx`.
 - **Etapa 3B — Inscrições Online, Decklists & PIX (Concluída):**
   - [x] **Migration `009`:** bucket privado `receipts` (`5 MB`, imagens + PDF) com RLS restrita à pasta `{tournament_id}/{auth.uid()}/...` e acesso total de admins via Signed URL; revisão das policies RLS e trigger de proteção em `tournament_registrations` / `registration_combos` permitindo edição enquanto `pending` ou reenvio após `rejected`.
-  - [x] **Configuração PIX Global (`/admin/configuracoes`):** gerenciamento de `league_settings` (`pix_key`, `pix_receiver_name`, `pix_city`) com geração de payload EMVCo/BACEN BR Code (`src/lib/pix.ts`) e pré-visualização ao vivo em `<PixPaymentBox />`.
+  - [x] **Configuração PIX Global & Gestão de Admins (`/admin/configuracoes`):** gerenciamento de `league_settings` (`pix_key`, `pix_receiver_name`, `pix_city`) com geração de payload EMVCo/BACEN BR Code (`src/lib/pix.ts`), pré-visualização ao vivo em `<PixPaymentBox />`, listagem de contas do Supabase Auth via `SUPABASE_SERVICE_ROLE_KEY`, promoção/remoção de papel `admin` e envio de convites admin.
   - [x] **Configuração de Inscrições por Torneio (`/admin/torneios`):** controles de `registration_status`, `entry_fee` e `max_players` em `TournamentForm.tsx` e `EditTournamentButton.tsx`.
   - [x] **Inscrição do Blader (`/torneios/[slug]#inscricao` e `/meu-painel`):** montagem de até **4 combos** via `<ComboBuilder />` com validação server-side de compatibilidade (`validateTournamentDeckCombo`) e ban-list do `ruleset`, QR Code + Copia e Cola PIX quando `entry_fee > 0`, upload leve de comprovante (`src/lib/receipt-upload.ts`) e aba **Minhas Inscrições** em `/meu-painel`.
   - [x] **Conferência Admin (`/admin/torneios/[id]/inscricoes`):** visualização de decklists (com alerta de peça banida), preview seguro de comprovante via Signed URL, flags `payment_verified`/`decks_verified`, rejeição com motivo e aprovação idempotente em `tournament_participants` respeitando `max_players`.
@@ -248,6 +248,7 @@ Sistema OBA/
     │   │   ├── actions.ts              ← Server Actions CRUD (Bladers, Claims, Torneios, Resultados)
     │   │   ├── parts-actions.ts        ← Server Actions CRUD de Peças, Formatos e Ban-lists
     │   │   ├── registrations-actions.ts ← Server Actions de PIX global e aprovação/rejeição de inscrições
+    │   │   ├── users-actions.ts        ← Server Actions de promoção/remoção de admins e convites (Service Role)
     │   │   ├── arena/
     │   │   │   ├── actions.ts          ← Server Actions do Gestor de Arenas e Placar do Juiz
     │   │   │   └── [id]/page.tsx       ← Placar Touch mobile do juiz (tela cheia sem sidebar)
@@ -258,7 +259,7 @@ Sistema OBA/
     │   │       ├── page.tsx            ← Dashboard de métricas e resumo
     │   │       ├── arenas/page.tsx     ← Gestor de Arenas físicas (Multi-Stadium)
     │   │       ├── bladers/page.tsx    ← Gestão de Bladers, aprovações de vínculo e UUID manual
-    │   │       ├── configuracoes/page.tsx ← Configuração PIX global da Liga OBA (league_settings)
+    │   │       ├── configuracoes/page.tsx ← Configuração PIX global e gestão de administradores
     │   │       ├── formatos/page.tsx   ← CRUD de Formatos e Ban-lists independentes
     │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
     │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
@@ -277,7 +278,8 @@ Sistema OBA/
     │       ├── definir-senha/page.tsx  ← Definição de senha via convite ou recuperação
     │       └── login/page.tsx          ← Login Google OAuth + E-mail/Senha + "Esqueceu a senha?"
     ├── components/
-    │   ├── admin/                      ← Componentes do painel, catálogo, formatos, PIX e inscrições
+    │   ├── admin/                      ← Componentes do painel, catálogo, formatos, PIX, admins e inscrições
+    │   │   ├── AdminUsersManagerClient.tsx
     │   │   ├── ArenaManagerClient.tsx
     │   │   ├── BladerClaimsBanner.tsx
     │   │   ├── BladerForm.tsx
@@ -331,6 +333,7 @@ Sistema OBA/
     │   ├── engine/
     │   │   └── tournament-engine.ts    ← Motor puro OBA (Suíço, Finishes, Tiebreaker, Top Cut)
     │   ├── services/                   ← Consultas e regras de aplicação no Supabase
+    │   │   ├── admin-users.ts
     │   │   ├── arena-queries.ts
     │   │   ├── arenas.ts
     │   │   ├── blader-card.ts
@@ -342,6 +345,7 @@ Sistema OBA/
     │   │   ├── tournament-live.ts
     │   │   └── tournament-queries.ts
     │   └── supabase/
+    │       ├── admin.ts                ← Admin client Supabase (Service Role, uso exclusivo server-side)
     │       ├── client.ts               ← Browser client Supabase
     │       ├── proxy.ts                ← Helper de atualização e proteção de sessão para o proxy
     │       ├── route-cookies.ts        ← Helper compartilhado de cookies e getRequestOrigin()
@@ -401,6 +405,7 @@ Configuradas localmente em `.env.local` e cadastradas na Vercel:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://lckoxpagfsmhuzlcjjks.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_UCoey5WifmfjWQ2GfX9S4g_PzrtXVK9
+SUPABASE_SERVICE_ROLE_KEY=*** (apenas no servidor — gestão de admins em /admin/configuracoes)
 NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 ```
 

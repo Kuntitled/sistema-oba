@@ -1,20 +1,25 @@
 import { AlertTriangle, Database, Settings } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getLeagueSettings } from "@/lib/services/registrations";
+import { getAdminManagedUsers } from "@/lib/services/admin-users";
 import { LeagueSettingsClient } from "@/components/admin/LeagueSettingsClient";
+import { AdminUsersManagerClient } from "@/components/admin/AdminUsersManagerClient";
 
 export default async function AdminConfiguracoesPage() {
-  const { settings, schemaMissing } = await getLeagueSettings();
+  const [{ settings, schemaMissing }, adminUsersState] = await Promise.all([
+    getLeagueSettings(),
+    getAdminManagedUsers(),
+  ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
           <Settings className="h-6 w-6 text-primary" />
-          Configurações da Liga (PIX Global)
+          Configurações da Liga &amp; Admins
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-          Defina a chave PIX oficial da Organização de Beyblade do Amazonas (OBA) utilizada nas inscrições online dos torneios pagos.
+          Defina a chave PIX oficial da Organização de Beyblade do Amazonas (OBA) e gerencie quais contas possuem acesso de administrador.
         </p>
       </div>
 
@@ -38,6 +43,13 @@ export default async function AdminConfiguracoesPage() {
       ) : (
         <LeagueSettingsClient initialSettings={settings} />
       )}
+
+      <AdminUsersManagerClient
+        users={adminUsersState.users}
+        currentUserId={adminUsersState.currentUserId}
+        serviceRoleMissing={adminUsersState.serviceRoleMissing}
+        loadError={adminUsersState.error}
+      />
     </div>
   );
 }
