@@ -17,7 +17,7 @@
 8. [Autenticação e Proteção de Rotas (`proxy.ts`)](#autenticação-e-proteção-de-rotas-proxyts)
 9. [PWA e Responsividade Mobile-First](#pwa-e-mobile-first)
 10. [Variáveis de Ambiente & Deploy](#variáveis-de-ambiente--deploy)
-11. [Diretrizes para a Próxima Sessão (Fase 2)](#diretrizes-para-a-próxima-sessão-fase-2)
+11. [Diretrizes para a Próxima Sessão (Fase 3)](#diretrizes-para-a-próxima-sessão-fase-3)
 
 ---
 
@@ -25,8 +25,9 @@
 
 Sistema web progressivo (PWA) e responsivo (Mobile-First) voltado para a gestão completa da **Liga Oficial de Beyblade X do Amazonas (OBA)**, cobrindo:
 
-- **Vitrine pública:** Ranking geral acumulado da liga, pódio dos Top 3, histórico de torneios e perfis dos competidores (Bladers).
-- **Painel administrativo protegido:** Gestão de Bladers, criação de torneios (atuais e retroativos) e lançamento de resultados com motor de recálculo automático de ranking.
+- **Vitrine pública:** Ranking oficial por temporada anual (Temporada 2026 ativa com o `Torneio Semanal 01` importado), Pódio Top 3, acompanhamento ao vivo de arenas, placares e chaveamento em tempo real (`/` e `/torneios/[slug]`), histórico de torneios e galeria de competidores (Bladers).
+- **Painel administrativo protegido:** Gestão de Bladers, criação de torneios (atuais e retroativos), motor oficial de torneios ao vivo (Suíço + Top Cut / Exclusivamente Suíço), Gestor de Arenas físicas, Placar Touch mobile para juiz (`/admin/arena/[id]`) e recálculo automático do ranking anual.
+- **Autenticação & Onboarding:** Login same-origin, proteção de rotas via `src/proxy.ts` (Next.js 16), fluxo de convite de novos administradores e recuperação de senha.
 - **Ambiente de Produção Ativo:**
   - **Repositório GitHub:** `Kuntitled/sistema-oba` (Branch `main`)
   - **Produção Vercel:** [https://sistema-oba-alpha.vercel.app](https://sistema-oba-alpha.vercel.app)
@@ -93,28 +94,20 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 ---
 
-### 🔄 Fase 2 — Motor de Torneios ao Vivo & Gestor de Arenas (PRÓXIMO FOCO)
-**Objetivo:** Permitir que organizadores gerenciem múltiplos Beystadiums simultâneos durante o evento e juízes lancem placares lance a lance pelo celular.
+### ✅ Fase 2 — Motor de Torneios ao Vivo & Gestor de Arenas (CONCLUÍDA & PRONTA PARA PRODUÇÃO)
+**Objetivo:** Permitir que organizadores gerenciem múltiplos Beystadiums simultâneos durante o evento, juízes lancem placares lance a lance pelo celular e o público acompanhe arenas e chaveamentos ao vivo.
 
-**Funcionalidades Definidas:**
-1. **Formato Híbrido (Suíço + Top Cut Mata-Mata) & Exclusivamente Suíço:**
-   - **Fase 1 (Suíço):** Rodadas em que todos jogam (padrão 4 rodadas), sem eliminação imediata, somando `+10 pts` por vitória.
-   - **Critérios de desempate oficiais OBA (sem Buchholz):** ordenação exclusiva por Finishes computados em `match_games` (`stage = 'swiss'`): 1º Vitórias, 2º Extreme Finishes (`xtreme`), 3º Burst Finishes (`burst`), 4º Over Finishes (`over`), 5º Spin Finishes (`spin`).
-   - **Empate absoluto pela liderança do Suíço:** sinalização automática e botão para partida extra (`is_tiebreaker = true`), que define a liderança sem conceder `+10 pts` extras no ranking.
-   - **Corte de Classificados (Top Cut):** Botão para avançar os Top 4, Top 8 ou Top 16 para o Mata-mata (Oitavas, Quartas, Semifinal, Disputa de 3º Lugar e Grande Final) em torneios `swiss_top_cut`.
-2. **Gestor de Arenas Físicas (Multi-Stadium):**
-   - Criação e acompanhamento de arenas simultâneas (ex: *Arena 1 - Xtreme Stadium*, *Arena 2 - Standard*).
-   - Fila de partidas da rodada com atribuição: o organizador designa qual partida vai para qual arena.
-3. **Placar Touch do Juiz (Mobile Referee Board):**
-   - Interface touch com botões grandes adaptada para uso com uma mão na beira da arena.
-   - Botões específicos de Finish oficial BX:
-     - `+1 Spin Finish`
-     - `+2 Over Finish`
-     - `+2 Burst Finish`
-     - `+3 Xtreme Finish`
-     - `Desfazer (Undo)` para correção imediata de toques acidentais.
-   - Detecção automática de *Match Point*, *Vitória* (padrão de 4 pontos) e avanço automático nas chaves do Top Cut.
-   - Sincronização em tempo real via Supabase Realtime para telão e público.
+**Status de Implementação:**
+- [x] **Migrations SQL aplicadas em produção (`003` e `004`):** tabelas `arenas`, `matches`, `match_games`, `seasons`, `tournament_participants`, colunas oficiais OBA em `tournaments`, `tournament_results` e `ranking`, além de RLS e Supabase Realtime.
+- [x] **Motor de Chaveamento Híbrido (`/admin/torneios/[id]/chaveamento` e `src/lib/engine/tournament-engine.ts`):** gestão de participantes e Drop, pareamento Suíço sem rematches com BYE automático, suporte a `swiss_top_cut` e `swiss_only`, desempate oficial por Finishes (`xtreme > burst > over > spin`, sem Buchholz), detecção de empate absoluto pela liderança + partida extra (`is_tiebreaker = true` sem `+10 pts`), geração de Top Cut (4 / 8 / 16 + disputa de 3º lugar + avanço automático) e publicação oficial com recálculo anual do ranking (`recalculateSeasonRanking`).
+- [x] **Gestor de Arenas Físicas (`/admin/arenas`):** criação de múltiplos Beystadiums, status (`available`, `in_match`, `maintenance`), liberação e despacho de partidas da fila em tempo real.
+- [x] **Placar Touch do Juiz (`/admin/arena/[id]`):** layout mobile full-screen fora da sidebar admin, botões oficiais BX (`+1 Spin`, `+2 Over`, `+2 Burst`, `+3 Xtreme`), inversão de lados, `Desfazer (Undo)`, `Zerar placar`, alerta de Match Point, encerramento automático aos 4 pontos, avanço automático no Top Cut e fila de próximas partidas.
+- [x] **Vitrine Pública ao Vivo (`/` e `/torneios/[slug]`):** banner de arenas ao vivo na Home (`HomeLiveTournamentBanner`) e acompanhamento em tempo real de arenas, placares, classificação/rodadas do Suíço e chaveamento Top Cut (`PublicTournamentLive`, `LiveArenaCard`) via Supabase Realtime.
+- [x] **Autenticação e Onboarding de Admins:** login same-origin (`POST /api/auth/login` + `route-cookies.ts`), suporte a acesso LAN em dev (`allowedDevOrigins` em `next.config.ts`), convite de usuários e recuperação de senha (`/auth/callback`, `/auth/definir-senha`, `AuthHashListener`, opção "Esqueceu a senha?" em `/auth/login`).
+- [x] **Modo Telão / TV dedicado (`/torneios/[slug]/telao`):** rota pública full-screen (`BroadcastBoardClient.tsx`) sem Navbar/Footer, com tipografia ampliada, modos `Auto` (rotação 15s), `Arenas`, `Chaveamento` e `Classificação`, tela cheia e Realtime.
+- [x] **Fallback da Mesa Diretora:** botão `Resultado / W.O.` na tela de chaveamento + action `recordManualMatchResultAction` para registrar placar manual ou W.O. sem passar por arena, mantendo avanço automático no Top Cut.
+- [x] **Interface de Temporadas no Admin (`/admin/temporadas`):** componente `SeasonManagerClient.tsx` consumindo `createSeasonAction` e `activateSeasonAction` para gerenciar ciclos anuais e preservar histórico no ranking público.
+- [x] **Polimentos de Cadastro:** seleção automática de `swiss_only` para categoria `semanal` e `swiss_top_cut` para `oficial` em `TournamentForm.tsx` e `EditTournamentButton.tsx`, além de modais de edição completa para Bladers (`EditBladerButton.tsx` + `updateBladerAction`) e Torneios (`EditTournamentButton.tsx` + `updateTournamentAction`).
 
 ---
 
@@ -197,62 +190,106 @@ Sistema OBA/
 ├── ARCHITECTURE.md              ← Guia mestre (este arquivo)
 ├── .env.example                 ← Template de variáveis (versionado)
 ├── .env.local                   ← Credenciais locais (ignorado no git)
-├── next.config.ts               ← Configuração Next.js 16 (Turbopack)
+├── next.config.ts               ← Configuração Next.js 16 (Turbopack + allowedDevOrigins LAN)
 ├── components.json              ← Configuração do shadcn/ui
 ├── supabase/
 │   ├── migrations/
-│   │   ├── 001_phase1_schema.sql       ← Tabelas, RLS e triggers da Fase 1
-│   │   └── 002_grant_permissions.sql   ← Permissões GRANT para anon/authenticated
-│   └── seed.sql                        ← Dados de exemplo para desenvolvimento
+│   │   ├── 001_phase1_schema.sql               ← Tabelas, RLS e triggers da Fase 1
+│   │   ├── 002_grant_permissions.sql           ← Permissões GRANT para anon/authenticated
+│   │   ├── 003_phase2_live_tournaments.sql     ← Arenas, partidas, lances, RLS e Realtime
+│   │   └── 004_oba_official_rules_and_engine.sql ← Temporadas, formatos OBA, Top Cut e desempates
+│   └── seed.sql                                ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
 │   └── icons/                          ← Ícones PWA (180x180, 192x192, 512x512)
 └── src/
     ├── proxy.ts                        ← Proxy de autenticação (Next.js 16)
     ├── app/
-    │   ├── layout.tsx                  ← Root layout com ThemeProvider e metadata OG
+    │   ├── layout.tsx                  ← Root layout com ThemeProvider, AuthHashListener e metadata OG
     │   ├── manifest.ts                 ← Web App Manifest PWA
     │   ├── globals.css                 ← Design system OBA e variáveis oklch
     │   ├── (public)/                   ← Rotas públicas (usam Navbar e Footer)
     │   │   ├── layout.tsx
-    │   │   ├── page.tsx                ← Home: Hero, Pódio Top 3, Ranking Geral
+    │   │   ├── page.tsx                ← Home: Hero, Banner Ao Vivo, Pódio Top 3 e Ranking por Temporada
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
-    │   │   │   └── [slug]/page.tsx     ← Detalhes do torneio e colocações finais
+    │   │   │   └── [slug]/page.tsx     ← Detalhes, arenas ao vivo, chaveamento e resultados
     │   │   └── bladers/page.tsx        ← Lista pública de competidores
-    │   ├── admin/                      ← Rotas administrativas protegidas
-    │   │   ├── layout.tsx              ← Sidebar admin + botão de logout
-    │   │   ├── page.tsx                ← Dashboard de métricas e resumo
-    │   │   ├── actions.ts              ← Server Actions do admin (CRUD e recálculo)
-    │   │   ├── bladers/page.tsx        ← Gestão de Bladers
-    │   │   └── torneios/
-    │   │       ├── page.tsx            ← Gestão de Torneios
-    │   │       └── [id]/resultados/    ← Lançamento de colocações e pontos
+    │   ├── torneios/
+    │   │   └── [slug]/telao/page.tsx   ← Modo Telão / TV full-screen (fora de (public), sem Navbar/Footer)
+    │   ├── admin/                      ← Rotas administrativas protegidas pelo proxy.ts
+    │   │   ├── actions.ts              ← Server Actions CRUD (Bladers, Torneios, Resultados)
+    │   │   ├── arena/
+    │   │   │   ├── actions.ts          ← Server Actions do Gestor de Arenas e Placar do Juiz
+    │   │   │   └── [id]/page.tsx       ← Placar Touch mobile do juiz (tela cheia sem sidebar)
+    │   │   ├── torneios/
+    │   │   │   └── engine-actions.ts   ← Server Actions do motor Suíço, Top Cut, fallback W.O. e temporadas
+    │   │   └── (panel)/                ← Grupo de rotas que compartilham a sidebar administrativa
+    │   │       ├── layout.tsx          ← Sidebar admin + menu mobile + botão de logout
+    │   │       ├── page.tsx            ← Dashboard de métricas e resumo
+    │   │       ├── arenas/page.tsx     ← Gestor de Arenas físicas (Multi-Stadium)
+    │   │       ├── bladers/page.tsx    ← Gestão de Bladers (cadastro, edição e status ativo)
+    │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
+    │   │       └── torneios/
+    │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição e ações)
+    │   │           └── [id]/
+    │   │               ├── chaveamento/page.tsx ← Motor Suíço + Tiebreaker + Top Cut + Publicação
+    │   │               └── resultados/page.tsx  ← Lançamento manual/retroativo de colocações e pontos
+    │   ├── api/
+    │   │   └── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
     │   └── auth/
-    │       ├── actions.ts              ← Server Actions de login e logout
-    │       └── login/page.tsx          ← Formulário de login administrativo
+    │       ├── actions.ts              ← Server Actions de logout
+    │       ├── callback/route.ts       ← Callback SSR para PKCE (?code=) e OTP (?token_hash=)
+    │       ├── definir-senha/page.tsx  ← Definição de senha via convite ou recuperação
+    │       └── login/page.tsx          ← Formulário de login admin + "Esqueceu a senha?"
     ├── components/
-    │   ├── admin/                      ← Modais e botões de ação do painel
+    │   ├── admin/                      ← Componentes do painel e motor de chaveamento
+    │   │   ├── ArenaManagerClient.tsx
     │   │   ├── BladerForm.tsx
+    │   │   ├── DeleteBladerButton.tsx
+    │   │   ├── DeleteTournamentButton.tsx
+    │   │   ├── EditBladerButton.tsx
+    │   │   ├── EditTournamentButton.tsx
+    │   │   ├── SeasonManagerClient.tsx
+    │   │   ├── TournamentEngineClient.tsx
     │   │   ├── TournamentForm.tsx
     │   │   ├── TournamentResultsEditor.tsx
-    │   │   ├── TournamentStatusSelect.tsx
-    │   │   ├── DeleteBladerButton.tsx
-    │   │   └── DeleteTournamentButton.tsx
+    │   │   └── TournamentStatusSelect.tsx
+    │   ├── arena/                      ← Placar touch mobile e suporte operacional
+    │   │   ├── Phase2SchemaNotice.tsx
+    │   │   ├── QuickStartMatchDialog.tsx
+    │   │   └── RefereeScoreboard.tsx
+    │   ├── auth/
+    │   │   └── AuthHashListener.tsx    ← Captura tokens em hash (#access_token=) de convite/recovery
     │   ├── layout/                     ← Navbar, Footer e ThemeToggle
-    │   ├── ranking/                    ← RankingTable com busca instantânea
-    │   └── ui/                         ← Componentes base shadcn/ui
+    │   ├── ranking/                    ← RankingTable com filtro por temporada e busca instantânea
+    │   ├── tournament/                 ← Componentes públicos de torneio, telão e arenas ao vivo
+    │   │   ├── BroadcastBoardClient.tsx
+    │   │   ├── HomeLiveTournamentBanner.tsx
+    │   │   ├── LiveArenaCard.tsx
+    │   │   └── PublicTournamentLive.tsx
+    │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
-    │   ├── constants.ts                ← Regras de pontuação e constantes da liga
+    │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
     │   ├── utils.ts                    ← Helper cn()
-    │   ├── services/league.ts          ← Consultas de leitura (ranking, torneios, bladers)
+    │   ├── engine/
+    │   │   └── tournament-engine.ts    ← Motor puro OBA (Suíço, Finishes, Tiebreaker, Top Cut)
+    │   ├── services/                   ← Consultas e regras de aplicação no Supabase
+    │   │   ├── arena-queries.ts
+    │   │   ├── arenas.ts
+    │   │   ├── bracket-advancement.ts
+    │   │   ├── league.ts
+    │   │   ├── ranking-recalc.ts
+    │   │   ├── tournament-live.ts
+    │   │   └── tournament-queries.ts
     │   └── supabase/
     │       ├── client.ts               ← Browser client Supabase
-    │       ├── server.ts               ← Server client Supabase (SSR cookies)
-    │       └── proxy.ts                ← Helper de atualização de sessão para o proxy
+    │       ├── proxy.ts                ← Helper de atualização e proteção de sessão para o proxy
+    │       ├── route-cookies.ts        ← Helper compartilhado de cookies (flag secure HTTP/HTTPS)
+    │       └── server.ts               ← Server client Supabase (SSR cookies)
     └── types/
         ├── database.ts                 ← Tipos estritos do banco Supabase
-        └── domain.ts                   ← Tipos semânticos de negócio
+        └── domain.ts                   ← Tipos semânticos de negócio e labels
 ```
 
 ---
@@ -275,10 +312,11 @@ Sistema OBA/
 ## 🔐 Autenticação e Proteção de Rotas (`proxy.ts`)
 
 - O Next.js 16 descontinuou o `middleware.ts` e padronizou o `src/proxy.ts`.
-- O `src/proxy.ts` intercepta todas as requisições para `/admin/*`.
+- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts`) intercepta todas as requisições para `/admin/*`.
 - Caso o usuário não esteja logado, redireciona para `/auth/login`.
-- Caso o usuário esteja logado mas `user.user_metadata.role !== 'admin'`, redireciona para a home pública `/`.
-- O login realiza uma navegação via `window.location.href = "/admin"` para assegurar a transmissão imediata dos cookies HttpOnly via cabeçalhos HTTP sem condições de corrida.
+- Caso o usuário esteja logado mas `user.user_metadata.role !== 'admin'`, redireciona para a home pública `/`. As policies RLS preparatórias para `role = 'judge'` já estão criadas na migration `003` e serão liberadas no `proxy.ts` na Fase 3.
+- O login (`/auth/login`) envia as credenciais para a rota same-origin `POST /api/auth/login`, que utiliza `createRouteSupabaseClient` (`src/lib/supabase/route-cookies.ts`) com flag `secure` adaptativa (HTTP em rede local/dev e HTTPS em produção) e redireciona para `/admin` garantindo o envio imediato dos cookies HttpOnly.
+- O fluxo de **convite de novos admins e recuperação de senha** utiliza `/auth/callback` (PKCE `?code=` e OTP `?token_hash=`), o listener global `AuthHashListener` (tokens em `#access_token=` ou parâmetros na raiz), a tela `/auth/definir-senha` e a opção **"Esqueceu a senha?"** em `/auth/login`.
 
 ---
 
@@ -302,22 +340,16 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ---
 
-## 🎯 Diretrizes para a Próxima Sessão (Fase 2)
+## 🎯 Diretrizes para a Próxima Sessão (Fase 3)
 
-Na próxima conversa, o foco imediato será o **Motor de Torneios ao Vivo & Gestão de Arenas**:
+Com a **Fase 2** concluída (`003` e `004`, Motor OBA, Gestor de Arenas, Placar Touch, Vitrine Pública ao Vivo, Modo Telão, Fallback W.O./Manual, Gestão de Temporadas e Edição de Bladers/Torneios), o próximo passo é iniciar a **Fase 3 — Inscrições, Check-in & Níveis de Acesso**:
 
-1. **Modelagem SQL da Fase 2:**
-   - Criar a migration `003_phase2_live_tournaments.sql` para adicionar as tabelas `arenas`, `matches` e `match_games`.
-   - Adicionar as políticas de RLS e subscriptions Realtime do Supabase.
-2. **Tela do Gestor de Arenas (Mesa Diretora):**
-   - Visualizar os Beystadiums ativos do evento.
-   - Painel para despachar partidas da fila do torneio para as arenas livres.
-3. **Tela Touch do Juiz de Arena (Mobile Referee):**
-   - Placar gigante em tempo real com botões de finish (+1 Spin, +2 Over, +2 Burst, +3 Xtreme, Desfazer).
-   - Encerramento automático ao atingir 4 pontos e sincronização instantânea.
-4. **Gerador de Chaveamento Híbrido (Regras OBA):**
-   - Implementar algoritmo do Sistema Suíço com pareamento sem rematches, BYE e desempate por Finishes (`xtreme > burst > over > spin`) + desempate de liderança (`is_tiebreaker`).
-   - Corte para o Mata-mata (Top 4 / Top 8 / Top 16) com avanço automático e publicação oficial no ranking anual por temporada.
+1. **Acesso Restrito para Juízes (`role = 'judge'`):**
+   - Atualizar `src/lib/supabase/proxy.ts` e `/api/auth/login` para permitir que usuários com `role = 'judge'` acessem apenas `/admin/arenas` e `/admin/arena/[id]` (aproveitando as policies RLS preparatórias criadas na migration `003`).
+   - Adaptar os headers das telas de arena para ocultar links administrativos inacessíveis a juízes.
+2. **Pré-inscrição Pública & Check-in Presencial:**
+   - Permitir pré-inscrição de jogadores em torneios com status `open`.
+   - Confirmar presença no dia do evento (Check-in / QR Code) alimentando automaticamente `tournament_participants`.
 
 ---
 

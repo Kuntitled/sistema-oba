@@ -10,6 +10,7 @@ import {
   generateNextSwissRoundPairings,
 } from "@/lib/engine/tournament-engine";
 import { isValidUuid } from "@/lib/services/arena-queries";
+import { syncTopCutAdvancement } from "@/lib/services/bracket-advancement";
 import {
   ensureSeasonForDate,
   recalculateSeasonRanking,
@@ -612,6 +613,129 @@ export async function finalizeAndPublishTournamentAction(tournamentId: string) {
   return { success: true };
 }
 
+export async function recordManualMatchResultAction(params: {
+  matchId: string;
+  winnerId: string;
+  player1Score: number;
+  player2Score: number;
+  isWalkover?: boolean;
+}) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(params.matchId) || !isValidUuid(params.winnerId)) {
+    return { error: "Partida ou Blader vencedor inválido." };
+  }
+
+  const { data: match, error: matchError } = await auth.supabase
+    .from("matches")
+    .select("*")
+    .eq("id", params.matchId)
+    .maybeSingle();
+
+  if (matchError || !match) {
+    return { error: "Partida não encontrada." };
+  }
+
+  if (match.is_bye) {
+    return { error: "Partidas BYE já são computadas automaticamente." };
+  }
+
+  if (!match.player1_id || !match.player2_id) {
+    return { error: "Os dois Bladers precisam estar definidos para registrar resultado." };
+  }
+
+  if (match.status === "cancelled") {
+    return { error: "Esta partida foi cancelada." };
+  }
+
+  if (match.status === "finished") {
+    return {
+      error:
+        "Esta partida já foi finalizada. Reabra pelo Placar da Arena se precisar desfazer.",
+    };
+  }
+
+  if (
+    params.winnerId !== match.player1_id &&
+    params.winnerId !== match.player2_id
+  ) {
+    return { error: "O vencedor selecionado não pertence a esta partida." };
+  }
+
+  const isP1Winner = params.winnerId === match.player1_id;
+  let finalP1Score: number;
+  let finalP2Score: number;
+
+  if (params.isWalkover) {
+    finalP1Score = isP1Winner ? match.target_score : 0;
+    finalP2Score = isP1Winner ? 0 : match.target_score;
+  } else {
+    finalP1Score = Math.floor(Number(params.player1Score));
+    finalP2Score = Math.floor(Number(params.player2Score));
+
+    if (
+      !Number.isFinite(finalP1Score) ||
+      !Number.isFinite(finalP2Score) ||
+      finalP1Score < 0 ||
+      finalP2Score < 0 ||
+      finalP1Score > 20 ||
+      finalP2Score > 20
+    ) {
+      return { error: "Informe placares inteiros válidos entre 0 e 20." };
+    }
+
+    const winnerScore = isP1Winner ? finalP1Score : finalP2Score;
+    const loserScore = isP1Winner ? finalP2Score : finalP1Score;
+    if (winnerScore <= loserScore) {
+      return {
+        error: "O placar do vencedor precisa ser maior que o do adversário.",
+      };
+    }
+  }
+
+  if (match.arena_id) {
+    await auth.supabase
+      .from("arenas")
+      .update({
+        status: "available",
+        current_match_id: null,
+      })
+      .eq("id", match.arena_id)
+      .eq("current_match_id", match.id);
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: updatedMatch, error: updateError } = await auth.supabase
+    .from("matches")
+    .update({
+      player1_score: finalP1Score,
+      player2_score: finalP2Score,
+      winner_id: params.winnerId,
+      status: "finished",
+      started_at: match.started_at ?? nowIso,
+      finished_at: nowIso,
+    })
+    .eq("id", match.id)
+    .select("*")
+    .single();
+
+  if (updateError || !updatedMatch) {
+    return {
+      error: `Erro ao registrar resultado manual: ${updateError?.message ?? "tente novamente"}`,
+    };
+  }
+
+  await syncTopCutAdvancement(auth.supabase, updatedMatch);
+
+  revalidateTournamentViews(match.tournament_id);
+  if (match.arena_id) {
+    revalidatePath(`/admin/arena/${match.arena_id}`);
+  }
+
+  return { success: true, match: updatedMatch };
+}
+
 export async function createSeasonAction(formData: FormData) {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
@@ -657,6 +781,7 @@ export async function createSeasonAction(formData: FormData) {
 
   revalidatePath("/", "layout");
   revalidatePath("/admin");
+  revalidatePath("/admin/temporadas");
   return { success: true, season };
 }
 
@@ -685,5 +810,6 @@ export async function activateSeasonAction(seasonId: string) {
   await recalculateSeasonRanking(auth.supabase, seasonId);
   revalidatePath("/", "layout");
   revalidatePath("/admin");
+  revalidatePath("/admin/temporadas");
   return { success: true };
 }

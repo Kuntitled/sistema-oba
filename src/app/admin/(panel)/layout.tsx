@@ -5,6 +5,7 @@ import {
   Users,
   Swords,
   Radio,
+  CalendarRange,
   ExternalLink,
   LogOut,
 } from "lucide-react";
@@ -106,6 +107,14 @@ export default function AdminLayout({
             >
               <Radio className="h-4 w-4 text-emerald-500" />
               <span>Arenas ao Vivo</span>
+            </Link>
+
+            <Link
+              href="/admin/temporadas"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <CalendarRange className="h-4 w-4 text-primary" />
+              <span>Temporadas</span>
             </Link>
           </nav>
         </div>

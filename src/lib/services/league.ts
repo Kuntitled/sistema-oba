@@ -47,6 +47,79 @@ export async function getSeasons(): Promise<{
   }
 }
 
+export interface SeasonWithStats extends Season {
+  tournamentsCount: number;
+  finishedTournamentsCount: number;
+  rankedBladersCount: number;
+}
+
+/**
+ * Lista todas as temporadas com métricas resumidas de torneios e competidores.
+ */
+export async function getSeasonsWithStats(): Promise<{
+  seasons: SeasonWithStats[];
+  schemaMissing: boolean;
+}> {
+  const { seasons, schemaMissing } = await getSeasons();
+  if (schemaMissing || seasons.length === 0) {
+    return { seasons: [], schemaMissing };
+  }
+
+  try {
+    const supabase = await createClient();
+    const [{ data: tournamentRows }, { data: rankingRows }] = await Promise.all([
+      supabase.from("tournaments").select("id, season_id, status"),
+      supabase.from("ranking").select("id, season_id, total_points"),
+    ]);
+
+    const tournamentStats = new Map<
+      string,
+      { total: number; finished: number }
+    >();
+    for (const t of tournamentRows ?? []) {
+      if (!t.season_id) continue;
+      const entry = tournamentStats.get(t.season_id) ?? {
+        total: 0,
+        finished: 0,
+      };
+      entry.total += 1;
+      if (t.status === "finished") entry.finished += 1;
+      tournamentStats.set(t.season_id, entry);
+    }
+
+    const rankingCounts = new Map<string, number>();
+    for (const r of rankingRows ?? []) {
+      if (r.total_points > 0) {
+        rankingCounts.set(r.season_id, (rankingCounts.get(r.season_id) ?? 0) + 1);
+      }
+    }
+
+    return {
+      seasons: seasons.map((season) => {
+        const tStat = tournamentStats.get(season.id);
+        return {
+          ...season,
+          tournamentsCount: tStat?.total ?? 0,
+          finishedTournamentsCount: tStat?.finished ?? 0,
+          rankedBladersCount: rankingCounts.get(season.id) ?? 0,
+        };
+      }),
+      schemaMissing: false,
+    };
+  } catch (err) {
+    console.error("Exceção ao buscar estatísticas das temporadas:", err);
+    return {
+      seasons: seasons.map((season) => ({
+        ...season,
+        tournamentsCount: 0,
+        finishedTournamentsCount: 0,
+        rankedBladersCount: 0,
+      })),
+      schemaMissing: false,
+    };
+  }
+}
+
 /**
  * Obtém o ranking oficial de uma temporada (ou da temporada ativa por padrão),
  * ordenado pelos 4 critérios oficiais de desempate da OBA.
@@ -303,19 +376,23 @@ export async function getTournamentBySlug(slug: string) {
 /**
  * Obtém todos os Bladers cadastrados com pontuação da temporada ativa.
  */
-export async function getBladers(): Promise<Blader[]> {
+export async function getBladers(options?: {
+  includeInactive?: boolean;
+}): Promise<Blader[]> {
   try {
     const supabase = await createClient();
 
+    let bladersQuery = supabase
+      .from("bladers")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (!options?.includeInactive) {
+      bladersQuery = bladersQuery.eq("is_active", true);
+    }
+
     const [{ data: bladerRows, error }, { seasons, schemaMissing }] =
-      await Promise.all([
-        supabase
-          .from("bladers")
-          .select("*")
-          .eq("is_active", true)
-          .order("name", { ascending: true }),
-        getSeasons(),
-      ]);
+      await Promise.all([bladersQuery, getSeasons()]);
 
     if (error) {
       console.error("Erro ao buscar bladers:", error);

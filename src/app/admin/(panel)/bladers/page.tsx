@@ -1,14 +1,15 @@
 import Image from "next/image";
-import { Users, MapPin, Trophy, Swords, ShieldCheck } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Users, MapPin } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getBladers } from "@/lib/services/league";
 import { BladerForm } from "@/components/admin/BladerForm";
+import { EditBladerButton } from "@/components/admin/EditBladerButton";
 import { DeleteBladerButton } from "@/components/admin/DeleteBladerButton";
 
 
 export default async function AdminBladersPage() {
-  const bladers = await getBladers();
+  const bladers = await getBladers({ includeInactive: true });
 
   return (
     <div className="space-y-6">
@@ -43,7 +44,12 @@ export default async function AdminBladersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {bladers.map((blader) => (
-            <Card key={blader.id} className="border-border/60 bg-card/60 p-4 space-y-3">
+            <Card
+              key={blader.id}
+              className={`border-border/60 bg-card/60 p-4 space-y-3 ${
+                !blader.is_active ? "opacity-65" : ""
+              }`}
+            >
               <div className="flex items-center gap-3">
                 <div className="relative h-11 w-11 rounded-full overflow-hidden border border-primary/40 bg-muted shrink-0">
                   {blader.avatar_url ? (
@@ -60,9 +66,19 @@ export default async function AdminBladersPage() {
                   )}
                 </div>
 
-                <div className="min-w-0">
-                  <div className="font-bold text-sm text-foreground truncate">
-                    {blader.nickname}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-bold text-sm text-foreground truncate">
+                      {blader.nickname}
+                    </span>
+                    {!blader.is_active && (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1.5 py-0 border-destructive/40 text-destructive shrink-0"
+                      >
+                        Inativo
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
                     {blader.name}
@@ -86,10 +102,11 @@ export default async function AdminBladersPage() {
                 <span className="text-muted-foreground text-[11px]">
                   {blader.ranking?.tournaments_played ?? 0} torneios
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-primary text-[11px]">
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-primary text-[11px] mr-1">
                     {blader.ranking?.total_points ?? 0} pts
                   </span>
+                  <EditBladerButton blader={blader} />
                   <DeleteBladerButton
                     bladerId={blader.id}
                     bladerNickname={blader.nickname}

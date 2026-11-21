@@ -12,10 +12,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { createTournamentAction } from "@/app/admin/actions";
 import { DEFAULT_SWISS_ROUNDS } from "@/lib/constants";
+import type { TournamentCategory, TournamentFormat } from "@/types/domain";
 
 export function TournamentForm() {
   const router = useRouter();
@@ -23,6 +23,23 @@ export function TournamentForm() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
+  const [category, setCategory] = React.useState<TournamentCategory>("semanal");
+  const [format, setFormat] = React.useState<TournamentFormat>("swiss_only");
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      setCategory("semanal");
+      setFormat("swiss_only");
+      setError(null);
+      setSuccess(false);
+    }
+  };
+
+  const handleCategoryChange = (nextCategory: TournamentCategory) => {
+    setCategory(nextCategory);
+    setFormat(nextCategory === "oficial" ? "swiss_top_cut" : "swiss_only");
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -59,16 +76,18 @@ export function TournamentForm() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5" />
-        }
+    <>
+      <Button
+        type="button"
+        onClick={() => handleOpenChange(true)}
+        className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5"
       >
         <PlusCircle className="h-4 w-4" />
         Novo Torneio (Atual ou Retroativo)
-      </DialogTrigger>
-      <DialogContent className="max-w-md bg-card border-border/80">
+      </Button>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-md bg-card border-border/80">
         <DialogHeader>
           <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
             <span>Criar Torneio OBA</span>
@@ -143,7 +162,10 @@ export function TournamentForm() {
               <select
                 id="category"
                 name="category"
-                defaultValue="semanal"
+                value={category}
+                onChange={(e) =>
+                  handleCategoryChange(e.target.value as TournamentCategory)
+                }
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="semanal">Semanal (100 / 75 / 50)</option>
@@ -158,11 +180,12 @@ export function TournamentForm() {
               <select
                 id="format"
                 name="format"
-                defaultValue="swiss_top_cut"
+                value={format}
+                onChange={(e) => setFormat(e.target.value as TournamentFormat)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="swiss_top_cut">Suíço + Top Cut (+15 Líder)</option>
                 <option value="swiss_only">Exclusivamente Suíço</option>
+                <option value="swiss_top_cut">Suíço + Top Cut (+15 Líder)</option>
               </select>
             </div>
           </div>
@@ -232,5 +255,6 @@ export function TournamentForm() {
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

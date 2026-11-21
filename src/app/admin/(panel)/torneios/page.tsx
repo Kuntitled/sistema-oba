@@ -7,12 +7,14 @@ import {
   Trophy,
   ExternalLink,
   GitBranch,
+  Tv,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
 import { TournamentForm } from "@/components/admin/TournamentForm";
+import { EditTournamentButton } from "@/components/admin/EditTournamentButton";
 import { TournamentStatusSelect } from "@/components/admin/TournamentStatusSelect";
 import { DeleteTournamentButton } from "@/components/admin/DeleteTournamentButton";
 import {
@@ -128,6 +130,18 @@ export default async function AdminTorneiosPage() {
                   </Button>
                 </Link>
 
+                <Link href={`/torneios/${tournament.slug}/telao`} target="_blank">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
+                    title="Abrir Modo Telão / TV em tela cheia"
+                  >
+                    <Tv className="h-3.5 w-3.5 text-fire-orange" />
+                    Telão
+                  </Button>
+                </Link>
+
                 <Link href={`/admin/torneios/${tournament.id}/chaveamento`}>
                   <Button
                     size="sm"
@@ -148,6 +162,8 @@ export default async function AdminTorneiosPage() {
                     Manual
                   </Button>
                 </Link>
+
+                <EditTournamentButton tournament={tournament} />
 
                 <DeleteTournamentButton
                   tournamentId={tournament.id}

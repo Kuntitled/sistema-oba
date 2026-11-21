@@ -6,6 +6,7 @@ import {
   Users,
   ChevronLeft,
   ShieldCheck,
+  Tv,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -87,23 +88,37 @@ export default async function TorneioDetalhePage({
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground pt-2 border-t border-border/40">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 text-primary" />
-              {formatDate(tournament.event_date)}
-            </span>
-            {tournament.location && (
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border/40">
+            <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4 text-fire-orange" />
-                {tournament.location}
+                <Calendar className="h-4 w-4 text-primary" />
+                {formatDate(tournament.event_date)}
               </span>
-            )}
-            {tournament.max_players && (
-              <span className="flex items-center gap-1.5">
-                <Users className="h-4 w-4" />
-                Capacidade: {tournament.max_players} Bladers
-              </span>
-            )}
+              {tournament.location && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4 text-fire-orange" />
+                  {tournament.location}
+                </span>
+              )}
+              {tournament.max_players && (
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-4 w-4" />
+                  Capacidade: {tournament.max_players} Bladers
+                </span>
+              )}
+            </div>
+
+            <Link href={`/torneios/${tournament.slug}/telao`} target="_blank">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs font-semibold gap-1.5 border-primary/40 hover:border-primary"
+              >
+                <Tv className="h-3.5 w-3.5 text-fire-orange" />
+                Modo Telão (TV)
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

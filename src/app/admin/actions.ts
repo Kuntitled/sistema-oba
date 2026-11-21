@@ -7,6 +7,7 @@ import {
   DEFAULT_SWISS_ROUNDS,
   type ObaTournamentCategory,
 } from "@/lib/constants";
+import { isValidUuid } from "@/lib/services/arena-queries";
 import {
   ensureSeasonForDate,
   recalculateAllSeasonsRanking,
@@ -111,6 +112,74 @@ export async function createBladerAction(formData: FormData) {
 }
 
 /**
+ * Atualiza os dados de um Blader e recalcula rankings caso o status ativo mude.
+ */
+export async function updateBladerAction(bladerId: string, formData: FormData) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(bladerId)) {
+    return { error: "Blader inválido." };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  const nickname = (formData.get("nickname") as string)?.trim();
+  const city = (formData.get("city") as string)?.trim() || null;
+  const bio = (formData.get("bio") as string)?.trim() || null;
+  const avatar_url = (formData.get("avatar_url") as string)?.trim() || null;
+
+  if (!name || !nickname) {
+    return { error: "Nome e Apelido são obrigatórios." };
+  }
+
+  const { data: existing, error: fetchError } = await auth.supabase
+    .from("bladers")
+    .select("id, is_active")
+    .eq("id", bladerId)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    return { error: "Blader não encontrado." };
+  }
+
+  const isActiveRaw = formData.get("is_active");
+  const is_active =
+    isActiveRaw === null
+      ? existing.is_active
+      : isActiveRaw === "true" || isActiveRaw === "on";
+
+  const { data: blader, error } = await auth.supabase
+    .from("bladers")
+    .update({
+      name,
+      nickname,
+      city,
+      bio,
+      avatar_url,
+      is_active,
+    })
+    .eq("id", bladerId)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        error: `O apelido "${nickname}" já está em uso por outro Blader.`,
+      };
+    }
+    return { error: `Erro ao atualizar Blader: ${error.message}` };
+  }
+
+  if (existing.is_active !== is_active) {
+    await recalculateAllSeasonsRanking(auth.supabase);
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true, blader };
+}
+
+/**
  * Exclui um Blader e recalcula os rankings de todas as temporadas.
  */
 export async function deleteBladerAction(bladerId: string) {
@@ -141,7 +210,9 @@ export async function createTournamentAction(formData: FormData) {
   const location = (formData.get("location") as string)?.trim() || null;
   const event_date = formData.get("event_date") as string;
   const categoryRaw = (formData.get("category") as string) || "semanal";
-  const formatRaw = (formData.get("format") as string) || "swiss_top_cut";
+  const formatRaw =
+    (formData.get("format") as string) ||
+    (categoryRaw === "oficial" ? "swiss_top_cut" : "swiss_only");
   const statusRaw = (formData.get("status") as string) || "finished";
   const description = (formData.get("description") as string)?.trim() || null;
   const max_players_str = formData.get("max_players") as string;
@@ -208,6 +279,141 @@ export async function createTournamentAction(formData: FormData) {
 
   revalidatePath("/", "layout");
   return { success: true, tournament: data };
+}
+
+/**
+ * Atualiza um Torneio mantendo o slug e recalculando pontos/ranking se categoria, formato ou temporada mudarem.
+ */
+export async function updateTournamentAction(
+  tournamentId: string,
+  formData: FormData
+) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(tournamentId)) {
+    return { error: "Torneio inválido." };
+  }
+
+  const { data: existing, error: fetchError } = await auth.supabase
+    .from("tournaments")
+    .select("*")
+    .eq("id", tournamentId)
+    .single();
+
+  if (fetchError || !existing) {
+    return { error: "Torneio não encontrado." };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  const location = (formData.get("location") as string)?.trim() || null;
+  const event_date = (formData.get("event_date") as string)?.trim();
+  const categoryRaw = (formData.get("category") as string) || existing.category;
+  const formatRaw = (formData.get("format") as string) || existing.format;
+  const statusRaw = (formData.get("status") as string) || existing.status;
+  const description = (formData.get("description") as string)?.trim() || null;
+  const max_players_str = (formData.get("max_players") as string)?.trim();
+  const maxPlayersParsed = max_players_str ? parseInt(max_players_str, 10) : null;
+  const max_players =
+    maxPlayersParsed !== null && !isNaN(maxPlayersParsed) && maxPlayersParsed > 0
+      ? maxPlayersParsed
+      : null;
+
+  const swissRoundsStr = formData.get("swiss_rounds") as string;
+  const swissRoundsParsed = swissRoundsStr
+    ? parseInt(swissRoundsStr, 10)
+    : existing.swiss_rounds;
+  const swiss_rounds =
+    !isNaN(swissRoundsParsed) && swissRoundsParsed >= 1 && swissRoundsParsed <= 10
+      ? swissRoundsParsed
+      : existing.swiss_rounds;
+
+  if (!name || !event_date) {
+    return { error: "Nome e Data do Torneio são obrigatórios." };
+  }
+
+  const category: TournamentCategory =
+    categoryRaw === "oficial" ? "oficial" : "semanal";
+  const format = formatRaw as TournamentFormat;
+  const status = statusRaw as TournamentStatus;
+
+  const yearChanged =
+    event_date.slice(0, 4) !== (existing.event_date ?? "").slice(0, 4);
+  const newSeasonId =
+    yearChanged || !existing.season_id
+      ? await ensureSeasonForDate(auth.supabase, event_date)
+      : existing.season_id;
+
+  const { data: tournament, error: updateError } = await auth.supabase
+    .from("tournaments")
+    .update({
+      season_id: newSeasonId,
+      name,
+      description,
+      location,
+      event_date,
+      category,
+      format,
+      swiss_rounds,
+      top_cut_size: format === "swiss_only" ? null : existing.top_cut_size,
+      status,
+      max_players,
+    })
+    .eq("id", tournamentId)
+    .select()
+    .single();
+
+  if (updateError || !tournament) {
+    return {
+      error: `Erro ao atualizar torneio: ${updateError?.message ?? "falha desconhecida"}`,
+    };
+  }
+
+  const scoringChanged =
+    category !== existing.category || format !== existing.format;
+  const seasonChanged = newSeasonId !== existing.season_id;
+
+  if (scoringChanged) {
+    const { data: resultRows } = await auth.supabase
+      .from("tournament_results")
+      .select("*")
+      .eq("tournament_id", tournamentId);
+
+    for (const row of resultRows ?? []) {
+      const isSwissLeader =
+        format === "swiss_only" ? false : Boolean(row.is_swiss_leader);
+      const calc = calculateOfficialTournamentPoints({
+        category,
+        format,
+        finalPosition: row.final_position,
+        swissWins: row.swiss_wins ?? 0,
+        isSwissLeader,
+      });
+
+      await auth.supabase
+        .from("tournament_results")
+        .update({
+          swiss_points: calc.swissPoints,
+          is_swiss_leader: isSwissLeader,
+          swiss_leader_bonus: calc.swissLeaderBonus,
+          podium_points: calc.podiumPoints,
+          points_earned: calc.totalPoints,
+        })
+        .eq("id", row.id);
+    }
+  }
+
+  if (scoringChanged || seasonChanged) {
+    if (existing.season_id) {
+      await recalculateSeasonRanking(auth.supabase, existing.season_id);
+    }
+    if (newSeasonId && newSeasonId !== existing.season_id) {
+      await recalculateSeasonRanking(auth.supabase, newSeasonId);
+    }
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true, tournament };
 }
 
 /**

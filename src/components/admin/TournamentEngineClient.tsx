@@ -22,11 +22,20 @@ import {
   UserMinus,
   UserCheck,
   Send,
+  ClipboardCheck,
+  Tv,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ALLOWED_TOP_CUT_SIZES,
   OBA_SWISS_LEADER_BONUS,
@@ -44,6 +53,7 @@ import {
   finalizeAndPublishTournamentAction,
   generateNextSwissRoundAction,
   generateTopCutBracketAction,
+  recordManualMatchResultAction,
   setTournamentParticipantsAction,
   toggleParticipantDropAction,
 } from "@/app/admin/torneios/engine-actions";
@@ -139,6 +149,14 @@ export function TournamentEngineClient({
   const [busyAction, setBusyAction] = React.useState<string | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
+
+  // Fallback manual result / W.O. dialog state
+  const [manualMatch, setManualMatch] = React.useState<Match | null>(null);
+  const [manualMode, setManualMode] = React.useState<"score" | "wo">("score");
+  const [manualWinnerId, setManualWinnerId] = React.useState("");
+  const [manualP1Score, setManualP1Score] = React.useState("4");
+  const [manualP2Score, setManualP2Score] = React.useState("0");
+  const [manualError, setManualError] = React.useState<string | null>(null);
 
   const matchIdsRef = React.useRef<Set<string>>(
     new Set(initialMatches.map((m) => m.id))
@@ -437,11 +455,77 @@ export function TournamentEngineClient({
     router.refresh();
   };
 
+  const openManualResultDialog = (m: Match) => {
+    const defaultWinner =
+      m.player2_id && m.player2_score > m.player1_score
+        ? m.player2_id
+        : m.player1_id ?? "";
+    const p1IsDefault = defaultWinner === m.player1_id;
+
+    setManualMatch(m);
+    setManualMode("score");
+    setManualWinnerId(defaultWinner);
+    setManualP1Score(String(p1IsDefault ? m.target_score : 0));
+    setManualP2Score(String(p1IsDefault ? 0 : m.target_score));
+    setManualError(null);
+  };
+
+  const handleSelectManualWinner = (winnerId: string) => {
+    if (!manualMatch) return;
+    setManualWinnerId(winnerId);
+    const p1Won = winnerId === manualMatch.player1_id;
+    setManualP1Score(String(p1Won ? manualMatch.target_score : 0));
+    setManualP2Score(String(p1Won ? 0 : manualMatch.target_score));
+  };
+
+  const handleConfirmManualResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualMatch || !manualWinnerId) return;
+
+    setManualError(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setBusyAction(`manual:${manualMatch.id}`);
+
+    const res = await recordManualMatchResultAction({
+      matchId: manualMatch.id,
+      winnerId: manualWinnerId,
+      player1Score: parseInt(manualP1Score, 10) || 0,
+      player2Score: parseInt(manualP2Score, 10) || 0,
+      isWalkover: manualMode === "wo",
+    });
+
+    setBusyAction(null);
+    if (res.error) {
+      setManualError(res.error);
+      return;
+    }
+
+    const winnerNick =
+      manualWinnerId === manualMatch.player1_id
+        ? manualMatch.player1?.nickname
+        : manualMatch.player2?.nickname;
+
+    setManualMatch(null);
+    setSuccessMsg(
+      manualMode === "wo"
+        ? `W.O. registrado com sucesso (${winnerNick ?? "Vencedor"} avança).`
+        : `Resultado registrado manualmente (${winnerNick ?? "Vencedor"} venceu).`
+    );
+    await refreshSnapshot();
+    router.refresh();
+  };
+
   const renderMatchCard = (match: Match) => {
     const selectedArenaId =
       arenaChoiceByMatch[match.id] || availableArenas[0]?.id || "";
     const isDispatchable =
       match.status === "pending" &&
+      !match.is_bye &&
+      Boolean(match.player1_id) &&
+      Boolean(match.player2_id);
+    const canRecordManually =
+      (match.status === "pending" || match.status === "in_progress") &&
       !match.is_bye &&
       Boolean(match.player1_id) &&
       Boolean(match.player2_id);
@@ -590,6 +674,21 @@ export function TournamentEngineClient({
               </Button>
             </Link>
           )}
+
+          {canRecordManually && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busyAction !== null}
+              onClick={() => openManualResultDialog(match)}
+              className="h-8 text-xs font-semibold gap-1.5 border-border/80"
+              title="Registrar vencedor/placar manualmente ou W.O. sem usar arena"
+            >
+              <ClipboardCheck className="h-3.5 w-3.5 text-amber-500" />
+              Resultado / W.O.
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -627,6 +726,13 @@ export function TournamentEngineClient({
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
               <Radio className="h-3.5 w-3.5 text-emerald-500" />
               Gerenciar Arenas ({arenas.length})
+            </Button>
+          </Link>
+
+          <Link href={`/torneios/${tournament.slug}/telao`} target="_blank">
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+              <Tv className="h-3.5 w-3.5 text-fire-orange" />
+              Modo Telão
             </Button>
           </Link>
 
@@ -1266,6 +1372,184 @@ export function TournamentEngineClient({
           </Card>
         </div>
       )}
+
+      {/* Modal: Fallback da Mesa Diretora (Resultado Manual / W.O.) */}
+      <Dialog
+        open={Boolean(manualMatch)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setManualMatch(null);
+            setManualError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md bg-card border-border/80">
+          <DialogHeader>
+            <DialogTitle className="text-base font-black text-foreground flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-amber-500" />
+              Resultado Direto / W.O. (Mesa Diretora)
+            </DialogTitle>
+          </DialogHeader>
+
+          {manualMatch && (
+            <form onSubmit={handleConfirmManualResult} className="space-y-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/40 pb-2">
+                <span className="font-bold text-foreground">
+                  {manualMatch.bracket_label || `Mesa ${manualMatch.match_number}`}
+                </span>
+                <span>Meta da partida: {manualMatch.target_score} pts</span>
+              </div>
+
+              {manualError && (
+                <div className="p-3 rounded-lg bg-destructive/15 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{manualError}</span>
+                </div>
+              )}
+
+              {/* Modo: Placar Manual vs W.O. */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={manualMode === "score" ? "default" : "outline"}
+                  onClick={() => setManualMode("score")}
+                  className="text-xs font-bold"
+                >
+                  Placar Manual
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={manualMode === "wo" ? "default" : "outline"}
+                  onClick={() => setManualMode("wo")}
+                  className="text-xs font-bold"
+                >
+                  W.O. ({manualMatch.target_score} × 0)
+                </Button>
+              </div>
+
+              {/* Escolha do Vencedor */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  Selecione o Blader Vencedor *
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      manualMatch.player1_id &&
+                      handleSelectManualWinner(manualMatch.player1_id)
+                    }
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      manualWinnerId === manualMatch.player1_id
+                        ? "border-primary bg-primary/15 ring-1 ring-primary"
+                        : "border-border/60 bg-background/50 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Blader 1
+                    </div>
+                    <div className="text-sm font-black text-foreground truncate">
+                      {manualMatch.player1?.nickname ?? "Blader 1"}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      manualMatch.player2_id &&
+                      handleSelectManualWinner(manualMatch.player2_id)
+                    }
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      manualWinnerId === manualMatch.player2_id
+                        ? "border-fire-orange bg-fire-orange/15 ring-1 ring-fire-orange"
+                        : "border-border/60 bg-background/50 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Blader 2
+                    </div>
+                    <div className="text-sm font-black text-foreground truncate">
+                      {manualMatch.player2?.nickname ?? "Blader 2"}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Placar editável quando modo = Placar Manual */}
+              {manualMode === "score" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="manual-p1-score"
+                      className="text-xs font-semibold truncate block"
+                    >
+                      Pts {manualMatch.player1?.nickname ?? "Blader 1"}
+                    </Label>
+                    <Input
+                      id="manual-p1-score"
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={manualP1Score}
+                      onChange={(e) => setManualP1Score(e.target.value)}
+                      className="h-9 text-center font-black tabular-nums"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="manual-p2-score"
+                      className="text-xs font-semibold truncate block"
+                    >
+                      Pts {manualMatch.player2?.nickname ?? "Blader 2"}
+                    </Label>
+                    <Input
+                      id="manual-p2-score"
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={manualP2Score}
+                      onChange={(e) => setManualP2Score(e.target.value)}
+                      className="h-9 text-center font-black tabular-nums"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed rounded-lg bg-muted/40 border border-border/40 p-2.5">
+                Este registro encerra a partida sem exigir uma arena física (não
+                computa Finishes detalhados em lance a lance). Em confrontos do{" "}
+                <strong>Top Cut</strong>, vencedor e perdedor avançam
+                automaticamente na chave.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setManualMatch(null)}
+                  className="text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={busyAction !== null || !manualWinnerId}
+                  className="bg-emerald-600 hover:bg-emerald-600/90 text-white font-bold text-xs gap-1.5"
+                >
+                  {busyAction === `manual:${manualMatch.id}` && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  Confirmar Resultado
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
