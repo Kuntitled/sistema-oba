@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
+import { getRulesets } from "@/lib/services/parts";
 import { TournamentForm } from "@/components/admin/TournamentForm";
 import { EditTournamentButton } from "@/components/admin/EditTournamentButton";
 import { TournamentStatusSelect } from "@/components/admin/TournamentStatusSelect";
@@ -23,7 +24,11 @@ import {
 } from "@/types/domain";
 
 export default async function AdminTorneiosPage() {
-  const tournaments = await getTournaments();
+  const [tournaments, { rulesets }] = await Promise.all([
+    getTournaments(),
+    getRulesets({ includeInactive: true }),
+  ]);
+  const activeRulesets = rulesets.filter((r) => r.is_active);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
@@ -45,7 +50,7 @@ export default async function AdminTorneiosPage() {
           </p>
         </div>
 
-        <TournamentForm />
+        <TournamentForm rulesets={activeRulesets} />
       </div>
 
       {/* Listagem */}
@@ -87,6 +92,14 @@ export default async function AdminTorneiosPage() {
                   <Badge variant="outline" className="text-[10px]">
                     {TOURNAMENT_FORMAT_LABELS[tournament.format]}
                   </Badge>
+                  {tournament.ruleset && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-primary/35 text-primary/90"
+                    >
+                      Regras: {tournament.ruleset.name}
+                    </Badge>
+                  )}
                   {tournament.season && (
                     <Badge variant="secondary" className="text-[10px]">
                       {tournament.season.name}
@@ -163,7 +176,10 @@ export default async function AdminTorneiosPage() {
                   </Button>
                 </Link>
 
-                <EditTournamentButton tournament={tournament} />
+                <EditTournamentButton
+                  tournament={tournament}
+                  rulesets={rulesets}
+                />
 
                 <DeleteTournamentButton
                   tournamentId={tournament.id}

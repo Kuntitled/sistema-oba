@@ -4,7 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Trophy, Swords, Users, ShieldCheck, Menu, Flame } from "lucide-react";
+import {
+  Trophy,
+  Swords,
+  Users,
+  ShieldCheck,
+  Menu,
+  Flame,
+  User,
+  LogIn,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -12,7 +21,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { ThemeToggle } from "./ThemeToggle";
+
+export interface NavbarUserInfo {
+  id: string;
+  nickname: string;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+}
 
 interface NavItem {
   label: string;
@@ -26,7 +43,7 @@ const navItems: NavItem[] = [
   { label: "Bladers", href: "/bladers", icon: <Users className="h-4 w-4" /> },
 ];
 
-export function Navbar() {
+export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -88,16 +105,49 @@ export function Navbar() {
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
-          <Link href="/admin">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-primary/40 hover:border-primary hover:bg-primary/10 text-foreground font-semibold text-xs gap-1.5"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              Painel Admin
-            </Button>
-          </Link>
+          {user ? (
+            <>
+              <Link href="/meu-painel">
+                <Button
+                  size="sm"
+                  variant={pathname.startsWith("/meu-painel") ? "default" : "outline"}
+                  className="border-primary/40 hover:border-primary text-xs font-semibold gap-2"
+                >
+                  <BladerAvatar
+                    avatarUrl={user.avatarUrl}
+                    nickname={user.nickname}
+                    sizeClass="h-5 w-5"
+                    textClass="text-[9px] font-black text-primary"
+                    borderClass="border border-primary/40"
+                  />
+                  <span>Meu Painel</span>
+                </Button>
+              </Link>
+              {user.isAdmin && (
+                <Link href="/admin">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border/80 hover:border-primary hover:bg-primary/10 text-foreground font-semibold text-xs gap-1.5"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                    Admin
+                  </Button>
+                </Link>
+              )}
+            </>
+          ) : (
+            <Link href="/auth/login">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-primary/40 hover:border-primary hover:bg-primary/10 text-foreground font-semibold text-xs gap-1.5"
+              >
+                <LogIn className="h-3.5 w-3.5 text-primary" />
+                Entrar
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Mobile Actions & Menu */}
@@ -135,7 +185,9 @@ export function Navbar() {
                       <SheetTitle className="text-base font-black tracking-wide">
                         LIGA <span className="text-fire-gradient">OBA</span>
                       </SheetTitle>
-                      <p className="text-xs text-muted-foreground">Beyblade X Amazonas</p>
+                      <p className="text-xs text-muted-foreground">
+                        Beyblade X Amazonas
+                      </p>
                     </div>
                   </div>
                 </SheetHeader>
@@ -159,21 +211,66 @@ export function Navbar() {
                       </Link>
                     );
                   })}
+
+                  {user && (
+                    <Link
+                      href="/meu-painel"
+                      onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                        isActive("/meu-painel")
+                          ? "bg-primary/20 text-primary border border-primary/30"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      <User className="h-4 w-4" />
+                      Meu Painel
+                    </Link>
+                  )}
                 </nav>
               </div>
 
               {/* Mobile Bottom Footer in Drawer */}
               <div className="pt-6 border-t border-border/40 flex flex-col gap-3">
-                <Link
-                  href="/admin"
-                  onClick={() => setIsOpen(false)}
-                  className="w-full"
-                >
-                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2">
-                    <ShieldCheck className="h-4 w-4" />
-                    Área Administrativa
-                  </Button>
-                </Link>
+                {user ? (
+                  <>
+                    <Link
+                      href="/meu-painel"
+                      onClick={() => setIsOpen(false)}
+                      className="w-full"
+                    >
+                      <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2">
+                        <User className="h-4 w-4" />
+                        Meu Painel ({user.nickname})
+                      </Button>
+                    </Link>
+                    {user.isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsOpen(false)}
+                        className="w-full"
+                      >
+                        <Button
+                          variant="outline"
+                          className="w-full font-semibold gap-2 border-border/80"
+                        >
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          Área Administrativa
+                        </Button>
+                      </Link>
+                    )}
+                  </>
+                ) : (
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setIsOpen(false)}
+                    className="w-full"
+                  >
+                    <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2">
+                      <LogIn className="h-4 w-4" />
+                      Entrar / Painel do Blader
+                    </Button>
+                  </Link>
+                )}
                 <p className="text-[11px] text-center text-muted-foreground">
                   Sistema Oficial OBA • 2026
                 </p>

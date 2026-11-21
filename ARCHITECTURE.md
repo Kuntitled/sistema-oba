@@ -111,10 +111,14 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 ---
 
-### 👥 Fase 3 — Inscrições, Check-in & Níveis de Acesso
-- Pré-inscrição pública de jogadores em eventos futuros.
-- Confirmação de presença presencial (Check-in / QR Code).
-- Nível de acesso restrito para Juízes (role `judge`), limitados a lançar placares das arenas designadas sem acesso à administração geral.
+### 🚀 Fase 3 — Ecossistema do Blader, Peças, Formatos, Inscrições & Níveis de Acesso (EM ANDAMENTO)
+- **Etapa 3A (Concluída):**
+  - [x] **Migrations `005` e `006` aplicadas em produção:** catálogo `parts_catalog` (288 peças únicas deduplicadas dos CSVs TT/Hasbro via `scripts/generate-parts-seed.ts`), `rulesets` (seed inicial `Livre`) e `ruleset_banned_parts`, `league_settings`, colunas de perfil/combo em `bladers`, `blader_inventory`, `blader_claim_requests`, além da base de `tournament_registrations` / `registration_combos` e ajustes em `tournaments`.
+  - [x] **Gestão Admin de Peças & Formatos:** rotas `/admin/pecas` e `/admin/formatos` para CRUD do catálogo e ban-lists independentes por formato, integradas à criação/edição de torneios.
+  - [x] **Auth Google OAuth & Vínculo de Perfis:** botão Entrar com Google em `/auth/login`, `/privacidade` pública para consentimento OAuth, redirecionamento adaptativo (`getRequestOrigin`), fluxo de primeiro acesso/vínculo em `/meu-painel` e aprovação/vínculo manual em `/admin/bladers`.
+  - [x] **Painel Pessoal (`/meu-painel`) & Card Público (`BladerCardModal`):** edição de perfil, bio (160 chars), combo favorito pesquisável por nome TT/Hasbro, inventário de coleção pessoal e modal público interativo no Ranking, Bladers e Torneios.
+- **Etapa 3B (Próxima):** configuração PIX global (`league_settings`), inscrição de Bladers com decklist validada pela ban-list do `ruleset`, PIX/comprovante e aprovação administrativa.
+- **Etapa 3C:** check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`).
 
 ---
 
@@ -307,15 +311,20 @@ Sistema OBA/
 - `matches`: Id, tournament_id, arena_id, round, match_number, stage (`swiss`, `top_cut`), bracket_label, player1_id, player2_id, player1_score, player2_score, target_score, winner_id, status (`pending`, `in_progress`, `finished`, `cancelled`), is_bye, is_tiebreaker, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, timestamps.
 - `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, timestamp.
 
+### Tabelas da Fase 3 (`005`–`006`)
+- `parts_catalog`: Id, name, aliases (`TEXT[]`), part_type (`blade`, `ratchet`, `bit`, `lock_chip`, `assist_blade`, `over_blade`), line (`BX`, `UX`, `CX`), is_active, timestamps (unique por `name + part_type`).
+- `rulesets` & `ruleset_banned_parts`: formatos competitivos independentes (`Livre`, etc.) e peças banidas por formato.
+- `league_settings`: singleton (`id = 1`) com chave PIX, recebedor e cidade da liga.
+- `blader_inventory`, `blader_claim_requests`, `tournament_registrations`, `registration_combos`: coleção pessoal de peças, solicitações de vínculo de conta e base de inscrições/decklists para a Etapa 3B.
+
 ---
 
 ## 🔐 Autenticação e Proteção de Rotas (`proxy.ts`)
 
 - O Next.js 16 descontinuou o `middleware.ts` e padronizou o `src/proxy.ts`.
-- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts`) intercepta todas as requisições para `/admin/*`.
-- Caso o usuário não esteja logado, redireciona para `/auth/login`.
-- Caso o usuário esteja logado mas `user.user_metadata.role !== 'admin'`, redireciona para a home pública `/`. As policies RLS preparatórias para `role = 'judge'` já estão criadas na migration `003` e serão liberadas no `proxy.ts` na Fase 3.
-- O login (`/auth/login`) envia as credenciais para a rota same-origin `POST /api/auth/login`, que utiliza `createRouteSupabaseClient` (`src/lib/supabase/route-cookies.ts`) com flag `secure` adaptativa (HTTP em rede local/dev e HTTPS em produção) e redireciona para `/admin` garantindo o envio imediato dos cookies HttpOnly.
+- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts`) intercepta `/admin/*` (exige `role = 'admin'`, redirecionando não-admins para `/meu-painel`) e `/meu-painel/*` (exige usuário autenticado).
+- O helper `getRequestOrigin` (`src/lib/supabase/route-cookies.ts`) resolve a origem real do request (`host` / `x-forwarded-host`, convertendo `0.0.0.0` em `localhost`) para callbacks OAuth e redirects.
+- O login (`/auth/login`) oferece **Entrar com Google (OAuth)** além de E-mail/Senha (`POST /api/auth/login`) e recuperação de senha, com página pública de privacidade em `/privacidade`.
 - O fluxo de **convite de novos admins e recuperação de senha** utiliza `/auth/callback` (PKCE `?code=` e OTP `?token_hash=`), o listener global `AuthHashListener` (tokens em `#access_token=` ou parâmetros na raiz), a tela `/auth/definir-senha` e a opção **"Esqueceu a senha?"** em `/auth/login`.
 
 ---
@@ -340,16 +349,16 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ---
 
-## 🎯 Diretrizes para a Próxima Sessão (Fase 3)
+## 🎯 Diretrizes para a Próxima Sessão (Etapa 3B)
 
-Com a **Fase 2** concluída (`003` e `004`, Motor OBA, Gestor de Arenas, Placar Touch, Vitrine Pública ao Vivo, Modo Telão, Fallback W.O./Manual, Gestão de Temporadas e Edição de Bladers/Torneios), o próximo passo é iniciar a **Fase 3 — Inscrições, Check-in & Níveis de Acesso**:
+Com a **Etapa 3A** concluída (`005` e `006`, catálogo de peças, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel` e Card Público), o próximo passo é a **Etapa 3B — Inscrições, Decklists & PIX**:
 
-1. **Acesso Restrito para Juízes (`role = 'judge'`):**
-   - Atualizar `src/lib/supabase/proxy.ts` e `/api/auth/login` para permitir que usuários com `role = 'judge'` acessem apenas `/admin/arenas` e `/admin/arena/[id]` (aproveitando as policies RLS preparatórias criadas na migration `003`).
-   - Adaptar os headers das telas de arena para ocultar links administrativos inacessíveis a juízes.
-2. **Pré-inscrição Pública & Check-in Presencial:**
-   - Permitir pré-inscrição de jogadores em torneios com status `open`.
-   - Confirmar presença no dia do evento (Check-in / QR Code) alimentando automaticamente `tournament_participants`.
+1. **Configuração PIX & Inscrições em Torneios:**
+   - Painel admin para editar `league_settings` (PIX global da OBA) e habilitar `registration_status`, `entry_fee` e `max_participants` nos torneios.
+   - Fluxo de inscrição do Blader com montagem de até 4 combos validados contra a ban-list do `ruleset` e upload de comprovante PIX.
+   - Fila administrativa `/admin/torneios/[id]/inscricoes` para conferência de pagamento/decklist e envio automático para `tournament_participants`.
+2. **Na sequência (Etapa 3C):**
+   - Check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`) em `/admin/arenas` e `/admin/arena/[id]`.
 
 ---
 

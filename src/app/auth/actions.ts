@@ -23,18 +23,9 @@ export async function loginAction(formData: FormData) {
     return { error: "Credenciais inválidas. Verifique seu e-mail e senha." };
   }
 
-  // Verifica se o usuário possui a role admin
   const role = data.user?.user_metadata?.role;
-  if (role !== "admin") {
-    // Desloga se não for admin
-    await supabase.auth.signOut();
-    return {
-      error: "Acesso restrito. Este usuário não possui privilégios de administrador.",
-    };
-  }
-
   revalidatePath("/", "layout");
-  redirect("/admin");
+  redirect(role === "admin" ? "/admin" : "/meu-painel");
 }
 
 export async function logoutAction() {
@@ -42,4 +33,11 @@ export async function logoutAction() {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/auth/login");
+}
+
+export async function logoutToHomeAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  revalidatePath("/", "layout");
+  redirect("/");
 }

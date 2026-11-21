@@ -50,6 +50,10 @@ export function Footer() {
               Bladers
             </Link>
             <span className="text-border">•</span>
+            <Link href="/privacidade" className="hover:text-foreground transition-colors">
+              Privacidade
+            </Link>
+            <span className="text-border">•</span>
             <Link href="/admin" className="hover:text-primary transition-colors font-medium">
               Admin
             </Link>

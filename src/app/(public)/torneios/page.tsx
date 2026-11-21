@@ -116,6 +116,14 @@ export default async function TorneiosPage() {
                         <Badge variant="outline" className="border-border/60 text-xs font-medium">
                           {TOURNAMENT_FORMAT_LABELS[tournament.format]}
                         </Badge>
+                        {tournament.ruleset && (
+                          <Badge
+                            variant="outline"
+                            className="border-primary/35 text-primary/90 bg-primary/5 text-xs font-medium"
+                          >
+                            Regras: {tournament.ruleset.name}
+                          </Badge>
+                        )}
                         {tournament.season && (
                           <Badge variant="secondary" className="text-[11px]">
                             {tournament.season.name}

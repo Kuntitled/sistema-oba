@@ -1,6 +1,9 @@
-import type { EmailOtpType } from "@supabase/supabase-js";
+import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { createRouteSupabaseClient } from "@/lib/supabase/route-cookies";
+import {
+  createRouteSupabaseClient,
+  getRequestOrigin,
+} from "@/lib/supabase/route-cookies";
 
 const ALLOWED_OTP_TYPES = new Set<string>([
   "invite",
@@ -10,9 +13,9 @@ const ALLOWED_OTP_TYPES = new Set<string>([
   "signup",
 ]);
 
-function getSafeNextPath(rawNext: string | null): string {
+function getSafeNextPath(rawNext: string | null): string | null {
   if (!rawNext || !rawNext.startsWith("/") || rawNext.startsWith("//")) {
-    return "/admin";
+    return null;
   }
   return rawNext;
 }
@@ -23,45 +26,64 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const safeNext = getSafeNextPath(searchParams.get("next"));
+  const isPasswordFlow =
+    type === "invite" ||
+    type === "recovery" ||
+    Boolean(safeNext?.startsWith("/auth/definir-senha"));
+
+  const origin = getRequestOrigin(request);
 
   if (searchParams.get("error") || searchParams.get("error_code")) {
-    return NextResponse.redirect(
-      new URL("/auth/definir-senha?error=invalid_link", request.url)
-    );
+    const errorRedirect = isPasswordFlow
+      ? "/auth/definir-senha?error=invalid_link"
+      : "/auth/login?error=oauth_error";
+    return NextResponse.redirect(new URL(errorRedirect, origin));
   }
 
   const { supabase, applyCookies } = createRouteSupabaseClient(request);
 
   let verified = false;
+  let authenticatedUser: User | null = null;
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       verified = true;
+      authenticatedUser = data.user ?? null;
     }
   } else if (tokenHash && type && ALLOWED_OTP_TYPES.has(type)) {
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: type as EmailOtpType,
     });
     if (!error) {
       verified = true;
+      authenticatedUser = data.user ?? null;
     }
   }
 
   if (!verified) {
-    return NextResponse.redirect(
-      new URL("/auth/definir-senha?error=invalid_link", request.url)
-    );
+    const errorRedirect = isPasswordFlow
+      ? "/auth/definir-senha?error=invalid_link"
+      : "/auth/login?error=oauth_error";
+    return NextResponse.redirect(new URL(errorRedirect, origin));
   }
 
-  const destination =
-    type === "invite" ||
-    type === "recovery" ||
-    safeNext.startsWith("/auth/definir-senha")
-      ? "/auth/definir-senha"
-      : safeNext;
+  let destination = "/meu-painel";
 
-  const response = NextResponse.redirect(new URL(destination, request.url));
+  if (isPasswordFlow) {
+    destination = "/auth/definir-senha";
+  } else {
+    const isAdmin = authenticatedUser?.user_metadata?.role === "admin";
+
+    if (safeNext) {
+      destination =
+        safeNext.startsWith("/admin") && !isAdmin ? "/meu-painel" : safeNext;
+    } else {
+      destination = isAdmin ? "/admin" : "/meu-painel";
+    }
+  }
+
+  const response = NextResponse.redirect(new URL(destination, origin));
   return applyCookies(response);
 }

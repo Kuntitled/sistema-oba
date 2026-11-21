@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { sortSeasonRankingEntries } from "@/lib/engine/tournament-engine";
 import { isMissingTableError } from "@/lib/services/arena-queries";
+import { getRulesets } from "@/lib/services/parts";
 import type {
   Blader,
   BladerRow,
   RankingEntry,
+  RulesetRow,
   Season,
   Tournament,
   TournamentResult,
@@ -268,12 +270,13 @@ export async function getTournaments(): Promise<Tournament[]> {
   try {
     const supabase = await createClient();
 
-    const [{ data, error }, { seasons }] = await Promise.all([
+    const [{ data, error }, { seasons }, { rulesets }] = await Promise.all([
       supabase
         .from("tournaments")
         .select("*")
         .order("event_date", { ascending: false }),
       getSeasons(),
+      getRulesets({ includeInactive: true }),
     ]);
 
     if (error) {
@@ -286,11 +289,17 @@ export async function getTournaments(): Promise<Tournament[]> {
       seasonsById.set(s.id, s);
     }
 
+    const rulesetsById = new Map<string, RulesetRow>();
+    for (const r of rulesets) {
+      rulesetsById.set(r.id, r);
+    }
+
     return (data ?? []).map((t) => ({
       ...t,
       category: t.category ?? "semanal",
       swiss_rounds: t.swiss_rounds ?? 4,
       season: t.season_id ? (seasonsById.get(t.season_id) ?? null) : null,
+      ruleset: t.ruleset_id ? (rulesetsById.get(t.ruleset_id) ?? null) : null,
     }));
   } catch (err) {
     console.error("Exceção ao buscar torneios:", err);
@@ -315,7 +324,7 @@ export async function getTournamentBySlug(slug: string) {
       return null;
     }
 
-    const [seasonRes, resultsRes] = await Promise.all([
+    const [seasonRes, rulesetRes, resultsRes] = await Promise.all([
       tournament.season_id
         ? supabase
             .from("seasons")
@@ -323,6 +332,13 @@ export async function getTournamentBySlug(slug: string) {
             .eq("id", tournament.season_id)
             .maybeSingle()
         : Promise.resolve({ data: null as Season | null, error: null }),
+      tournament.ruleset_id
+        ? supabase
+            .from("rulesets")
+            .select("*")
+            .eq("id", tournament.ruleset_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null as RulesetRow | null, error: null }),
       supabase
         .from("tournament_results")
         .select("*")
@@ -361,6 +377,10 @@ export async function getTournamentBySlug(slug: string) {
       category: tournament.category ?? "semanal",
       swiss_rounds: tournament.swiss_rounds ?? 4,
       season: seasonRes.data ?? null,
+      ruleset:
+        rulesetRes.error && isMissingTableError(rulesetRes.error)
+          ? null
+          : (rulesetRes.data ?? null),
     };
 
     return {

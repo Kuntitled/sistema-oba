@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trophy, Search, MapPin, Sparkles, Calendar, Info } from "lucide-react";
@@ -9,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import type { RankingEntry, Season } from "@/types/domain";
 
 interface RankingTableProps {
@@ -37,6 +38,9 @@ export function RankingTable({
 }: RankingTableProps) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
+  const [selectedBladerId, setSelectedBladerId] = React.useState<string | null>(
+    null
+  );
 
   const filteredRanking = React.useMemo(() => {
     if (!search.trim()) return initialRanking;
@@ -138,45 +142,45 @@ export function RankingTable({
           {/* 2º Lugar */}
           {top3[1] && (
             <div className="order-2 sm:order-1">
-              <Card className="relative overflow-hidden border-border/60 bg-gradient-to-b from-card to-card/60 shadow-md">
+              <Card className="relative overflow-hidden border-border/60 bg-gradient-to-b from-card to-card/60 shadow-md hover:border-primary/40 transition-colors">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400/80" />
-                <CardContent className="p-5 flex flex-col items-center text-center">
-                  <div className="relative mb-3">
-                    <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-slate-400/60 shadow-inner bg-muted">
-                      {top3[1].blader?.avatar_url ? (
-                        <Image
-                          src={top3[1].blader.avatar_url}
-                          alt={top3[1].blader.nickname}
-                          width={64}
-                          height={64}
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center font-black text-xl text-slate-300">
-                          {top3[1].blader?.nickname?.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                <CardContent className="p-5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      top3[1].blader && setSelectedBladerId(top3[1].blader.id)
+                    }
+                    className="w-full flex flex-col items-center text-center cursor-pointer group"
+                  >
+                    <div className="relative mb-3">
+                      <BladerAvatar
+                        avatarUrl={top3[1].blader?.avatar_url}
+                        nickname={top3[1].blader?.nickname}
+                        sizeClass="h-16 w-16"
+                        textClass="font-black text-xl text-slate-300"
+                        borderClass="border-2 border-slate-400/60 shadow-inner"
+                      />
+                      <span className="absolute -bottom-2 -right-1 bg-slate-700 text-slate-200 text-[11px] font-black px-2 py-0.5 rounded-full border border-slate-400">
+                        🥈 2º
+                      </span>
                     </div>
-                    <span className="absolute -bottom-2 -right-1 bg-slate-700 text-slate-200 text-[11px] font-black px-2 py-0.5 rounded-full border border-slate-400">
-                      🥈 2º
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-base text-foreground">
-                    {top3[1].blader?.nickname}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {top3[1].blader?.name}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1.5 text-lg font-black text-slate-300">
-                    <span>{top3[1].total_points}</span>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      pts
-                    </span>
-                  </div>
-                  <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    {top3[1].swiss_wins} vit. Suíço • {top3[1].podiums_count}{" "}
-                    pódios
-                  </div>
+                    <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
+                      {top3[1].blader?.nickname}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {top3[1].blader?.name}
+                    </p>
+                    <div className="mt-3 flex items-center gap-1.5 text-lg font-black text-slate-300">
+                      <span>{top3[1].total_points}</span>
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        pts
+                      </span>
+                    </div>
+                    <div className="mt-1.5 text-[11px] text-muted-foreground">
+                      {top3[1].swiss_wins} vit. Suíço • {top3[1].podiums_count}{" "}
+                      pódios
+                    </div>
+                  </button>
                 </CardContent>
               </Card>
             </div>
@@ -185,49 +189,49 @@ export function RankingTable({
           {/* 1º Lugar (Destaque Central OBA) */}
           {top3[0] && (
             <div className="order-1 sm:order-2 sm:-translate-y-2">
-              <Card className="relative overflow-hidden border-primary/50 bg-gradient-to-b from-card via-card to-primary/10 shadow-xl border-glow-purple">
+              <Card className="relative overflow-hidden border-primary/50 bg-gradient-to-b from-card via-card to-primary/10 shadow-xl border-glow-purple hover:border-primary transition-colors">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-fire-orange via-fire-yellow to-primary" />
-                <CardContent className="p-6 flex flex-col items-center text-center">
-                  <div className="relative mb-3">
-                    <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-fire-yellow shadow-lg bg-muted">
-                      {top3[0].blader?.avatar_url ? (
-                        <Image
-                          src={top3[0].blader.avatar_url}
-                          alt={top3[0].blader.nickname}
-                          width={80}
-                          height={80}
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center font-black text-2xl text-fire-yellow">
-                          {top3[0].blader?.nickname?.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                <CardContent className="p-6">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      top3[0].blader && setSelectedBladerId(top3[0].blader.id)
+                    }
+                    className="w-full flex flex-col items-center text-center cursor-pointer group"
+                  >
+                    <div className="relative mb-3">
+                      <BladerAvatar
+                        avatarUrl={top3[0].blader?.avatar_url}
+                        nickname={top3[0].blader?.nickname}
+                        sizeClass="h-20 w-20"
+                        textClass="font-black text-2xl text-fire-yellow"
+                        borderClass="border-2 border-fire-yellow shadow-lg"
+                      />
+                      <span className="absolute -bottom-2.5 -right-1.5 bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shadow-md">
+                        🥇 1º
+                      </span>
                     </div>
-                    <span className="absolute -bottom-2.5 -right-1.5 bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shadow-md">
-                      🥇 1º
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-fire-yellow text-[11px] font-bold uppercase tracking-wider mb-0.5">
-                    <Sparkles className="h-3 w-3" />
-                    Líder da Temporada
-                  </div>
-                  <h3 className="font-black text-lg text-foreground">
-                    {top3[0].blader?.nickname}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {top3[0].blader?.name}
-                  </p>
-                  <div className="mt-4 flex items-center gap-1.5 text-2xl font-black text-fire-gradient">
-                    <span>{top3[0].total_points}</span>
-                    <span className="text-sm font-semibold text-foreground/80">
-                      pts
-                    </span>
-                  </div>
-                  <div className="mt-2 text-[11px] text-muted-foreground">
-                    {top3[0].swiss_wins} vit. Suíço • {top3[0].podiums_count}{" "}
-                    pódios
-                  </div>
+                    <div className="flex items-center gap-1 text-fire-yellow text-[11px] font-bold uppercase tracking-wider mb-0.5">
+                      <Sparkles className="h-3 w-3" />
+                      Líder da Temporada
+                    </div>
+                    <h3 className="font-black text-lg text-foreground group-hover:text-primary transition-colors">
+                      {top3[0].blader?.nickname}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {top3[0].blader?.name}
+                    </p>
+                    <div className="mt-4 flex items-center gap-1.5 text-2xl font-black text-fire-gradient">
+                      <span>{top3[0].total_points}</span>
+                      <span className="text-sm font-semibold text-foreground/80">
+                        pts
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-muted-foreground">
+                      {top3[0].swiss_wins} vit. Suíço • {top3[0].podiums_count}{" "}
+                      pódios
+                    </div>
+                  </button>
                 </CardContent>
               </Card>
             </div>
@@ -236,45 +240,45 @@ export function RankingTable({
           {/* 3º Lugar */}
           {top3[2] && (
             <div className="order-3">
-              <Card className="relative overflow-hidden border-border/60 bg-gradient-to-b from-card to-card/60 shadow-md">
+              <Card className="relative overflow-hidden border-border/60 bg-gradient-to-b from-card to-card/60 shadow-md hover:border-primary/40 transition-colors">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-amber-700/80" />
-                <CardContent className="p-5 flex flex-col items-center text-center">
-                  <div className="relative mb-3">
-                    <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-amber-700/60 shadow-inner bg-muted">
-                      {top3[2].blader?.avatar_url ? (
-                        <Image
-                          src={top3[2].blader.avatar_url}
-                          alt={top3[2].blader.nickname}
-                          width={64}
-                          height={64}
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center font-black text-xl text-amber-600">
-                          {top3[2].blader?.nickname?.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                <CardContent className="p-5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      top3[2].blader && setSelectedBladerId(top3[2].blader.id)
+                    }
+                    className="w-full flex flex-col items-center text-center cursor-pointer group"
+                  >
+                    <div className="relative mb-3">
+                      <BladerAvatar
+                        avatarUrl={top3[2].blader?.avatar_url}
+                        nickname={top3[2].blader?.nickname}
+                        sizeClass="h-16 w-16"
+                        textClass="font-black text-xl text-amber-600"
+                        borderClass="border-2 border-amber-700/60 shadow-inner"
+                      />
+                      <span className="absolute -bottom-2 -right-1 bg-amber-900 text-amber-200 text-[11px] font-black px-2 py-0.5 rounded-full border border-amber-700">
+                        🥉 3º
+                      </span>
                     </div>
-                    <span className="absolute -bottom-2 -right-1 bg-amber-900 text-amber-200 text-[11px] font-black px-2 py-0.5 rounded-full border border-amber-700">
-                      🥉 3º
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-base text-foreground">
-                    {top3[2].blader?.nickname}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {top3[2].blader?.name}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1.5 text-lg font-black text-amber-600">
-                    <span>{top3[2].total_points}</span>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      pts
-                    </span>
-                  </div>
-                  <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    {top3[2].swiss_wins} vit. Suíço • {top3[2].podiums_count}{" "}
-                    pódios
-                  </div>
+                    <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
+                      {top3[2].blader?.nickname}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {top3[2].blader?.name}
+                    </p>
+                    <div className="mt-3 flex items-center gap-1.5 text-lg font-black text-amber-600">
+                      <span>{top3[2].total_points}</span>
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        pts
+                      </span>
+                    </div>
+                    <div className="mt-1.5 text-[11px] text-muted-foreground">
+                      {top3[2].swiss_wins} vit. Suíço • {top3[2].podiums_count}{" "}
+                      pódios
+                    </div>
+                  </button>
                 </CardContent>
               </Card>
             </div>
@@ -338,25 +342,23 @@ export function RankingTable({
                     <div className="flex items-center gap-3 min-w-0 md:contents">
                       <div className="shrink-0">{getPositionBadge(pos)}</div>
 
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="relative h-10 w-10 rounded-full overflow-hidden border border-border/60 bg-muted shrink-0">
-                          {blader?.avatar_url ? (
-                            <Image
-                              src={blader.avatar_url}
-                              alt={blader.nickname}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center font-bold text-xs text-muted-foreground">
-                              {blader?.nickname?.slice(0, 2).toUpperCase() ?? "BX"}
-                            </div>
-                          )}
-                        </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          blader && setSelectedBladerId(blader.id)
+                        }
+                        className="flex items-center gap-3 min-w-0 text-left cursor-pointer group"
+                      >
+                        <BladerAvatar
+                          avatarUrl={blader?.avatar_url}
+                          nickname={blader?.nickname}
+                          sizeClass="h-10 w-10"
+                          textClass="font-bold text-xs text-muted-foreground"
+                        />
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm sm:text-base text-foreground truncate">
+                            <span className="font-bold text-sm sm:text-base text-foreground truncate group-hover:text-primary transition-colors">
                               {blader?.nickname}
                             </span>
                             {pos === 1 && (
@@ -378,7 +380,7 @@ export function RankingTable({
                             )}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     </div>
 
                     {/* Pontuação mobile */}
@@ -447,6 +449,14 @@ export function RankingTable({
           </div>
         </div>
       )}
+
+      <BladerCardModal
+        open={Boolean(selectedBladerId)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setSelectedBladerId(null);
+        }}
+        bladerId={selectedBladerId}
+      />
     </div>
   );
 }

@@ -15,6 +15,25 @@ export function getRequestIsHttps(request: NextRequest): boolean {
   );
 }
 
+export function getRequestOrigin(request: NextRequest): string {
+  const protocol = getRequestIsHttps(request) ? "https" : "http";
+  const forwardedHost = request.headers
+    .get("x-forwarded-host")
+    ?.split(",")[0]
+    ?.trim();
+  const hostHeader = request.headers.get("host")?.trim();
+  const rawHost = forwardedHost || hostHeader;
+
+  if (rawHost) {
+    const safeHost = rawHost.startsWith("0.0.0.0")
+      ? rawHost.replace(/^0\.0\.0\.0/, "localhost")
+      : rawHost;
+    return `${protocol}://${safeHost}`;
+  }
+
+  return request.nextUrl.origin.replace("://0.0.0.0", "://localhost");
+}
+
 export function createRouteSupabaseClient(request: NextRequest) {
   const pendingCookies: PendingCookie[] = [];
   const isHttps = getRequestIsHttps(request);

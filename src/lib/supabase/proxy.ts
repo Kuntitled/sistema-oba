@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getRequestIsHttps } from "@/lib/supabase/route-cookies";
+import {
+  getRequestIsHttps,
+  getRequestOrigin,
+} from "@/lib/supabase/route-cookies";
 
 /**
  * Atualiza a sessão do Supabase em cada request.
@@ -42,26 +45,28 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protege todas as rotas /admin — redireciona para login se não autenticado
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith("/admin")
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
+  const pathname = request.nextUrl.pathname;
+  const origin = getRequestOrigin(request);
+
+  // Protege /meu-painel — exige autenticação (qualquer Blader ou Admin)
+  if (!user && pathname.startsWith("/meu-painel")) {
+    const url = new URL("/auth/login", origin);
+    url.searchParams.set("next", "/meu-painel");
     return NextResponse.redirect(url);
   }
 
-  // Verifica role admin para acesso ao painel
-  if (
-    user &&
-    request.nextUrl.pathname.startsWith("/admin")
-  ) {
+  // Protege todas as rotas /admin — redireciona para login se não autenticado
+  if (!user && pathname.startsWith("/admin")) {
+    const url = new URL("/auth/login", origin);
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // Verifica role admin para acesso ao painel administrativo
+  if (user && pathname.startsWith("/admin")) {
     const role = user.user_metadata?.role;
     if (role !== "admin") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(new URL("/meu-painel", origin));
     }
   }
 

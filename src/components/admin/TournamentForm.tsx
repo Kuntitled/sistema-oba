@@ -15,22 +15,37 @@ import {
 } from "@/components/ui/dialog";
 import { createTournamentAction } from "@/app/admin/actions";
 import { DEFAULT_SWISS_ROUNDS } from "@/lib/constants";
-import type { TournamentCategory, TournamentFormat } from "@/types/domain";
+import type {
+  RulesetRow,
+  TournamentCategory,
+  TournamentFormat,
+} from "@/types/domain";
 
-export function TournamentForm() {
+export function TournamentForm({
+  rulesets = [],
+}: {
+  rulesets?: RulesetRow[];
+}) {
   const router = useRouter();
+  const defaultRulesetId = React.useMemo(() => {
+    const livre = rulesets.find((r) => r.name.toLowerCase() === "livre");
+    return livre?.id ?? rulesets[0]?.id ?? "";
+  }, [rulesets]);
+
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
   const [category, setCategory] = React.useState<TournamentCategory>("semanal");
   const [format, setFormat] = React.useState<TournamentFormat>("swiss_only");
+  const [rulesetId, setRulesetId] = React.useState<string>(defaultRulesetId);
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (nextOpen) {
       setCategory("semanal");
       setFormat("swiss_only");
+      setRulesetId(defaultRulesetId);
       setError(null);
       setSuccess(false);
     }
@@ -218,6 +233,28 @@ export function TournamentForm() {
               />
             </div>
           </div>
+
+          {rulesets.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="ruleset_id" className="text-xs font-semibold">
+                Formato / Ban-list (Regras)
+              </Label>
+              <select
+                id="ruleset_id"
+                name="ruleset_id"
+                value={rulesetId}
+                onChange={(e) => setRulesetId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Sem formato definido</option>
+                {rulesets.map((rs) => (
+                  <option key={rs.id} value={rs.id}>
+                    {rs.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="description" className="text-xs font-semibold">

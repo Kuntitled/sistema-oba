@@ -55,6 +55,10 @@ export type Database = {
           city: string | null;
           avatar_url: string | null;
           bio: string | null;
+          favorite_anime: string | null;
+          favorite_blade_id: string | null;
+          favorite_ratchet_id: string | null;
+          favorite_bit_id: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -67,6 +71,10 @@ export type Database = {
           city?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
+          favorite_anime?: string | null;
+          favorite_blade_id?: string | null;
+          favorite_ratchet_id?: string | null;
+          favorite_bit_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -79,6 +87,10 @@ export type Database = {
           city?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
+          favorite_anime?: string | null;
+          favorite_blade_id?: string | null;
+          favorite_ratchet_id?: string | null;
+          favorite_bit_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -87,8 +99,29 @@ export type Database = {
           {
             foreignKeyName: "bladers_user_id_fkey";
             columns: ["user_id"];
-            isOneToOne: false;
+            isOneToOne: true;
             referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_blade_id_fkey";
+            columns: ["favorite_blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_ratchet_id_fkey";
+            columns: ["favorite_ratchet_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_bit_id_fkey";
+            columns: ["favorite_bit_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
             referencedColumns: ["id"];
           }
         ];
@@ -97,6 +130,7 @@ export type Database = {
         Row: {
           id: string;
           season_id: string | null;
+          ruleset_id: string | null;
           name: string;
           slug: string;
           description: string | null;
@@ -112,7 +146,10 @@ export type Database = {
           swiss_rounds: number;
           top_cut_size: number | null;
           status: "draft" | "open" | "ongoing" | "finished";
+          registration_status: "closed" | "open" | "finished";
+          entry_fee: number | null;
           max_players: number | null;
+          max_participants: number | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -120,6 +157,7 @@ export type Database = {
         Insert: {
           id?: string;
           season_id?: string | null;
+          ruleset_id?: string | null;
           name: string;
           slug: string;
           description?: string | null;
@@ -135,7 +173,10 @@ export type Database = {
           swiss_rounds?: number;
           top_cut_size?: number | null;
           status?: "draft" | "open" | "ongoing" | "finished";
+          registration_status?: "closed" | "open" | "finished";
+          entry_fee?: number | null;
           max_players?: number | null;
+          max_participants?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -143,6 +184,7 @@ export type Database = {
         Update: {
           id?: string;
           season_id?: string | null;
+          ruleset_id?: string | null;
           name?: string;
           slug?: string;
           description?: string | null;
@@ -158,7 +200,10 @@ export type Database = {
           swiss_rounds?: number;
           top_cut_size?: number | null;
           status?: "draft" | "open" | "ongoing" | "finished";
+          registration_status?: "closed" | "open" | "finished";
+          entry_fee?: number | null;
           max_players?: number | null;
+          max_participants?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -176,6 +221,13 @@ export type Database = {
             columns: ["season_id"];
             isOneToOne: false;
             referencedRelation: "seasons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tournaments_ruleset_id_fkey";
+            columns: ["ruleset_id"];
+            isOneToOne: false;
+            referencedRelation: "rulesets";
             referencedColumns: ["id"];
           }
         ];
@@ -566,6 +618,393 @@ export type Database = {
           }
         ];
       };
+      parts_catalog: {
+        Row: {
+          id: string;
+          name: string;
+          aliases: string[];
+          part_type:
+            | "blade"
+            | "ratchet"
+            | "bit"
+            | "lock_chip"
+            | "assist_blade"
+            | "over_blade";
+          line: "BX" | "UX" | "CX";
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          aliases?: string[];
+          part_type:
+            | "blade"
+            | "ratchet"
+            | "bit"
+            | "lock_chip"
+            | "assist_blade"
+            | "over_blade";
+          line?: "BX" | "UX" | "CX";
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          aliases?: string[];
+          part_type?:
+            | "blade"
+            | "ratchet"
+            | "bit"
+            | "lock_chip"
+            | "assist_blade"
+            | "over_blade";
+          line?: "BX" | "UX" | "CX";
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      rulesets: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ruleset_banned_parts: {
+        Row: {
+          id: string;
+          ruleset_id: string;
+          part_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          ruleset_id: string;
+          part_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          ruleset_id?: string;
+          part_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ruleset_banned_parts_ruleset_id_fkey";
+            columns: ["ruleset_id"];
+            isOneToOne: false;
+            referencedRelation: "rulesets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ruleset_banned_parts_part_id_fkey";
+            columns: ["part_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      league_settings: {
+        Row: {
+          id: number;
+          pix_key: string | null;
+          pix_receiver_name: string | null;
+          pix_city: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          pix_key?: string | null;
+          pix_receiver_name?: string | null;
+          pix_city?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          pix_key?: string | null;
+          pix_receiver_name?: string | null;
+          pix_city?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      blader_inventory: {
+        Row: {
+          id: string;
+          blader_id: string;
+          part_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          blader_id: string;
+          part_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          blader_id?: string;
+          part_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "blader_inventory_blader_id_fkey";
+            columns: ["blader_id"];
+            isOneToOne: false;
+            referencedRelation: "bladers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "blader_inventory_part_id_fkey";
+            columns: ["part_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      tournament_registrations: {
+        Row: {
+          id: string;
+          tournament_id: string;
+          blader_id: string;
+          status: "pending" | "approved" | "rejected";
+          payment_verified: boolean;
+          payment_verified_at: string | null;
+          payment_verified_by: string | null;
+          receipt_path: string | null;
+          decks_verified: boolean;
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tournament_id: string;
+          blader_id: string;
+          status?: "pending" | "approved" | "rejected";
+          payment_verified?: boolean;
+          payment_verified_at?: string | null;
+          payment_verified_by?: string | null;
+          receipt_path?: string | null;
+          decks_verified?: boolean;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tournament_id?: string;
+          blader_id?: string;
+          status?: "pending" | "approved" | "rejected";
+          payment_verified?: boolean;
+          payment_verified_at?: string | null;
+          payment_verified_by?: string | null;
+          receipt_path?: string | null;
+          decks_verified?: boolean;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tournament_registrations_tournament_id_fkey";
+            columns: ["tournament_id"];
+            isOneToOne: false;
+            referencedRelation: "tournaments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tournament_registrations_blader_id_fkey";
+            columns: ["blader_id"];
+            isOneToOne: false;
+            referencedRelation: "bladers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tournament_registrations_payment_verified_by_fkey";
+            columns: ["payment_verified_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      registration_combos: {
+        Row: {
+          id: string;
+          registration_id: string;
+          slot_number: number;
+          blade_id: string | null;
+          ratchet_id: string | null;
+          bit_id: string | null;
+          lock_chip_id: string | null;
+          assist_blade_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          registration_id: string;
+          slot_number: number;
+          blade_id?: string | null;
+          ratchet_id?: string | null;
+          bit_id?: string | null;
+          lock_chip_id?: string | null;
+          assist_blade_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          registration_id?: string;
+          slot_number?: number;
+          blade_id?: string | null;
+          ratchet_id?: string | null;
+          bit_id?: string | null;
+          lock_chip_id?: string | null;
+          assist_blade_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "registration_combos_registration_id_fkey";
+            columns: ["registration_id"];
+            isOneToOne: false;
+            referencedRelation: "tournament_registrations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_blade_id_fkey";
+            columns: ["blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_ratchet_id_fkey";
+            columns: ["ratchet_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_bit_id_fkey";
+            columns: ["bit_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_lock_chip_id_fkey";
+            columns: ["lock_chip_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_assist_blade_id_fkey";
+            columns: ["assist_blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      blader_claim_requests: {
+        Row: {
+          id: string;
+          blader_id: string;
+          user_id: string;
+          user_email: string | null;
+          user_name: string | null;
+          user_avatar_url: string | null;
+          note: string | null;
+          status: "pending" | "approved" | "rejected";
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          blader_id: string;
+          user_id: string;
+          user_email?: string | null;
+          user_name?: string | null;
+          user_avatar_url?: string | null;
+          note?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          blader_id?: string;
+          user_id?: string;
+          user_email?: string | null;
+          user_name?: string | null;
+          user_avatar_url?: string | null;
+          note?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "blader_claim_requests_blader_id_fkey";
+            columns: ["blader_id"];
+            isOneToOne: false;
+            referencedRelation: "bladers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "blader_claim_requests_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "blader_claim_requests_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -582,6 +1021,17 @@ export type Database = {
       match_stage: "swiss" | "top_cut";
       match_status: "pending" | "in_progress" | "finished" | "cancelled";
       finish_type: "spin" | "over" | "burst" | "xtreme" | "draw";
+      part_type:
+        | "blade"
+        | "ratchet"
+        | "bit"
+        | "lock_chip"
+        | "assist_blade"
+        | "over_blade";
+      part_line: "BX" | "UX" | "CX";
+      tournament_registration_status: "closed" | "open" | "finished";
+      registration_status: "pending" | "approved" | "rejected";
+      claim_request_status: "pending" | "approved" | "rejected";
     };
     CompositeTypes: Record<string, never>;
   };

@@ -30,6 +30,7 @@ export type TournamentStatus = Database["public"]["Enums"]["tournament_status"];
 
 export interface Tournament extends TournamentRow {
   season?: SeasonRow | null;
+  ruleset?: RulesetRow | null;
   results?: TournamentResult[];
   player_count?: number;
 }
@@ -192,3 +193,71 @@ export interface UserProfile {
   role: UserRole;
   blader_id?: string;
 }
+
+// ─── Catálogo de Peças, Formatos & Ecossistema do Blader (Fase 3) ────────────
+
+export type PartRow = Database["public"]["Tables"]["parts_catalog"]["Row"];
+export type PartType = Database["public"]["Enums"]["part_type"];
+export type PartLine = Database["public"]["Enums"]["part_line"];
+
+export type RulesetRow = Database["public"]["Tables"]["rulesets"]["Row"];
+export type RulesetBannedPartRow =
+  Database["public"]["Tables"]["ruleset_banned_parts"]["Row"];
+
+export interface RulesetWithBans extends RulesetRow {
+  bannedPartIds: string[];
+}
+
+export type LeagueSettingsRow =
+  Database["public"]["Tables"]["league_settings"]["Row"];
+export type BladerInventoryRow =
+  Database["public"]["Tables"]["blader_inventory"]["Row"];
+export type BladerClaimRequestRow =
+  Database["public"]["Tables"]["blader_claim_requests"]["Row"];
+
+export interface BladerClaimRequest extends BladerClaimRequestRow {
+  blader?: BladerRow | null;
+}
+
+export interface BladerCardProfile {
+  blader: BladerRow;
+  seasonName: string | null;
+  position: number | null;
+  totalPoints: number;
+  tournamentsPlayed: number;
+  swissWins: number;
+  podiumsCount: number;
+  firstPlaces: number;
+  secondPlaces: number;
+  thirdPlaces: number;
+  favoriteCombo: {
+    blade: PartRow | null;
+    ratchet: PartRow | null;
+    bit: PartRow | null;
+  };
+  mostUsedCombo: string | null;
+}
+
+export const PART_TYPE_ORDER: PartType[] = [
+  "blade",
+  "ratchet",
+  "bit",
+  "lock_chip",
+  "assist_blade",
+  "over_blade",
+];
+
+export const PART_TYPE_LABELS: Record<PartType, string> = {
+  blade: "Blade",
+  ratchet: "Ratchet",
+  bit: "Bit",
+  lock_chip: "Lock Chip",
+  assist_blade: "Assist Blade",
+  over_blade: "Over Blade",
+} as const;
+
+export const PART_LINE_LABELS: Record<PartLine, string> = {
+  BX: "Basic Line (BX)",
+  UX: "Unique Line (UX)",
+  CX: "Custom Line (CX)",
+} as const;

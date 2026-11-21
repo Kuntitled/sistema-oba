@@ -45,19 +45,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const role = data.user.user_metadata?.role;
-  if (role !== "admin") {
-    await supabase.auth.signOut();
-    return applyCookies(
-      NextResponse.json(
-        {
-          error:
-            "Acesso restrito. Este usuário não possui a permissão 'admin'.",
-        },
-        { status: 403 }
-      )
-    );
-  }
+  const rawRole = data.user.user_metadata?.role;
+  const role = rawRole === "admin" || rawRole === "judge" ? rawRole : "blader";
+  const redirectTo = role === "admin" ? "/admin" : "/meu-painel";
 
-  return applyCookies(NextResponse.json({ ok: true }));
+  return applyCookies(NextResponse.json({ ok: true, role, redirectTo }));
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import {
   Radio,
   Trophy,
@@ -17,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveArenaCard } from "@/components/tournament/LiveArenaCard";
+import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { OBA_SWISS_LEADER_BONUS } from "@/lib/constants";
 import { computeSwissStandings } from "@/lib/engine/tournament-engine";
 import { createClient } from "@/lib/supabase/client";
@@ -74,6 +75,9 @@ export function PublicTournamentLive({
   const [realtimeStatus, setRealtimeStatus] = React.useState<
     "connecting" | "live" | "error"
   >("connecting");
+  const [selectedBladerId, setSelectedBladerId] = React.useState<string | null>(
+    null
+  );
 
   const matchIdsRef = React.useRef<Set<string>>(
     new Set(initialMatches.map((m) => m.id))
@@ -420,17 +424,25 @@ export function PublicTournamentLive({
                                     : "border-border/40 bg-background/50"
                                 }`}
                               >
-                                <span
-                                  className={`truncate ${
-                                    m.player1
-                                      ? p1Win
+                                {m.player1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedBladerId(m.player1!.id)
+                                    }
+                                    className={`truncate text-left hover:underline cursor-pointer ${
+                                      p1Win
                                         ? "text-primary"
                                         : "text-foreground font-bold"
-                                      : "text-muted-foreground italic"
-                                  }`}
-                                >
-                                  {m.player1?.nickname ?? "A definir"}
-                                </span>
+                                    }`}
+                                  >
+                                    {m.player1.nickname}
+                                  </button>
+                                ) : (
+                                  <span className="truncate text-muted-foreground italic">
+                                    A definir
+                                  </span>
+                                )}
                                 <span className="font-black tabular-nums text-sm shrink-0">
                                   {m.player1_score}
                                 </span>
@@ -443,17 +455,25 @@ export function PublicTournamentLive({
                                     : "border-border/40 bg-background/50"
                                 }`}
                               >
-                                <span
-                                  className={`truncate ${
-                                    m.player2
-                                      ? p2Win
+                                {m.player2 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedBladerId(m.player2!.id)
+                                    }
+                                    className={`truncate text-left hover:underline cursor-pointer ${
+                                      p2Win
                                         ? "text-fire-orange"
                                         : "text-foreground font-bold"
-                                      : "text-muted-foreground italic"
-                                  }`}
-                                >
-                                  {m.player2?.nickname ?? "A definir"}
-                                </span>
+                                    }`}
+                                  >
+                                    {m.player2.nickname}
+                                  </button>
+                                ) : (
+                                  <span className="truncate text-muted-foreground italic">
+                                    A definir
+                                  </span>
+                                )}
                                 <span className="font-black tabular-nums text-sm shrink-0">
                                   {m.player2_score}
                                 </span>
@@ -557,15 +577,23 @@ export function PublicTournamentLive({
                           </div>
 
                           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs sm:text-sm">
-                            <span
-                              className={`truncate font-bold ${
-                                m.winner_id === m.player1_id
-                                  ? "text-primary font-black"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {m.player1?.nickname ?? "A definir"}
-                            </span>
+                            {m.player1 ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBladerId(m.player1!.id)}
+                                className={`truncate text-left font-bold hover:underline cursor-pointer ${
+                                  m.winner_id === m.player1_id
+                                    ? "text-primary font-black"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                {m.player1.nickname}
+                              </button>
+                            ) : (
+                              <span className="truncate font-bold text-muted-foreground">
+                                A definir
+                              </span>
+                            )}
 
                             {m.is_bye ? (
                               <span className="text-xs text-muted-foreground px-2">
@@ -577,15 +605,27 @@ export function PublicTournamentLive({
                               </span>
                             )}
 
-                            <span
-                              className={`truncate text-right font-bold ${
-                                m.winner_id === m.player2_id
-                                  ? "text-fire-orange font-black"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {m.is_bye ? "—" : (m.player2?.nickname ?? "A definir")}
-                            </span>
+                            {m.is_bye ? (
+                              <span className="truncate text-right font-bold text-muted-foreground">
+                                —
+                              </span>
+                            ) : m.player2 ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBladerId(m.player2!.id)}
+                                className={`truncate text-right font-bold hover:underline cursor-pointer ${
+                                  m.winner_id === m.player2_id
+                                    ? "text-fire-orange font-black"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                {m.player2.nickname}
+                              </button>
+                            ) : (
+                              <span className="truncate text-right font-bold text-muted-foreground">
+                                A definir
+                              </span>
+                            )}
                           </div>
 
                           {isLive && lastGame && (
@@ -677,7 +717,19 @@ export function PublicTournamentLive({
                               </span>
                             </td>
                             <td className="py-2.5 px-3 font-bold text-foreground">
-                              {row.blader?.nickname ?? row.bladerId}
+                              {row.blader ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedBladerId(row.blader!.id)
+                                  }
+                                  className="hover:text-primary hover:underline cursor-pointer text-left"
+                                >
+                                  {row.blader.nickname}
+                                </button>
+                              ) : (
+                                row.bladerId
+                              )}
                               {row.tiebreakerWins > 0 && (
                                 <Badge
                                   variant="outline"
@@ -757,53 +809,52 @@ export function PublicTournamentLive({
                             {getPositionBadge(res.final_position)}
                           </div>
 
-                          <div className="relative h-10 w-10 rounded-full overflow-hidden border border-border/60 bg-muted shrink-0">
-                            {blader?.avatar_url ? (
-                              <Image
-                                src={blader.avatar_url}
-                                alt={blader.nickname}
-                                fill
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center font-bold text-xs text-muted-foreground">
-                                {blader?.nickname?.slice(0, 2).toUpperCase() ??
-                                  "BX"}
-                              </div>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              blader && setSelectedBladerId(blader.id)
+                            }
+                            className="flex items-center gap-3 min-w-0 text-left cursor-pointer group"
+                          >
+                            <BladerAvatar
+                              avatarUrl={blader?.avatar_url}
+                              nickname={blader?.nickname}
+                              sizeClass="h-10 w-10"
+                              textClass="font-bold text-xs text-muted-foreground"
+                            />
 
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm sm:text-base text-foreground truncate">
-                              {blader?.nickname}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {blader?.name}{" "}
-                              {blader?.city ? `• ${blader.city}` : ""}
-                            </div>
-                            {(res.swiss_wins > 0 ||
-                              res.is_swiss_leader ||
-                              res.podium_points > 0) && (
-                              <div className="text-[11px] text-muted-foreground/90 mt-0.5 flex flex-wrap items-center gap-1.5">
-                                {res.swiss_wins > 0 && (
-                                  <span>
-                                    {res.swiss_wins} vit. Suíço (+
-                                    {res.swiss_points})
-                                  </span>
-                                )}
-                                {res.swiss_leader_bonus > 0 && (
-                                  <span className="text-fire-yellow font-semibold">
-                                    • Líder (+{res.swiss_leader_bonus})
-                                  </span>
-                                )}
-                                {res.podium_points > 0 && (
-                                  <span className="text-primary font-semibold">
-                                    • Pódio (+{res.podium_points})
-                                  </span>
-                                )}
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm sm:text-base text-foreground truncate group-hover:text-primary transition-colors">
+                                {blader?.nickname}
                               </div>
-                            )}
-                          </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {blader?.name}{" "}
+                                {blader?.city ? `• ${blader.city}` : ""}
+                              </div>
+                              {(res.swiss_wins > 0 ||
+                                res.is_swiss_leader ||
+                                res.podium_points > 0) && (
+                                <div className="text-[11px] text-muted-foreground/90 mt-0.5 flex flex-wrap items-center gap-1.5">
+                                  {res.swiss_wins > 0 && (
+                                    <span>
+                                      {res.swiss_wins} vit. Suíço (+
+                                      {res.swiss_points})
+                                    </span>
+                                  )}
+                                  {res.swiss_leader_bonus > 0 && (
+                                    <span className="text-fire-yellow font-semibold">
+                                      • Líder (+{res.swiss_leader_bonus})
+                                    </span>
+                                  )}
+                                  {res.podium_points > 0 && (
+                                    <span className="text-primary font-semibold">
+                                      • Pódio (+{res.podium_points})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </button>
                         </div>
 
                         <div className="bg-primary/10 border border-primary/20 rounded-xl px-3 py-1 text-right shrink-0">
@@ -823,6 +874,14 @@ export function PublicTournamentLive({
           </div>
         )}
       </section>
+
+      <BladerCardModal
+        open={Boolean(selectedBladerId)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setSelectedBladerId(null);
+        }}
+        bladerId={selectedBladerId}
+      />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { updateTournamentAction } from "@/app/admin/actions";
 import type {
+  RulesetRow,
   Tournament,
   TournamentCategory,
   TournamentFormat,
@@ -29,8 +30,10 @@ import type {
 
 export function EditTournamentButton({
   tournament,
+  rulesets = [],
 }: {
   tournament: Tournament;
+  rulesets?: RulesetRow[];
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -45,6 +48,9 @@ export function EditTournamentButton({
     tournament.category ?? "semanal"
   );
   const [format, setFormat] = React.useState<TournamentFormat>(tournament.format);
+  const [rulesetId, setRulesetId] = React.useState<string>(
+    tournament.ruleset_id ?? ""
+  );
   const [swissRounds, setSwissRounds] = React.useState(
     String(tournament.swiss_rounds ?? 4)
   );
@@ -64,6 +70,7 @@ export function EditTournamentButton({
       setStatus(tournament.status);
       setCategory(tournament.category ?? "semanal");
       setFormat(tournament.format);
+      setRulesetId(tournament.ruleset_id ?? "");
       setSwissRounds(String(tournament.swiss_rounds ?? 4));
       setMaxPlayers(
         tournament.max_players ? String(tournament.max_players) : ""
@@ -92,6 +99,9 @@ export function EditTournamentButton({
     formData.set("status", status);
     formData.set("category", category);
     formData.set("format", format);
+    if (rulesets.length > 0) {
+      formData.set("ruleset_id", rulesetId);
+    }
     formData.set("swiss_rounds", swissRounds);
     formData.set("max_players", maxPlayers);
     formData.set("location", location);
@@ -325,6 +335,31 @@ export function EditTournamentButton({
                 />
               </div>
             </div>
+
+            {rulesets.length > 0 && (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor={`edit-t-ruleset-${tournament.id}`}
+                  className="text-xs font-semibold"
+                >
+                  Formato / Ban-list (Regras)
+                </Label>
+                <select
+                  id={`edit-t-ruleset-${tournament.id}`}
+                  value={rulesetId}
+                  onChange={(e) => setRulesetId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Sem formato definido</option>
+                  {rulesets.map((rs) => (
+                    <option key={rs.id} value={rs.id}>
+                      {rs.name}
+                      {!rs.is_active ? " (Inativo)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label

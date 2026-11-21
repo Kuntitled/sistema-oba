@@ -28,6 +28,7 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
   const [city, setCity] = React.useState(blader.city ?? "");
   const [avatarUrl, setAvatarUrl] = React.useState(blader.avatar_url ?? "");
   const [bio, setBio] = React.useState(blader.bio ?? "");
+  const [userId, setUserId] = React.useState(blader.user_id ?? "");
   const [isActive, setIsActive] = React.useState(blader.is_active);
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -38,6 +39,7 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
       setCity(blader.city ?? "");
       setAvatarUrl(blader.avatar_url ?? "");
       setBio(blader.bio ?? "");
+      setUserId(blader.user_id ?? "");
       setIsActive(blader.is_active);
       setError(null);
       setSuccess(false);
@@ -56,6 +58,7 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
     formData.set("city", city);
     formData.set("avatar_url", avatarUrl);
     formData.set("bio", bio);
+    formData.set("user_id", userId);
     formData.set("is_active", isActive ? "true" : "false");
 
     const result = await updateBladerAction(blader.id, formData);
@@ -190,8 +193,36 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
                 id={`edit-bio-${blader.id}`}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
+                maxLength={160}
                 rows={2}
                 className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label
+                  htmlFor={`edit-userid-${blader.id}`}
+                  className="text-xs font-semibold"
+                >
+                  Vínculo de Conta (Auth User UUID — Opcional)
+                </Label>
+                {userId && (
+                  <button
+                    type="button"
+                    onClick={() => setUserId("")}
+                    className="text-[11px] font-semibold text-destructive hover:underline cursor-pointer"
+                  >
+                    Desvincular
+                  </button>
+                )}
+              </div>
+              <Input
+                id={`edit-userid-${blader.id}`}
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="Cole o UUID da conta do Blader (ex: 550e8400-...)"
+                className="h-9 text-xs font-mono"
               />
             </div>
 

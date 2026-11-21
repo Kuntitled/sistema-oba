@@ -1,15 +1,19 @@
-import Image from "next/image";
-import { Users, MapPin } from "lucide-react";
+import { Users, MapPin, Link2, Unlink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getBladers } from "@/lib/services/league";
+import { getPendingBladerClaimRequests } from "@/lib/services/parts";
+import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerForm } from "@/components/admin/BladerForm";
+import { BladerClaimsBanner } from "@/components/admin/BladerClaimsBanner";
 import { EditBladerButton } from "@/components/admin/EditBladerButton";
 import { DeleteBladerButton } from "@/components/admin/DeleteBladerButton";
 
-
 export default async function AdminBladersPage() {
-  const bladers = await getBladers({ includeInactive: true });
+  const [bladers, { claims }] = await Promise.all([
+    getBladers({ includeInactive: true }),
+    getPendingBladerClaimRequests(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -21,12 +25,15 @@ export default async function AdminBladersPage() {
             Gestão de Bladers
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Cadastre os competidores que participam das etapas e acumulam pontos no ranking.
+            Cadastre competidores, aprove vínculos de contas Google e gerencie perfis ativos da liga.
           </p>
         </div>
 
         <BladerForm />
       </div>
+
+      {/* Solicitações de Vínculo Pendentes */}
+      <BladerClaimsBanner claims={claims} />
 
       {/* Lista de Bladers */}
       {bladers.length === 0 ? (
@@ -51,23 +58,16 @@ export default async function AdminBladersPage() {
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="relative h-11 w-11 rounded-full overflow-hidden border border-primary/40 bg-muted shrink-0">
-                  {blader.avatar_url ? (
-                    <Image
-                      src={blader.avatar_url}
-                      alt={blader.nickname}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center font-bold text-xs text-primary">
-                      {blader.nickname?.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
+                <BladerAvatar
+                  avatarUrl={blader.avatar_url}
+                  nickname={blader.nickname}
+                  sizeClass="h-11 w-11"
+                  textClass="font-bold text-xs text-primary"
+                  borderClass="border border-primary/40"
+                />
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span className="font-bold text-sm text-foreground truncate">
                       {blader.nickname}
                     </span>
@@ -77,6 +77,24 @@ export default async function AdminBladersPage() {
                         className="text-[9px] px-1.5 py-0 border-destructive/40 text-destructive shrink-0"
                       >
                         Inativo
+                      </Badge>
+                    )}
+                    {blader.user_id ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1.5 py-0 border-emerald-500/40 text-emerald-500 bg-emerald-500/10 gap-0.5 shrink-0"
+                        title={`Vinculado à conta ${blader.user_id}`}
+                      >
+                        <Link2 className="h-2.5 w-2.5" />
+                        Vinculado
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1.5 py-0 border-border/60 text-muted-foreground gap-0.5 shrink-0"
+                      >
+                        <Unlink className="h-2.5 w-2.5" />
+                        Sem conta
                       </Badge>
                     )}
                   </div>

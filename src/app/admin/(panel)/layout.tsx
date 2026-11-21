@@ -6,6 +6,8 @@ import {
   Swords,
   Radio,
   CalendarRange,
+  Layers,
+  ShieldBan,
   ExternalLink,
   LogOut,
 } from "lucide-react";
@@ -115,6 +117,22 @@ export default function AdminLayout({
             >
               <CalendarRange className="h-4 w-4 text-primary" />
               <span>Temporadas</span>
+            </Link>
+
+            <Link
+              href="/admin/pecas"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <Layers className="h-4 w-4 text-primary" />
+              <span>Peças</span>
+            </Link>
+
+            <Link
+              href="/admin/formatos"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <ShieldBan className="h-4 w-4 text-fire-orange" />
+              <span>Formatos</span>
             </Link>
           </nav>
         </div>

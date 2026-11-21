@@ -29,11 +29,23 @@ async function requireAdmin() {
   if (error || !user || user.user_metadata?.role !== "admin") {
     return {
       supabase,
+      user: null,
       error: "Acesso negado. Faça login como administrador.",
     } as const;
   }
 
-  return { supabase, error: null } as const;
+  return { supabase, user, error: null } as const;
+}
+
+function parseOptionalUuidField(raw: FormDataEntryValue | null): {
+  value: string | null;
+  invalid: boolean;
+} {
+  if (typeof raw !== "string") return { value: null, invalid: false };
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: null, invalid: false };
+  if (!isValidUuid(trimmed)) return { value: null, invalid: true };
+  return { value: trimmed, invalid: false };
 }
 
 /**
@@ -134,7 +146,7 @@ export async function updateBladerAction(bladerId: string, formData: FormData) {
 
   const { data: existing, error: fetchError } = await auth.supabase
     .from("bladers")
-    .select("id, is_active")
+    .select("id, is_active, user_id")
     .eq("id", bladerId)
     .maybeSingle();
 
@@ -148,22 +160,48 @@ export async function updateBladerAction(bladerId: string, formData: FormData) {
       ? existing.is_active
       : isActiveRaw === "true" || isActiveRaw === "on";
 
+  const hasUserIdField = formData.has("user_id");
+  const parsedUserId = parseOptionalUuidField(formData.get("user_id"));
+  if (hasUserIdField && parsedUserId.invalid) {
+    return { error: "O ID de conta (UUID) informado para vínculo é inválido." };
+  }
+
+  const updatePayload: {
+    name: string;
+    nickname: string;
+    city: string | null;
+    bio: string | null;
+    avatar_url: string | null;
+    is_active: boolean;
+    user_id?: string | null;
+  } = {
+    name,
+    nickname,
+    city,
+    bio,
+    avatar_url,
+    is_active,
+  };
+
+  if (hasUserIdField) {
+    updatePayload.user_id = parsedUserId.value;
+  }
+
   const { data: blader, error } = await auth.supabase
     .from("bladers")
-    .update({
-      name,
-      nickname,
-      city,
-      bio,
-      avatar_url,
-      is_active,
-    })
+    .update(updatePayload)
     .eq("id", bladerId)
     .select()
     .single();
 
   if (error) {
     if (error.code === "23505") {
+      if (error.message.includes("user_id")) {
+        return {
+          error:
+            "Este ID de conta (Auth User) já está vinculado a outro Blader.",
+        };
+      }
       return {
         error: `O apelido "${nickname}" já está em uso por outro Blader.`,
       };
@@ -236,6 +274,12 @@ export async function createTournamentAction(formData: FormData) {
     return { error: "Nome e Data do Torneio são obrigatórios." };
   }
 
+  const hasRulesetField = formData.has("ruleset_id");
+  const parsedRuleset = parseOptionalUuidField(formData.get("ruleset_id"));
+  if (hasRulesetField && parsedRuleset.invalid) {
+    return { error: "Formato / Ban-list selecionado é inválido." };
+  }
+
   const category: TournamentCategory =
     categoryRaw === "oficial" ? "oficial" : "semanal";
   const format = formatRaw as TournamentFormat;
@@ -251,22 +295,42 @@ export async function createTournamentAction(formData: FormData) {
 
   const seasonId = await ensureSeasonForDate(auth.supabase, event_date);
 
+  const insertPayload: {
+    season_id: string | null;
+    name: string;
+    slug: string;
+    description: string | null;
+    location: string | null;
+    event_date: string;
+    category: TournamentCategory;
+    format: TournamentFormat;
+    swiss_rounds: number;
+    top_cut_size: number | null;
+    status: TournamentStatus;
+    max_players: number | null;
+    ruleset_id?: string | null;
+  } = {
+    season_id: seasonId,
+    name,
+    slug,
+    description,
+    location,
+    event_date,
+    category,
+    format,
+    swiss_rounds,
+    top_cut_size: format === "swiss_only" ? null : top_cut_size,
+    status,
+    max_players,
+  };
+
+  if (hasRulesetField && parsedRuleset.value) {
+    insertPayload.ruleset_id = parsedRuleset.value;
+  }
+
   const { data, error } = await auth.supabase
     .from("tournaments")
-    .insert({
-      season_id: seasonId,
-      name,
-      slug,
-      description,
-      location,
-      event_date,
-      category,
-      format,
-      swiss_rounds,
-      top_cut_size: format === "swiss_only" ? null : top_cut_size,
-      status,
-      max_players,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
@@ -337,6 +401,12 @@ export async function updateTournamentAction(
   const format = formatRaw as TournamentFormat;
   const status = statusRaw as TournamentStatus;
 
+  const hasRulesetField = formData.has("ruleset_id");
+  const parsedRuleset = parseOptionalUuidField(formData.get("ruleset_id"));
+  if (hasRulesetField && parsedRuleset.invalid) {
+    return { error: "Formato / Ban-list selecionado é inválido." };
+  }
+
   const yearChanged =
     event_date.slice(0, 4) !== (existing.event_date ?? "").slice(0, 4);
   const newSeasonId =
@@ -344,21 +414,43 @@ export async function updateTournamentAction(
       ? await ensureSeasonForDate(auth.supabase, event_date)
       : existing.season_id;
 
+  const updatePayload: {
+    season_id: string | null;
+    name: string;
+    description: string | null;
+    location: string | null;
+    event_date: string;
+    category: TournamentCategory;
+    format: TournamentFormat;
+    swiss_rounds: number;
+    top_cut_size: number | null;
+    status: TournamentStatus;
+    max_players: number | null;
+    ruleset_id?: string | null;
+  } = {
+    season_id: newSeasonId,
+    name,
+    description,
+    location,
+    event_date,
+    category,
+    format,
+    swiss_rounds,
+    top_cut_size: format === "swiss_only" ? null : existing.top_cut_size,
+    status,
+    max_players,
+  };
+
+  if (
+    hasRulesetField &&
+    (parsedRuleset.value !== null || existing.ruleset_id !== null)
+  ) {
+    updatePayload.ruleset_id = parsedRuleset.value;
+  }
+
   const { data: tournament, error: updateError } = await auth.supabase
     .from("tournaments")
-    .update({
-      season_id: newSeasonId,
-      name,
-      description,
-      location,
-      event_date,
-      category,
-      format,
-      swiss_rounds,
-      top_cut_size: format === "swiss_only" ? null : existing.top_cut_size,
-      status,
-      max_players,
-    })
+    .update(updatePayload)
     .eq("id", tournamentId)
     .select()
     .single();
@@ -552,5 +644,140 @@ export async function saveTournamentResultsAction(
   }
 
   revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Aprova uma solicitação de vínculo entre conta autenticada e Blader existente.
+ */
+export async function approveBladerClaimAction(claimId: string) {
+  const auth = await requireAdmin();
+  if (auth.error || !auth.user) {
+    return { error: auth.error ?? "Acesso negado." };
+  }
+
+  if (!isValidUuid(claimId)) {
+    return { error: "Solicitação de vínculo inválida." };
+  }
+
+  const { data: claim, error: claimError } = await auth.supabase
+    .from("blader_claim_requests")
+    .select("*")
+    .eq("id", claimId)
+    .maybeSingle();
+
+  if (claimError || !claim) {
+    return { error: "Solicitação não encontrada." };
+  }
+
+  if (claim.status !== "pending") {
+    return { error: "Esta solicitação já foi processada." };
+  }
+
+  const [{ data: targetBlader }, { data: alreadyLinkedBlader }] =
+    await Promise.all([
+      auth.supabase
+        .from("bladers")
+        .select("id, nickname, user_id, avatar_url")
+        .eq("id", claim.blader_id)
+        .maybeSingle(),
+      auth.supabase
+        .from("bladers")
+        .select("id, nickname")
+        .eq("user_id", claim.user_id)
+        .neq("id", claim.blader_id)
+        .maybeSingle(),
+    ]);
+
+  if (!targetBlader) {
+    return { error: "O perfil de Blader solicitado não existe mais." };
+  }
+
+  if (targetBlader.user_id && targetBlader.user_id !== claim.user_id) {
+    return {
+      error: `O Blader "${targetBlader.nickname}" já foi vinculado a outra conta.`,
+    };
+  }
+
+  if (alreadyLinkedBlader) {
+    return {
+      error: `Esta conta já está vinculada ao Blader "${alreadyLinkedBlader.nickname}".`,
+    };
+  }
+
+  const bladerUpdate: { user_id: string; avatar_url?: string } = {
+    user_id: claim.user_id,
+  };
+  if (!targetBlader.avatar_url && claim.user_avatar_url) {
+    bladerUpdate.avatar_url = claim.user_avatar_url;
+  }
+
+  const { error: updateBladerError } = await auth.supabase
+    .from("bladers")
+    .update(bladerUpdate)
+    .eq("id", claim.blader_id);
+
+  if (updateBladerError) {
+    return {
+      error: `Erro ao vincular perfil: ${updateBladerError.message}`,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  await auth.supabase
+    .from("blader_claim_requests")
+    .update({
+      status: "approved",
+      reviewed_by: auth.user.id,
+      reviewed_at: nowIso,
+    })
+    .eq("id", claimId);
+
+  // Rejeita outras solicitações pendentes concorrentes para o mesmo blader ou usuário
+  await auth.supabase
+    .from("blader_claim_requests")
+    .update({
+      status: "rejected",
+      reviewed_by: auth.user.id,
+      reviewed_at: nowIso,
+    })
+    .neq("id", claimId)
+    .eq("status", "pending")
+    .or(`blader_id.eq.${claim.blader_id},user_id.eq.${claim.user_id}`);
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Recusa uma solicitação de vínculo pendente.
+ */
+export async function rejectBladerClaimAction(claimId: string) {
+  const auth = await requireAdmin();
+  if (auth.error || !auth.user) {
+    return { error: auth.error ?? "Acesso negado." };
+  }
+
+  if (!isValidUuid(claimId)) {
+    return { error: "Solicitação de vínculo inválida." };
+  }
+
+  const { error } = await auth.supabase
+    .from("blader_claim_requests")
+    .update({
+      status: "rejected",
+      reviewed_by: auth.user.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", claimId)
+    .eq("status", "pending");
+
+  if (error) {
+    return { error: `Erro ao recusar solicitação: ${error.message}` };
+  }
+
+  revalidatePath("/admin/bladers");
+  revalidatePath("/meu-painel");
   return { success: true };
 }
