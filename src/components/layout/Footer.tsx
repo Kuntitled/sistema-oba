@@ -22,7 +22,7 @@ export function Footer() {
                 <span>LIGA</span>
                 <span className="text-fire-gradient">OBA</span>
                 <span className="text-muted-foreground font-normal text-xs">
-                  — Beyblade X Amazonas
+                  — Organização de Beyblade do Amazonas
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">

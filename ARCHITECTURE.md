@@ -1,6 +1,6 @@
 # 🌀 Sistema OBA — Arquitetura e Guia Mestre do Projeto
 
-> **OBA** — _Organização de Beyblade do Amazonas_ | Liga oficial de Beyblade X do Amazonas  
+> **OBA** — _Organização de Beyblade do Amazonas_  
 > Documento mestre de referência técnica e de negócio. Leia antes de modificar ou estender qualquer módulo do sistema.
 
 ---
@@ -23,7 +23,7 @@
 
 ## 🎯 Visão Geral & Status Atual
 
-Sistema web progressivo (PWA) e responsivo (Mobile-First) voltado para a gestão completa da **Liga Oficial de Beyblade X do Amazonas (OBA)**, cobrindo:
+Sistema web progressivo (PWA) e responsivo (Mobile-First) voltado para a gestão completa da **Organização de Beyblade do Amazonas (OBA)**, cobrindo:
 
 - **Vitrine pública:** Ranking oficial por temporada anual (Temporada 2026 ativa com o `Torneio Semanal 01` importado), Pódio Top 3, acompanhamento ao vivo de arenas, placares e chaveamento em tempo real (`/` e `/torneios/[slug]`), histórico de torneios e galeria de competidores (Bladers).
 - **Painel administrativo protegido:** Gestão de Bladers, criação de torneios (atuais e retroativos), motor oficial de torneios ao vivo (Suíço + Top Cut / Exclusivamente Suíço), Gestor de Arenas físicas, Placar Touch mobile para juiz (`/admin/arena/[id]`) e recálculo automático do ranking anual.
@@ -401,4 +401,4 @@ Com a **Etapa 3A** e a **Etapa 3A.5** concluídas (`005`–`008`, catálogo de p
 
 ---
 
-*Documento atualizado em: Novembro 2026 | Sistema OBA — Liga de Beyblade X do Amazonas*
+*Documento atualizado em: Novembro 2026 | Sistema OBA — Organização de Beyblade do Amazonas*

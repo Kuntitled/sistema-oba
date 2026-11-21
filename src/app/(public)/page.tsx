@@ -47,8 +47,8 @@ export default async function HomePage({
               <Flame className="h-3.5 w-3.5 text-fire-orange" />
               <span>
                 {activeSeason
-                  ? `${activeSeason.name} — Beyblade X Amazonas`
-                  : "Temporada Oficial Beyblade X Amazonas"}
+                  ? `${activeSeason.name} — Organização de Beyblade do Amazonas`
+                  : "Temporada Oficial — Organização de Beyblade do Amazonas"}
               </span>
             </div>
 

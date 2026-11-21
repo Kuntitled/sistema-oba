@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "OBA — Beyblade X Amazonas",
+    name: "OBA — Organização de Beyblade do Amazonas",
     short_name: "OBA",
     description:
-      "Sistema oficial de gestão de torneios, chaveamentos e ranking da Liga de Beyblade X do Amazonas.",
+      "Sistema oficial de gestão de torneios, chaveamentos e ranking da Organização de Beyblade do Amazonas.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",
@@ -36,7 +36,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/images/screenshot-mobile.png",
         sizes: "390x844",
         type: "image/png",
-        label: "Ranking da Liga OBA",
+        label: "Ranking da Organização de Beyblade do Amazonas",
       },
     ],
   };

@@ -30,13 +30,13 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: `${APP_NAME} — Beyblade X Amazonas`,
+    default: `${APP_NAME} — ${APP_FULL_NAME}`,
     template: `%s | ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
   applicationName: APP_FULL_NAME,
   keywords: ["Beyblade X", "torneio", "ranking", "Amazonas", "Manaus", "OBA"],
-  authors: [{ name: "Liga OBA" }],
+  authors: [{ name: APP_FULL_NAME }],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     url: APP_URL,
     siteName: APP_FULL_NAME,
-    title: `${APP_NAME} — Beyblade X Amazonas`,
+    title: `${APP_NAME} — ${APP_FULL_NAME}`,
     description: APP_DESCRIPTION,
   },
 };

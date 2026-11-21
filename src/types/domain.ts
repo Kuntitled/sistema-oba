@@ -1,5 +1,5 @@
 /**
- * Tipos de domínio do negócio — Beyblade X Amazonas Liga (OBA).
+ * Tipos de domínio do negócio — Organização de Beyblade do Amazonas (OBA).
  * Abstraem os tipos brutos do banco com semântica de negócio.
  */
 

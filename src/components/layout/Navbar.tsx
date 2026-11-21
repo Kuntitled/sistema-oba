@@ -60,7 +60,7 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
           <div className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-primary/60 shadow-md group-hover:scale-105 transition-transform duration-200">
             <Image
               src="/images/logo.jpg"
-              alt="Logo OBA Beyblade X Amazonas"
+              alt="Logo OBA — Organização de Beyblade do Amazonas"
               fill
               className="object-cover"
               priority
@@ -186,7 +186,7 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
                         LIGA <span className="text-fire-gradient">OBA</span>
                       </SheetTitle>
                       <p className="text-xs text-muted-foreground">
-                        Beyblade X Amazonas
+                        Organização de Beyblade do Amazonas
                       </p>
                     </div>
                   </div>

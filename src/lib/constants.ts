@@ -100,7 +100,7 @@ export const MAX_PLAYERS_SWISS = 64;
 
 // ─── App ────────────────────────────────────────────────────────────────────────
 export const APP_NAME = "OBA";
-export const APP_FULL_NAME = "Open Beyblade Amazonas";
+export const APP_FULL_NAME = "Organização de Beyblade do Amazonas";
 export const APP_DESCRIPTION =
-  "Sistema oficial de gestão de torneios, chaveamentos e ranking da Liga de Beyblade X do Amazonas.";
+  "Sistema oficial de gestão de torneios, chaveamentos e ranking da Organização de Beyblade do Amazonas.";
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
