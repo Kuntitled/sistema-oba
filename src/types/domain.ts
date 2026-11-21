@@ -230,6 +230,73 @@ export interface BladerClaimRequest extends BladerClaimRequestRow {
   blader?: BladerRow | null;
 }
 
+// ─── Inscrições Online, Decklists & PIX (Etapa 3B) ────────────────────────────
+
+export type TournamentRegistrationStatus =
+  Database["public"]["Enums"]["tournament_registration_status"];
+export type RegistrationStatus =
+  Database["public"]["Enums"]["registration_status"];
+
+export type TournamentRegistrationRow =
+  Database["public"]["Tables"]["tournament_registrations"]["Row"];
+export type RegistrationComboRow =
+  Database["public"]["Tables"]["registration_combos"]["Row"];
+
+export const TOURNAMENT_REGISTRATION_STATUS_LABELS: Record<
+  TournamentRegistrationStatus,
+  string
+> = {
+  closed: "Inscrições Fechadas",
+  open: "Inscrições Abertas",
+  finished: "Inscrições Encerradas",
+} as const;
+
+export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
+  pending: "Em Análise",
+  approved: "Aprovada",
+  rejected: "Rejeitada",
+} as const;
+
+export interface HydratedRegistrationCombo {
+  id?: string;
+  slotNumber: number;
+  system: BeySystem | null;
+  blade: PartRow | null;
+  lockChip: PartRow | null;
+  overBlade: PartRow | null;
+  assistBlade: PartRow | null;
+  ratchet: PartRow | null;
+  bit: PartRow | null;
+  hasBannedPart?: boolean;
+  bannedPartNames?: string[];
+}
+
+export interface TournamentRegistrationAdminItem
+  extends TournamentRegistrationRow {
+  blader: BladerRow | null;
+  combos: HydratedRegistrationCombo[];
+  receiptSignedUrl: string | null;
+  isParticipant: boolean;
+  hasBannedParts: boolean;
+}
+
+export interface BladerRegistrationSummary extends TournamentRegistrationRow {
+  tournament: Pick<
+    TournamentRow,
+    | "id"
+    | "name"
+    | "slug"
+    | "event_date"
+    | "location"
+    | "entry_fee"
+    | "registration_status"
+    | "status"
+    | "max_players"
+  >;
+  combos: HydratedRegistrationCombo[];
+  receiptSignedUrl: string | null;
+}
+
 export interface BladerCardProfile {
   blader: BladerRow;
   seasonName: string | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   User,
@@ -15,6 +16,13 @@ import {
   LogOut,
   Upload,
   Trash2,
+  Swords,
+  Calendar,
+  MapPin,
+  Clock,
+  XCircle,
+  ExternalLink,
+  Users,
 } from "lucide-react";
 import {
   Card,
@@ -32,7 +40,8 @@ import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
 import { uploadBladerAvatar } from "@/lib/avatar-upload";
-import { inferComboSystem } from "@/lib/combo-rules";
+import { formatComboDisplay, inferComboSystem } from "@/lib/combo-rules";
+import { formatCurrencyBRL } from "@/lib/pix";
 import { partMatchesQuery } from "@/lib/parts-search";
 import {
   toggleInventoryPartAction,
@@ -44,12 +53,16 @@ import {
   PART_LINE_ORDER,
   PART_TYPE_LABELS,
   PART_TYPE_ORDER,
+  REGISTRATION_STATUS_LABELS,
+  TOURNAMENT_FORMAT_LABELS,
   type BladerCardProfile,
+  type BladerRegistrationSummary,
   type BladerRow,
   type ComboSelection,
   type PartLine,
   type PartRow,
   type PartType,
+  type Tournament,
 } from "@/types/domain";
 
 interface BladerPanelClientProps {
@@ -58,6 +71,8 @@ interface BladerPanelClientProps {
   baseCardProfile: BladerCardProfile;
   parts: PartRow[];
   initialInventoryIds: string[];
+  initialRegistrations?: BladerRegistrationSummary[];
+  openTournaments?: Array<Tournament & { confirmedCount: number }>;
   googleAvatarUrl: string | null;
   userEmail: string | null;
 }
@@ -68,13 +83,15 @@ export function BladerPanelClient({
   baseCardProfile,
   parts,
   initialInventoryIds,
+  initialRegistrations = [],
+  openTournaments = [],
   googleAvatarUrl,
   userEmail,
 }: BladerPanelClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = React.useState<"profile" | "collection">(
-    "profile"
-  );
+  const [activeTab, setActiveTab] = React.useState<
+    "profile" | "collection" | "registrations"
+  >("profile");
 
   const partsById = React.useMemo(() => {
     const map = new Map<string, PartRow>();
@@ -431,6 +448,17 @@ export function BladerPanelClient({
         >
           <Package className="h-3.5 w-3.5" />
           Minha Coleção ({inventoryIds.size})
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant={activeTab === "registrations" ? "default" : "outline"}
+          onClick={() => setActiveTab("registrations")}
+          className="text-xs font-bold gap-1.5"
+        >
+          <Swords className="h-3.5 w-3.5" />
+          Minhas Inscrições ({initialRegistrations.length})
         </Button>
       </div>
 
@@ -873,6 +901,258 @@ export function BladerPanelClient({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── ABA 3: MINHAS INSCRIÇÕES ────────────────────────────────────── */}
+      {activeTab === "registrations" && (
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-base font-black text-foreground">
+                Minhas Inscrições em Torneios ({initialRegistrations.length})
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Acompanhe o status da conferência PIX e decklist. Caso alguma inscrição seja rejeitada ou ainda esteja em análise, você pode editar seus combos ou reenviar o comprovante.
+              </p>
+            </div>
+
+            {initialRegistrations.length === 0 ? (
+              <Card className="border-dashed border-border/80 bg-card/40 p-8 text-center">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Swords className="h-8 w-8" />
+                  <p className="text-xs font-semibold text-foreground">
+                    Você ainda não enviou inscrição para nenhum torneio.
+                  </p>
+                  <p className="text-[11px] max-w-md">
+                    Escolha um torneio com inscrições abertas abaixo ou acesse a página de Torneios da Liga OBA.
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {initialRegistrations.map((reg) => {
+                  const fee = Number(reg.tournament.entry_fee ?? 0);
+                  const [y, m, d] = (reg.tournament.event_date || "").split("-");
+                  const formattedDate = y && m && d ? `${d}/${m}/${y}` : "";
+
+                  return (
+                    <Card
+                      key={reg.id}
+                      className={`border-border/60 bg-card/60 ${
+                        reg.status === "rejected"
+                          ? "border-destructive/50"
+                          : reg.status === "approved"
+                            ? "border-emerald-500/40"
+                            : "border-amber-500/35"
+                      }`}
+                    >
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {reg.status === "approved" && (
+                                <Badge className="bg-emerald-600 text-white text-[10px] font-bold gap-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {REGISTRATION_STATUS_LABELS.approved}
+                                </Badge>
+                              )}
+                              {reg.status === "pending" && (
+                                <Badge className="bg-amber-500/20 text-amber-500 border border-amber-500/40 text-[10px] font-bold gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {REGISTRATION_STATUS_LABELS.pending}
+                                </Badge>
+                              )}
+                              {reg.status === "rejected" && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-[10px] font-bold gap-1"
+                                >
+                                  <XCircle className="h-3 w-3" />
+                                  {REGISTRATION_STATUS_LABELS.rejected}
+                                </Badge>
+                              )}
+
+                              {fee > 0 && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  PIX:{" "}
+                                  {reg.payment_verified
+                                    ? "Verificado ✓"
+                                    : "Aguardando"}
+                                </Badge>
+                              )}
+
+                              <Badge variant="outline" className="text-[10px]">
+                                Deck:{" "}
+                                {reg.decks_verified ? "Conferida ✓" : "Pendente"}
+                              </Badge>
+                            </div>
+
+                            <div className="font-black text-base text-foreground truncate">
+                              {reg.tournament.name}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                              {formattedDate && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3 text-primary" />
+                                  {formattedDate}
+                                </span>
+                              )}
+                              {reg.tournament.location && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3 text-fire-orange" />
+                                  {reg.tournament.location}
+                                </span>
+                              )}
+                              <span>
+                                {fee > 0 ? formatCurrencyBRL(fee) : "Gratuito"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <Link
+                            href={`/torneios/${reg.tournament.slug}#inscricao`}
+                            className="shrink-0"
+                          >
+                            <Button
+                              size="sm"
+                              variant={
+                                reg.status === "rejected"
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                              className="text-xs font-bold gap-1.5"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              {reg.status === "rejected"
+                                ? "Corrigir / Reenviar"
+                                : reg.status === "pending" &&
+                                    reg.tournament.registration_status === "open"
+                                  ? "Editar / Ver Status"
+                                  : "Ver Inscrição"}
+                            </Button>
+                          </Link>
+                        </div>
+
+                        {reg.status === "rejected" && reg.rejection_reason && (
+                          <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                            <strong>Motivo da rejeição:</strong>{" "}
+                            {reg.rejection_reason}
+                          </div>
+                        )}
+
+                        {reg.combos.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border/40">
+                            {reg.combos.map((combo) => {
+                              const display = formatComboDisplay(combo);
+                              return (
+                                <Badge
+                                  key={combo.id ?? combo.slotNumber}
+                                  variant="secondary"
+                                  className="text-[10px] font-semibold"
+                                >
+                                  #{combo.slotNumber}{" "}
+                                  {display.system ? `[${display.system}] ` : ""}
+                                  {display.summaryText}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Torneios com Inscrições Abertas disponíveis */}
+          {(() => {
+            const registeredTourIds = new Set(
+              initialRegistrations.map((r) => r.tournament_id)
+            );
+            const availableTours = openTournaments.filter(
+              (t) => !registeredTourIds.has(t.id)
+            );
+            if (availableTours.length === 0) return null;
+
+            return (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <h3 className="text-sm font-black text-foreground">
+                  Torneios com Inscrições Abertas ({availableTours.length})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {availableTours.map((tour) => {
+                    const fee = Number(tour.entry_fee ?? 0);
+                    const [y, m, d] = (tour.event_date || "").split("-");
+                    const formattedDate = y && m && d ? `${d}/${m}/${y}` : "";
+
+                    return (
+                      <Card
+                        key={tour.id}
+                        className="border-primary/35 bg-card/70"
+                      >
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+                              Inscrições Abertas
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {fee > 0 ? formatCurrencyBRL(fee) : "Gratuito"}
+                            </Badge>
+                            {tour.ruleset && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] border-primary/35 text-primary"
+                              >
+                                {tour.ruleset.name}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="font-black text-sm text-foreground">
+                              {tour.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap gap-3">
+                              {formattedDate && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3 text-primary" />
+                                  {formattedDate}
+                                </span>
+                              )}
+                              <span>{TOURNAMENT_FORMAT_LABELS[tour.format]}</span>
+                              {tour.max_players && (
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {tour.confirmedCount}/{tour.max_players} vagas
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <Link
+                            href={`/torneios/${tour.slug}#inscricao`}
+                            className="block"
+                          >
+                            <Button
+                              size="sm"
+                              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-1.5"
+                            >
+                              <Swords className="h-3.5 w-3.5" />
+                              Inscrever-se Agora
+                            </Button>
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -122,8 +122,13 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
   - [x] **Reclassificação das 288 peças:** atualização idempotente via `scripts/generate-parts-seed.ts` (preservando UUIDs, movendo `Operate`/`Turbo` para Ratchets com `blocks_bit = true`, marcando `ClockMirage` com `requires_simple_ratchet = true` e 6 Simple Ratchets terminadas em `5`) e suporte completo em `/admin/pecas` e `/admin/formatos`.
   - [x] **Upload Leve de Avatar (`/meu-painel`):** processamento client-side via `<canvas>` (`src/lib/avatar-upload.ts`: recorte quadrado central, máx. `400x400px`, WebP qualidade `0.75`), envio com `upsert: true` em `avatars/{user_id}/avatar.webp` e cache-busting `?v=`.
   - [x] **`ComboBuilder.tsx` Reutilizável & Card Público:** seleção obrigatória de sistema (`BX`/`BXE`/`UX`/`UXE`/`CX`/`CXE`), slots dinâmicos (sem tag de sistema em Ratchet/Bit, ocultamento de Ratchet em `UXE`, filtro de Simple Ratchet para `ClockMirage`, bloqueio de Bit para `Operate`/`Turbo`) e exibição completa no `BladerCardModal.tsx`.
-- **Etapa 3B (Próxima):** configuração PIX global (`league_settings`), inscrição de Bladers com decklist (reutilizando `ComboBuilder.tsx`) validada pela ban-list do `ruleset`, PIX/comprovante e aprovação administrativa.
-- **Etapa 3C:** check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`).
+- **Etapa 3B — Inscrições Online, Decklists & PIX (Concluída):**
+  - [x] **Migration `009`:** bucket privado `receipts` (`5 MB`, imagens + PDF) com RLS restrita à pasta `{tournament_id}/{auth.uid()}/...` e acesso total de admins via Signed URL; revisão das policies RLS e trigger de proteção em `tournament_registrations` / `registration_combos` permitindo edição enquanto `pending` ou reenvio após `rejected`.
+  - [x] **Configuração PIX Global (`/admin/configuracoes`):** gerenciamento de `league_settings` (`pix_key`, `pix_receiver_name`, `pix_city`) com geração de payload EMVCo/BACEN BR Code (`src/lib/pix.ts`) e pré-visualização ao vivo em `<PixPaymentBox />`.
+  - [x] **Configuração de Inscrições por Torneio (`/admin/torneios`):** controles de `registration_status`, `entry_fee` e `max_players` em `TournamentForm.tsx` e `EditTournamentButton.tsx`.
+  - [x] **Inscrição do Blader (`/torneios/[slug]#inscricao` e `/meu-painel`):** montagem de até **4 combos** via `<ComboBuilder />` com validação server-side de compatibilidade (`validateTournamentDeckCombo`) e ban-list do `ruleset`, QR Code + Copia e Cola PIX quando `entry_fee > 0`, upload leve de comprovante (`src/lib/receipt-upload.ts`) e aba **Minhas Inscrições** em `/meu-painel`.
+  - [x] **Conferência Admin (`/admin/torneios/[id]/inscricoes`):** visualização de decklists (com alerta de peça banida), preview seguro de comprovante via Signed URL, flags `payment_verified`/`decks_verified`, rejeição com motivo e aprovação idempotente em `tournament_participants` respeitando `max_players`.
+- **Etapa 3C (Próxima):** check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`).
 
 ---
 
@@ -213,7 +218,8 @@ Sistema OBA/
 │   │   ├── 005_phase3_ecosystem_schema.sql             ← Peças, formatos/ban-lists, perfil/inventário e base 3B
 │   │   ├── 006_seed_parts_catalog.sql                  ← Seed idempotente das 288 peças únicas
 │   │   ├── 007_phase3a_combo_systems_and_avatars.sql   ← Unificação max_players, 6 sistemas, combos e bucket avatars
-│   │   └── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
+│   │   ├── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
+│   │   └── 009_phase3b_registrations_and_receipts.sql  ← Bucket privado receipts, RLS de reenvio e proteção de inscrições
 │   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
@@ -229,17 +235,19 @@ Sistema OBA/
     │   │   ├── page.tsx                ← Home: Hero, Banner Ao Vivo, Pódio Top 3 e Ranking por Temporada
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
-    │   │   │   └── [slug]/page.tsx     ← Detalhes, arenas ao vivo, chaveamento e resultados
+    │   │   │   └── [slug]/page.tsx     ← Detalhes, inscrição online (#inscricao), arenas ao vivo, chaveamento e resultados
     │   │   ├── bladers/page.tsx        ← Lista pública de competidores (abre Card Público)
-    │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (onboarding/claim, perfil e coleção)
+    │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (perfil, coleção e minhas inscrições)
     │   │   └── privacidade/page.tsx    ← Política de Privacidade pública (OAuth / LGPD)
     │   ├── torneios/
-    │   │   └── [slug]/telao/page.tsx   ← Modo Telão / TV full-screen (fora de (public), sem Navbar/Footer)
+    │   │   ├── [slug]/telao/page.tsx   ← Modo Telão / TV full-screen (fora de (public), sem Navbar/Footer)
+    │   │   └── registration-actions.ts ← Server Actions de inscrição, decklist e cancelamento do Blader
     │   ├── meu-painel/
     │   │   └── actions.ts              ← Server Actions do perfil, claim e coleção do Blader
     │   ├── admin/                      ← Rotas administrativas protegidas pelo proxy.ts
     │   │   ├── actions.ts              ← Server Actions CRUD (Bladers, Claims, Torneios, Resultados)
     │   │   ├── parts-actions.ts        ← Server Actions CRUD de Peças, Formatos e Ban-lists
+    │   │   ├── registrations-actions.ts ← Server Actions de PIX global e aprovação/rejeição de inscrições
     │   │   ├── arena/
     │   │   │   ├── actions.ts          ← Server Actions do Gestor de Arenas e Placar do Juiz
     │   │   │   └── [id]/page.tsx       ← Placar Touch mobile do juiz (tela cheia sem sidebar)
@@ -250,13 +258,15 @@ Sistema OBA/
     │   │       ├── page.tsx            ← Dashboard de métricas e resumo
     │   │       ├── arenas/page.tsx     ← Gestor de Arenas físicas (Multi-Stadium)
     │   │       ├── bladers/page.tsx    ← Gestão de Bladers, aprovações de vínculo e UUID manual
+    │   │       ├── configuracoes/page.tsx ← Configuração PIX global da Liga OBA (league_settings)
     │   │       ├── formatos/page.tsx   ← CRUD de Formatos e Ban-lists independentes
     │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
     │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
     │   │       └── torneios/
-    │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição e ações)
+    │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição, taxas/vagas e ações)
     │   │           └── [id]/
     │   │               ├── chaveamento/page.tsx ← Motor Suíço + Tiebreaker + Top Cut + Publicação
+    │   │               ├── inscricoes/page.tsx  ← Conferência de inscrições, decklists e comprovantes PIX
     │   │               └── resultados/page.tsx  ← Lançamento manual/retroativo de colocações e pontos
     │   ├── api/
     │   │   ├── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
@@ -267,7 +277,7 @@ Sistema OBA/
     │       ├── definir-senha/page.tsx  ← Definição de senha via convite ou recuperação
     │       └── login/page.tsx          ← Login Google OAuth + E-mail/Senha + "Esqueceu a senha?"
     ├── components/
-    │   ├── admin/                      ← Componentes do painel, catálogo, formatos e motor de chaveamento
+    │   ├── admin/                      ← Componentes do painel, catálogo, formatos, PIX e inscrições
     │   │   ├── ArenaManagerClient.tsx
     │   │   ├── BladerClaimsBanner.tsx
     │   │   ├── BladerForm.tsx
@@ -275,11 +285,13 @@ Sistema OBA/
     │   │   ├── DeleteTournamentButton.tsx
     │   │   ├── EditBladerButton.tsx
     │   │   ├── EditTournamentButton.tsx
+    │   │   ├── LeagueSettingsClient.tsx
     │   │   ├── PartsCatalogClient.tsx
     │   │   ├── RulesetsManagerClient.tsx
     │   │   ├── SeasonManagerClient.tsx
     │   │   ├── TournamentEngineClient.tsx
     │   │   ├── TournamentForm.tsx
+    │   │   ├── TournamentRegistrationsClient.tsx
     │   │   ├── TournamentResultsEditor.tsx
     │   │   └── TournamentStatusSelect.tsx
     │   ├── arena/                      ← Placar touch mobile e suporte operacional
@@ -300,17 +312,21 @@ Sistema OBA/
     │   ├── ranking/                    ← RankingTable com filtro por temporada, busca e Card do Blader
     │   ├── shared/
     │   │   └── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
-    │   ├── tournament/                 ← Componentes públicos de torneio, telão e arenas ao vivo
+    │   ├── tournament/                 ← Componentes públicos de torneio, telão, arenas, PIX e inscrição
     │   │   ├── BroadcastBoardClient.tsx
     │   │   ├── HomeLiveTournamentBanner.tsx
     │   │   ├── LiveArenaCard.tsx
-    │   │   └── PublicTournamentLive.tsx
+    │   │   ├── PixPaymentBox.tsx
+    │   │   ├── PublicTournamentLive.tsx
+    │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
     │   ├── avatar-upload.ts            ← Crop quadrado, compressão WebP 400x400 e upload no bucket avatars
-    │   ├── combo-rules.ts              ← Regras dos 6 sistemas (BX/BXE/UX/UXE/CX/CXE) e compatibilidade de peças
+    │   ├── combo-rules.ts              ← Regras dos 6 sistemas, compatibilidade e validação de decklist
     │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
     │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro
+    │   ├── pix.ts                      ← Gerador PIX estático EMVCo/BACEN (BR Code + CRC16) e formatador BRL
+    │   ├── receipt-upload.ts           ← Compressão client-side e upload privado no bucket receipts
     │   ├── utils.ts                    ← Helper cn()
     │   ├── engine/
     │   │   └── tournament-engine.ts    ← Motor puro OBA (Suíço, Finishes, Tiebreaker, Top Cut)
@@ -322,6 +338,7 @@ Sistema OBA/
     │   │   ├── league.ts
     │   │   ├── parts.ts
     │   │   ├── ranking-recalc.ts
+    │   │   ├── registrations.ts
     │   │   ├── tournament-live.ts
     │   │   └── tournament-queries.ts
     │   └── supabase/
@@ -349,12 +366,13 @@ Sistema OBA/
 - `matches`: Id, tournament_id, arena_id, round, match_number, stage (`swiss`, `top_cut`), bracket_label, player1_id, player2_id, player1_score, player2_score, target_score, winner_id, status (`pending`, `in_progress`, `finished`, `cancelled`), is_bye, is_tiebreaker, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, timestamps.
 - `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, timestamp.
 
-### Tabelas & Storage da Fase 3 (`005`–`008`)
+### Tabelas & Storage da Fase 3 (`005`–`009`)
 - `parts_catalog`: Id, name, aliases (`TEXT[]`), part_type (`blade`, `main_blade`, `metal_blade`, `over_blade`, `lock_chip`, `assist_blade`, `ratchet`, `bit`), line (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE` ou `NULL` universal para `ratchet`/`bit`), `is_simple_ratchet`, `requires_simple_ratchet`, `blocks_bit`, is_active, timestamps (unique por `name + part_type`).
 - `rulesets` & `ruleset_banned_parts`: formatos competitivos independentes (`Livre`, etc.) e peças banidas por formato.
 - `league_settings`: singleton (`id = 1`) com chave PIX, recebedor e cidade da liga.
-- `blader_inventory`, `blader_claim_requests`, `tournament_registrations`, `registration_combos` (com `system`, `over_blade_id`, `ratchet_id`/`bit_id` nullable): coleção pessoal de peças, solicitações de vínculo de conta e base de inscrições/decklists para a Etapa 3B.
+- `blader_inventory`, `blader_claim_requests`, `tournament_registrations`, `registration_combos` (com `system`, `over_blade_id`, `ratchet_id`/`bit_id` nullable): coleção pessoal de peças, solicitações de vínculo de conta e inscrições online/decklists com proteção via RLS + trigger `guard_blader_registration_update`.
 - Storage bucket `avatars` (`public = true`, teto `512 KB`): leitura pública e `INSERT`/`UPDATE`/`DELETE` restritos via RLS ao caminho `{auth.uid()}/avatar.webp`.
+- Storage bucket `receipts` (`public = false`, teto `5 MB`, imagens + PDF): leitura/escrita privada restrita via RLS à pasta `{tournament_id}/{auth.uid()}/...` para o Blader e acesso total para `admin` via Signed URLs temporárias.
 
 ---
 
@@ -388,16 +406,13 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ---
 
-## 🎯 Diretrizes para a Próxima Sessão (Etapa 3B)
+## 🎯 Diretrizes para a Próxima Sessão (Etapa 3C)
 
-Com a **Etapa 3A** e a **Etapa 3A.5** concluídas (`005`–`008`, catálogo de peças com os 6 sistemas + regras de compatibilidade, `ComboBuilder.tsx`, upload leve de avatar, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel` e Card Público), o próximo passo é a **Etapa 3B — Inscrições, Decklists & PIX**:
+Com as **Etapas 3A, 3A.5 e 3B** concluídas (`005`–`009`, catálogo de peças, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel`, Card Público, configuração PIX global e inscrições online com decklist até 4 combos e comprovante PIX), o próximo passo é a **Etapa 3C — Check-in Presencial & Acesso de Juízes**:
 
-1. **Configuração PIX & Inscrições em Torneios:**
-   - Painel admin para editar `league_settings` (PIX global da OBA) e habilitar `registration_status`, `entry_fee` e `max_players` nos torneios.
-   - Fluxo de inscrição do Blader com montagem de até 4 combos (reutilizando `ComboBuilder.tsx`) validados contra a ban-list do `ruleset` e upload de comprovante PIX.
-   - Fila administrativa `/admin/torneios/[id]/inscricoes` para conferência de pagamento/decklist e envio automático para `tournament_participants`.
-2. **Na sequência (Etapa 3C):**
-   - Check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`) em `/admin/arenas` e `/admin/arena/[id]`.
+1. **Check-in Presencial (QR Code) e Papel `judge`:**
+   - Geração de QR Code de inscrição confirmada e leitura rápida na entrada do evento.
+   - Acesso restrito para Juízes (`role = 'judge'`) em `/admin/arenas` e `/admin/arena/[id]` (atualizando `src/proxy.ts` e RLS).
 
 ---
 

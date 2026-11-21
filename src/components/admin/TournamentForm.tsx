@@ -1,8 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  PlusCircle,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,12 +26,15 @@ import type {
   RulesetRow,
   TournamentCategory,
   TournamentFormat,
+  TournamentRegistrationStatus,
 } from "@/types/domain";
 
 export function TournamentForm({
   rulesets = [],
+  pixConfigured = false,
 }: {
   rulesets?: RulesetRow[];
+  pixConfigured?: boolean;
 }) {
   const router = useRouter();
   const defaultRulesetId = React.useMemo(() => {
@@ -39,6 +49,9 @@ export function TournamentForm({
   const [category, setCategory] = React.useState<TournamentCategory>("semanal");
   const [format, setFormat] = React.useState<TournamentFormat>("swiss_only");
   const [rulesetId, setRulesetId] = React.useState<string>(defaultRulesetId);
+  const [registrationStatus, setRegistrationStatus] =
+    React.useState<TournamentRegistrationStatus>("closed");
+  const [entryFee, setEntryFee] = React.useState("0");
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -46,10 +59,14 @@ export function TournamentForm({
       setCategory("semanal");
       setFormat("swiss_only");
       setRulesetId(defaultRulesetId);
+      setRegistrationStatus("closed");
+      setEntryFee("0");
       setError(null);
       setSuccess(false);
     }
   };
+
+  const parsedEntryFee = Number(entryFee.replace(",", ".")) || 0;
 
   const handleCategoryChange = (nextCategory: TournamentCategory) => {
     setCategory(nextCategory);
@@ -102,7 +119,7 @@ export function TournamentForm({
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md bg-card border-border/80">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border/80">
         <DialogHeader>
           <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
             <span>Criar Torneio OBA</span>
@@ -205,7 +222,7 @@ export function TournamentForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="swiss_rounds" className="text-xs font-semibold">
                 Rodadas Suíço
@@ -222,21 +239,6 @@ export function TournamentForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="max_players" className="text-xs font-semibold">
-                Vagas (Opc.)
-              </Label>
-              <Input
-                id="max_players"
-                name="max_players"
-                type="number"
-                min={2}
-                max={128}
-                placeholder="Livre"
-                className="h-9 text-xs text-center"
-              />
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="location" className="text-xs font-semibold">
                 Local
               </Label>
@@ -247,6 +249,86 @@ export function TournamentForm({
                 className="h-9 text-xs"
               />
             </div>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-background/40 p-3.5 space-y-3">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Inscrições Online &amp; PIX
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="registration_status"
+                  className="text-xs font-semibold"
+                >
+                  Inscrições
+                </Label>
+                <select
+                  id="registration_status"
+                  name="registration_status"
+                  value={registrationStatus}
+                  onChange={(e) =>
+                    setRegistrationStatus(
+                      e.target.value as TournamentRegistrationStatus
+                    )
+                  }
+                  className="w-full h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="closed">🔒 Fechadas</option>
+                  <option value="open">🟢 Abertas</option>
+                  <option value="finished">🏁 Encerradas</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="entry_fee" className="text-xs font-semibold">
+                  Taxa PIX (R$)
+                </Label>
+                <Input
+                  id="entry_fee"
+                  name="entry_fee"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={entryFee}
+                  onChange={(e) => setEntryFee(e.target.value)}
+                  placeholder="0.00"
+                  className="h-9 text-xs text-center font-semibold tabular-nums"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="max_players" className="text-xs font-semibold">
+                  Vagas (Opc.)
+                </Label>
+                <Input
+                  id="max_players"
+                  name="max_players"
+                  type="number"
+                  min={2}
+                  max={128}
+                  placeholder="Livre"
+                  className="h-9 text-xs text-center"
+                />
+              </div>
+            </div>
+
+            {parsedEntryFee > 0 && !pixConfigured && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-500 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  A chave PIX da Liga ainda não está configurada.{" "}
+                  <Link
+                    href="/admin/configuracoes"
+                    className="underline font-bold"
+                  >
+                    Configurar PIX agora
+                  </Link>
+                  .
+                </span>
+              </div>
+            )}
           </div>
 
           {rulesets.length > 0 && (

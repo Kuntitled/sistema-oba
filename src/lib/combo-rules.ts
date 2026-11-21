@@ -5,6 +5,7 @@ import {
   type PartLine,
   type PartRow,
   type PartType,
+  type RegistrationComboRow,
 } from "@/types/domain";
 
 export interface SystemSlotConfig {
@@ -335,6 +336,136 @@ export function validateComboCompatibility(
   return {
     valid: true,
     sanitized: sanitizeComboForSystem(combo, partsById),
+  };
+}
+
+export function validateTournamentDeckCombo(
+  combo: ComboSelection,
+  partsById: Map<string, PartRow>,
+  bannedPartIds: Set<string>,
+  slotNumber?: number
+): { valid: true; sanitized: ComboSelection } | { valid: false; error: string } {
+  const prefix = slotNumber ? `Combo #${slotNumber}: ` : "";
+  const compat = validateComboCompatibility(combo, partsById);
+  if (!compat.valid) {
+    return { valid: false, error: `${prefix}${compat.error}` };
+  }
+
+  const s = compat.sanitized;
+  if (!s.system) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione o sistema do Beyblade (BX, BXE, UX, UXE, CX ou CXE).`,
+    };
+  }
+
+  const cfg = BEY_SYSTEM_CONFIG[s.system];
+
+  if (cfg.needsLockChip && !s.lockChipId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione o Lock Chip do sistema ${s.system}.`,
+    };
+  }
+  if (cfg.needsOverBlade && !s.overBladeId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione a Over Blade do sistema ${s.system}.`,
+    };
+  }
+  if (!s.bladeId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione a ${cfg.bladeLabel} do combo.`,
+    };
+  }
+  if (cfg.needsAssistBlade && !s.assistBladeId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione a Assist Blade do sistema ${s.system}.`,
+    };
+  }
+  if (cfg.needsRatchet && !s.ratchetId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione a Ratchet do combo.`,
+    };
+  }
+
+  const ratchet = s.ratchetId ? partsById.get(s.ratchetId) : undefined;
+  if (!ratchet?.blocks_bit && !s.bitId) {
+    return {
+      valid: false,
+      error: `${prefix}Selecione a Bit do combo.`,
+    };
+  }
+
+  const selectedIds = [
+    s.lockChipId,
+    s.overBladeId,
+    s.bladeId,
+    s.assistBladeId,
+    s.ratchetId,
+    s.bitId,
+  ].filter(Boolean);
+
+  for (const partId of selectedIds) {
+    const part = partsById.get(partId);
+    if (!part || !part.is_active) {
+      return {
+        valid: false,
+        error: `${prefix}Uma das peças selecionadas não está ativa no catálogo.`,
+      };
+    }
+    if (bannedPartIds.has(part.id)) {
+      return {
+        valid: false,
+        error: `${prefix}A peça "${part.name}" está banida no formato deste torneio.`,
+      };
+    }
+  }
+
+  return { valid: true, sanitized: s };
+}
+
+export function comboRowToSelection(
+  row: Pick<
+    RegistrationComboRow,
+    | "system"
+    | "blade_id"
+    | "lock_chip_id"
+    | "over_blade_id"
+    | "assist_blade_id"
+    | "ratchet_id"
+    | "bit_id"
+  >,
+  partsById: Map<string, PartRow>
+): ComboSelection {
+  const blade = row.blade_id ? (partsById.get(row.blade_id) ?? null) : null;
+  const lockChip = row.lock_chip_id
+    ? (partsById.get(row.lock_chip_id) ?? null)
+    : null;
+  const overBlade = row.over_blade_id
+    ? (partsById.get(row.over_blade_id) ?? null)
+    : null;
+  const assistBlade = row.assist_blade_id
+    ? (partsById.get(row.assist_blade_id) ?? null)
+    : null;
+
+  return {
+    system: inferComboSystem({
+      system: row.system,
+      blade,
+      lockChip,
+      overBlade,
+      assistBlade,
+    }),
+    bladeId: row.blade_id ?? "",
+    lockChipId: row.lock_chip_id ?? "",
+    overBladeId: row.over_blade_id ?? "",
+    assistBladeId: row.assist_blade_id ?? "",
+    ratchetId: row.ratchet_id ?? "",
+    bitId: row.bit_id ?? "",
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Pencil,
@@ -25,15 +26,18 @@ import type {
   Tournament,
   TournamentCategory,
   TournamentFormat,
+  TournamentRegistrationStatus,
   TournamentStatus,
 } from "@/types/domain";
 
 export function EditTournamentButton({
   tournament,
   rulesets = [],
+  pixConfigured = false,
 }: {
   tournament: Tournament;
   rulesets?: RulesetRow[];
+  pixConfigured?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -54,6 +58,13 @@ export function EditTournamentButton({
   const [swissRounds, setSwissRounds] = React.useState(
     String(tournament.swiss_rounds ?? 4)
   );
+  const [registrationStatus, setRegistrationStatus] =
+    React.useState<TournamentRegistrationStatus>(
+      tournament.registration_status ?? "closed"
+    );
+  const [entryFee, setEntryFee] = React.useState(
+    String(tournament.entry_fee ?? 0)
+  );
   const [maxPlayers, setMaxPlayers] = React.useState(
     tournament.max_players ? String(tournament.max_players) : ""
   );
@@ -72,6 +83,8 @@ export function EditTournamentButton({
       setFormat(tournament.format);
       setRulesetId(tournament.ruleset_id ?? "");
       setSwissRounds(String(tournament.swiss_rounds ?? 4));
+      setRegistrationStatus(tournament.registration_status ?? "closed");
+      setEntryFee(String(tournament.entry_fee ?? 0));
       setMaxPlayers(
         tournament.max_players ? String(tournament.max_players) : ""
       );
@@ -81,6 +94,8 @@ export function EditTournamentButton({
       setSuccess(false);
     }
   };
+
+  const parsedEntryFee = Number(entryFee.replace(",", ".")) || 0;
 
   const handleCategoryChange = (nextCategory: TournamentCategory) => {
     setCategory(nextCategory);
@@ -103,6 +118,8 @@ export function EditTournamentButton({
       formData.set("ruleset_id", rulesetId);
     }
     formData.set("swiss_rounds", swissRounds);
+    formData.set("registration_status", registrationStatus);
+    formData.set("entry_fee", entryFee);
     formData.set("max_players", maxPlayers);
     formData.set("location", location);
     formData.set("description", description);
@@ -138,7 +155,7 @@ export function EditTournamentButton({
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md bg-card border-border/80">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border/80">
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-foreground">
               Editar Torneio OBA
@@ -281,7 +298,7 @@ export function EditTournamentButton({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label
                   htmlFor={`edit-t-rounds-${tournament.id}`}
@@ -302,25 +319,6 @@ export function EditTournamentButton({
 
               <div className="space-y-1.5">
                 <Label
-                  htmlFor={`edit-t-max-${tournament.id}`}
-                  className="text-xs font-semibold"
-                >
-                  Vagas (Opc.)
-                </Label>
-                <Input
-                  id={`edit-t-max-${tournament.id}`}
-                  type="number"
-                  min={2}
-                  max={128}
-                  value={maxPlayers}
-                  onChange={(e) => setMaxPlayers(e.target.value)}
-                  placeholder="Livre"
-                  className="h-9 text-xs text-center"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label
                   htmlFor={`edit-t-location-${tournament.id}`}
                   className="text-xs font-semibold"
                 >
@@ -334,6 +332,91 @@ export function EditTournamentButton({
                   className="h-9 text-xs"
                 />
               </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3.5 space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Inscrições Online &amp; PIX
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor={`edit-t-reg-${tournament.id}`}
+                    className="text-xs font-semibold"
+                  >
+                    Inscrições
+                  </Label>
+                  <select
+                    id={`edit-t-reg-${tournament.id}`}
+                    value={registrationStatus}
+                    onChange={(e) =>
+                      setRegistrationStatus(
+                        e.target.value as TournamentRegistrationStatus
+                      )
+                    }
+                    className="w-full h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="closed">🔒 Fechadas</option>
+                    <option value="open">🟢 Abertas</option>
+                    <option value="finished">🏁 Encerradas</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor={`edit-t-fee-${tournament.id}`}
+                    className="text-xs font-semibold"
+                  >
+                    Taxa PIX (R$)
+                  </Label>
+                  <Input
+                    id={`edit-t-fee-${tournament.id}`}
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={entryFee}
+                    onChange={(e) => setEntryFee(e.target.value)}
+                    placeholder="0.00"
+                    className="h-9 text-xs text-center font-semibold tabular-nums"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor={`edit-t-max-${tournament.id}`}
+                    className="text-xs font-semibold"
+                  >
+                    Vagas (Opc.)
+                  </Label>
+                  <Input
+                    id={`edit-t-max-${tournament.id}`}
+                    type="number"
+                    min={2}
+                    max={128}
+                    value={maxPlayers}
+                    onChange={(e) => setMaxPlayers(e.target.value)}
+                    placeholder="Livre"
+                    className="h-9 text-xs text-center"
+                  />
+                </div>
+              </div>
+
+              {parsedEntryFee > 0 && !pixConfigured && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-500 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    A chave PIX da Liga ainda não está configurada.{" "}
+                    <Link
+                      href="/admin/configuracoes"
+                      className="underline font-bold"
+                    >
+                      Configurar PIX agora
+                    </Link>
+                    .
+                  </span>
+                </div>
+              )}
             </div>
 
             {rulesets.length > 0 && (

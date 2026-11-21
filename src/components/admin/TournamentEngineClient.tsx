@@ -722,6 +722,13 @@ export function TournamentEngineClient({
             </span>
           </div>
 
+          <Link href={`/admin/torneios/${tournament.id}/inscricoes`}>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+              <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+              Inscrições
+            </Button>
+          </Link>
+
           <Link href="/admin/arenas">
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
               <Radio className="h-3.5 w-3.5 text-emerald-500" />

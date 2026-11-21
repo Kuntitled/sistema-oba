@@ -8,6 +8,7 @@ import {
   getBladerInventoryPartIds,
   getPartsCatalog,
 } from "@/lib/services/parts";
+import { getBladerRegistrationsOverview } from "@/lib/services/registrations";
 import { BladerOnboardingClient } from "@/components/blader/BladerOnboardingClient";
 import { BladerPanelClient } from "@/components/blader/BladerPanelClient";
 import type { BladerClaimRequest, BladerRow } from "@/types/domain";
@@ -103,9 +104,10 @@ export default async function MeuPainelPage() {
     );
   }
 
-  const [inventoryIds, cardProfile] = await Promise.all([
+  const [inventoryIds, cardProfile, registrationsOverview] = await Promise.all([
     getBladerInventoryPartIds(ownBlader.id),
     getBladerCardProfile(supabase, ownBlader.id),
+    getBladerRegistrationsOverview(ownBlader.id),
   ]);
 
   const fallbackProfile = cardProfile ?? {
@@ -138,6 +140,8 @@ export default async function MeuPainelPage() {
       baseCardProfile={fallbackProfile}
       parts={parts}
       initialInventoryIds={inventoryIds}
+      initialRegistrations={registrationsOverview.registrations}
+      openTournaments={registrationsOverview.openTournaments}
       googleAvatarUrl={googleAvatarUrl}
       userEmail={user.email ?? null}
     />

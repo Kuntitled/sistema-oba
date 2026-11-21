@@ -16,6 +16,7 @@ import {
 import type {
   TournamentCategory,
   TournamentFormat,
+  TournamentRegistrationStatus,
   TournamentStatus,
 } from "@/types/domain";
 
@@ -46,6 +47,33 @@ function parseOptionalUuidField(raw: FormDataEntryValue | null): {
   if (!trimmed) return { value: null, invalid: false };
   if (!isValidUuid(trimmed)) return { value: null, invalid: true };
   return { value: trimmed, invalid: false };
+}
+
+function parseRegistrationStatus(
+  raw: FormDataEntryValue | null,
+  fallback: TournamentRegistrationStatus = "closed"
+): TournamentRegistrationStatus {
+  if (raw === "open" || raw === "closed" || raw === "finished") {
+    return raw;
+  }
+  return fallback;
+}
+
+function parseEntryFee(raw: FormDataEntryValue | null): {
+  value: number;
+  error: string | null;
+} {
+  if (typeof raw !== "string") return { value: 0, error: null };
+  const trimmed = raw.trim().replace(",", ".");
+  if (!trimmed) return { value: 0, error: null };
+  const num = Number(trimmed);
+  if (!Number.isFinite(num) || num < 0) {
+    return {
+      value: 0,
+      error: "A taxa de inscrição deve ser um valor numérico maior ou igual a 0.",
+    };
+  }
+  return { value: Math.round(num * 100) / 100, error: null };
 }
 
 /**
@@ -284,6 +312,14 @@ export async function createTournamentAction(formData: FormData) {
     categoryRaw === "oficial" ? "oficial" : "semanal";
   const format = formatRaw as TournamentFormat;
   const status = statusRaw as TournamentStatus;
+  const registration_status = parseRegistrationStatus(
+    formData.get("registration_status"),
+    "closed"
+  );
+  const parsedFee = parseEntryFee(formData.get("entry_fee"));
+  if (parsedFee.error) {
+    return { error: parsedFee.error };
+  }
 
   const baseSlug = name
     .toLowerCase()
@@ -307,6 +343,8 @@ export async function createTournamentAction(formData: FormData) {
     swiss_rounds: number;
     top_cut_size: number | null;
     status: TournamentStatus;
+    registration_status: TournamentRegistrationStatus;
+    entry_fee: number;
     max_players: number | null;
     ruleset_id?: string | null;
   } = {
@@ -321,6 +359,8 @@ export async function createTournamentAction(formData: FormData) {
     swiss_rounds,
     top_cut_size: format === "swiss_only" ? null : top_cut_size,
     status,
+    registration_status,
+    entry_fee: parsedFee.value,
     max_players,
   };
 
@@ -400,6 +440,32 @@ export async function updateTournamentAction(
     categoryRaw === "oficial" ? "oficial" : "semanal";
   const format = formatRaw as TournamentFormat;
   const status = statusRaw as TournamentStatus;
+  const registration_status = parseRegistrationStatus(
+    formData.get("registration_status"),
+    existing.registration_status
+  );
+  const parsedFee = formData.has("entry_fee")
+    ? parseEntryFee(formData.get("entry_fee"))
+    : { value: Number(existing.entry_fee ?? 0), error: null };
+  if (parsedFee.error) {
+    return { error: parsedFee.error };
+  }
+
+  if (max_players !== null) {
+    const { count: currentParticipantsCount } = await auth.supabase
+      .from("tournament_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+
+    if (
+      typeof currentParticipantsCount === "number" &&
+      max_players < currentParticipantsCount
+    ) {
+      return {
+        error: `O limite de vagas (${max_players}) não pode ser menor que os ${currentParticipantsCount} participantes já confirmados no torneio.`,
+      };
+    }
+  }
 
   const hasRulesetField = formData.has("ruleset_id");
   const parsedRuleset = parseOptionalUuidField(formData.get("ruleset_id"));
@@ -425,6 +491,8 @@ export async function updateTournamentAction(
     swiss_rounds: number;
     top_cut_size: number | null;
     status: TournamentStatus;
+    registration_status: TournamentRegistrationStatus;
+    entry_fee: number;
     max_players: number | null;
     ruleset_id?: string | null;
   } = {
@@ -438,6 +506,8 @@ export async function updateTournamentAction(
     swiss_rounds,
     top_cut_size: format === "swiss_only" ? null : existing.top_cut_size,
     status,
+    registration_status,
+    entry_fee: parsedFee.value,
     max_players,
   };
 
@@ -505,7 +575,55 @@ export async function updateTournamentAction(
   }
 
   revalidatePath("/", "layout");
+  revalidatePath(`/admin/torneios/${tournamentId}/inscricoes`);
+  revalidatePath(`/torneios/${tournament.slug}`);
+  revalidatePath("/meu-painel");
   return { success: true, tournament };
+}
+
+/**
+ * Atualiza rapidamente o status das inscrições online (closed | open | finished).
+ */
+export async function updateTournamentRegistrationStatusAction(
+  tournamentId: string,
+  registrationStatus: TournamentRegistrationStatus
+) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(tournamentId)) {
+    return { error: "Torneio inválido." };
+  }
+
+  if (
+    registrationStatus !== "closed" &&
+    registrationStatus !== "open" &&
+    registrationStatus !== "finished"
+  ) {
+    return { error: "Status de inscrição inválido." };
+  }
+
+  const { data: updated, error } = await auth.supabase
+    .from("tournaments")
+    .update({ registration_status: registrationStatus })
+    .eq("id", tournamentId)
+    .select("slug")
+    .maybeSingle();
+
+  if (error) {
+    return {
+      error: `Erro ao atualizar inscrições do torneio: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/admin/torneios");
+  revalidatePath(`/admin/torneios/${tournamentId}/inscricoes`);
+  revalidatePath("/torneios");
+  if (updated?.slug) {
+    revalidatePath(`/torneios/${updated.slug}`);
+  }
+  revalidatePath("/meu-painel");
+  return { success: true };
 }
 
 /**

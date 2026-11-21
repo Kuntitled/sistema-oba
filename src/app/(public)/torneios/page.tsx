@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
+import { formatCurrencyBRL } from "@/lib/pix";
 import {
   TOURNAMENT_CATEGORY_LABELS,
   TOURNAMENT_FORMAT_LABELS,
@@ -127,6 +128,14 @@ export default async function TorneiosPage() {
                         {tournament.season && (
                           <Badge variant="secondary" className="text-[11px]">
                             {tournament.season.name}
+                          </Badge>
+                        )}
+                        {tournament.registration_status === "open" && (
+                          <Badge className="bg-emerald-600/15 text-emerald-500 border border-emerald-500/40 text-[11px] font-bold">
+                            Inscrições Online •{" "}
+                            {Number(tournament.entry_fee ?? 0) > 0
+                              ? formatCurrencyBRL(Number(tournament.entry_fee))
+                              : "Gratuito"}
                           </Badge>
                         )}
                       </div>

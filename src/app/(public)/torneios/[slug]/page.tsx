@@ -7,17 +7,28 @@ import {
   ChevronLeft,
   ShieldCheck,
   Tv,
+  ClipboardCheck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 import { getTournamentBySlug } from "@/lib/services/league";
 import { getPublicTournamentLiveData } from "@/lib/services/tournament-live";
+import { getPartsCatalog } from "@/lib/services/parts";
+import {
+  getBladerTournamentRegistration,
+  getLeagueSettings,
+  getRulesetBannedParts,
+} from "@/lib/services/registrations";
+import { formatCurrencyBRL } from "@/lib/pix";
 import { PublicTournamentLive } from "@/components/tournament/PublicTournamentLive";
+import { TournamentRegistrationClient } from "@/components/tournament/TournamentRegistrationClient";
 import {
   TOURNAMENT_CATEGORY_LABELS,
   TOURNAMENT_FORMAT_LABELS,
   TOURNAMENT_STATUS_LABELS,
+  type BladerRow,
 } from "@/types/domain";
 
 export default async function TorneioDetalhePage({
@@ -33,7 +44,65 @@ export default async function TorneioDetalhePage({
   }
 
   const { tournament, results } = data;
-  const liveData = await getPublicTournamentLiveData(tournament.id);
+  const supabase = await createClient();
+
+  const [liveData, userRes] = await Promise.all([
+    getPublicTournamentLiveData(tournament.id),
+    supabase.auth.getUser(),
+  ]);
+
+  const user = userRes.data.user ?? null;
+  let blader: BladerRow | null = null;
+  let hasPendingClaim = false;
+
+  if (user) {
+    const { data: bladerRow } = await supabase
+      .from("bladers")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    blader = bladerRow ?? null;
+
+    if (!blader) {
+      const { data: claimRow } = await supabase
+        .from("blader_claim_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .maybeSingle();
+      hasPendingClaim = Boolean(claimRow);
+    }
+  }
+
+  const existingRegData = blader
+    ? await getBladerTournamentRegistration(tournament.id, blader.id)
+    : { registration: null, combos: [], receiptSignedUrl: null };
+
+  const shouldLoadRegistrationCatalog =
+    tournament.registration_status === "open" ||
+    Boolean(existingRegData.registration);
+
+  const entryFee = Number(tournament.entry_fee ?? 0);
+
+  const [partsRes, bansRes, settingsRes] = shouldLoadRegistrationCatalog
+    ? await Promise.all([
+        getPartsCatalog({ includeInactive: false }),
+        getRulesetBannedParts(tournament.ruleset_id),
+        entryFee > 0
+          ? getLeagueSettings()
+          : Promise.resolve({ settings: null, schemaMissing: false }),
+      ])
+    : [
+        { parts: [], schemaMissing: false },
+        { bannedPartIds: [], bannedParts: [] },
+        { settings: null, schemaMissing: false },
+      ];
+
+  const showRegistrationPriority =
+    tournament.registration_status === "open" ||
+    Boolean(existingRegData.registration);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
@@ -84,6 +153,12 @@ export default async function TorneioDetalhePage({
             {tournament.season && (
               <Badge variant="secondary">{tournament.season.name}</Badge>
             )}
+            {tournament.registration_status === "open" && (
+              <Badge className="bg-emerald-600 text-white font-bold">
+                Inscrições Abertas •{" "}
+                {entryFee > 0 ? formatCurrencyBRL(entryFee) : "Gratuito"}
+              </Badge>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight">
@@ -131,6 +206,22 @@ export default async function TorneioDetalhePage({
         </CardContent>
       </Card>
 
+      {showRegistrationPriority && (
+        <TournamentRegistrationClient
+          tournament={tournament}
+          confirmedParticipantsCount={liveData.participants.length}
+          userId={user?.id ?? null}
+          blader={blader}
+          hasPendingClaim={hasPendingClaim}
+          parts={partsRes.parts}
+          bannedParts={bansRes.bannedParts}
+          leagueSettings={settingsRes.settings}
+          initialRegistration={existingRegData.registration}
+          initialCombos={existingRegData.combos}
+          initialReceiptSignedUrl={existingRegData.receiptSignedUrl}
+        />
+      )}
+
       {/* Arenas ao Vivo, Chaveamento e Resultados */}
       <PublicTournamentLive
         initialTournament={liveData.tournament ?? tournament}
@@ -141,8 +232,34 @@ export default async function TorneioDetalhePage({
         results={results}
       />
 
+      {!showRegistrationPriority && (
+        <TournamentRegistrationClient
+          tournament={tournament}
+          confirmedParticipantsCount={liveData.participants.length}
+          userId={user?.id ?? null}
+          blader={blader}
+          hasPendingClaim={hasPendingClaim}
+          parts={partsRes.parts}
+          bannedParts={bansRes.bannedParts}
+          leagueSettings={settingsRes.settings}
+          initialRegistration={existingRegData.registration}
+          initialCombos={existingRegData.combos}
+          initialReceiptSignedUrl={existingRegData.receiptSignedUrl}
+        />
+      )}
+
       {/* Atalho discreto para organização */}
       <div className="pt-4 border-t border-border/40 flex flex-wrap items-center justify-end gap-2">
+        <Link href={`/admin/torneios/${tournament.id}/inscricoes`}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+            Gerenciar Inscrições (Admin)
+          </Button>
+        </Link>
         <Link href={`/admin/torneios/${tournament.id}/chaveamento`}>
           <Button
             size="sm"

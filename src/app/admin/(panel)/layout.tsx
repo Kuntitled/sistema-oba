@@ -8,6 +8,7 @@ import {
   CalendarRange,
   Layers,
   ShieldBan,
+  Settings,
   ExternalLink,
   LogOut,
 } from "lucide-react";
@@ -133,6 +134,14 @@ export default function AdminLayout({
             >
               <ShieldBan className="h-4 w-4 text-fire-orange" />
               <span>Formatos</span>
+            </Link>
+
+            <Link
+              href="/admin/configuracoes"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+            >
+              <Settings className="h-4 w-4 text-primary" />
+              <span>Configurações / PIX</span>
             </Link>
           </nav>
         </div>
