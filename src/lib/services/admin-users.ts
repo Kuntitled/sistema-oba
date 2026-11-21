@@ -1,14 +1,16 @@
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeUserRole, type ManagedUserRole } from "@/lib/auth-roles";
 
 export interface AdminManagedUser {
   id: string;
   email: string;
   fullName: string | null;
   avatarUrl: string | null;
-  role: string;
+  role: ManagedUserRole;
   isAdmin: boolean;
+  isJudge: boolean;
   providers: string[];
   emailConfirmed: boolean;
   invitedAt: string | null;
@@ -124,11 +126,9 @@ export async function getAdminManagedUsers(): Promise<{
         (typeof meta.avatar_url === "string" && meta.avatar_url.trim()) ||
         (typeof meta.picture === "string" && meta.picture.trim()) ||
         null;
-      const role =
-        typeof meta.role === "string" && meta.role.trim()
-          ? meta.role.trim()
-          : "blader";
+      const role = normalizeUserRole(meta.role);
       const isAdmin = role === "admin";
+      const isJudge = role === "judge";
       const userWithLegacyConfirmed = u as User & { confirmed_at?: string };
 
       return {
@@ -138,6 +138,7 @@ export async function getAdminManagedUsers(): Promise<{
         avatarUrl,
         role,
         isAdmin,
+        isJudge,
         providers: extractProviders(u),
         emailConfirmed: Boolean(
           u.email_confirmed_at || userWithLegacyConfirmed.confirmed_at
@@ -149,10 +150,15 @@ export async function getAdminManagedUsers(): Promise<{
       };
     });
 
+    const rolePriority: Record<ManagedUserRole, number> = {
+      admin: 0,
+      judge: 1,
+      blader: 2,
+    };
+
     mapped.sort((a, b) => {
-      if (a.isAdmin !== b.isAdmin) {
-        return Number(b.isAdmin) - Number(a.isAdmin);
-      }
+      const diff = rolePriority[a.role] - rolePriority[b.role];
+      if (diff !== 0) return diff;
       return b.createdAt.localeCompare(a.createdAt);
     });
 

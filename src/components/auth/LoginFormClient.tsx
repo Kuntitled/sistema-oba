@@ -24,6 +24,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeUserRole, resolvePostLoginRedirect } from "@/lib/auth-roles";
 
 interface LoginFormClientProps {
   nextPath: string | null;
@@ -57,11 +58,13 @@ export function LoginFormClient({
 
     try {
       const supabase = createClient();
-      const targetNext = nextPath ?? "/meu-painel";
+      const callbackUrl = nextPath
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+        : `${window.location.origin}/auth/callback`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(targetNext)}`,
+          redirectTo: callbackUrl,
         },
       });
 
@@ -151,15 +154,8 @@ export function LoginFormClient({
         return;
       }
 
-      const defaultDest = payload.redirectTo ?? "/meu-painel";
-      let destination = defaultDest;
-      if (nextPath) {
-        if (nextPath.startsWith("/admin") && payload.role !== "admin") {
-          destination = "/meu-painel";
-        } else {
-          destination = nextPath;
-        }
-      }
+      const role = normalizeUserRole(payload.role);
+      const destination = resolvePostLoginRedirect(role, nextPath);
 
       // Navegação completa garante o envio imediato dos cookies HttpOnly no cabeçalho HTTP
       window.location.assign(

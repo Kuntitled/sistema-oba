@@ -16,7 +16,9 @@ export default async function PublicLayout({
     } = await supabase.auth.getUser();
 
     if (user) {
-      const isAdmin = user.user_metadata?.role === "admin";
+      const role = user.user_metadata?.role;
+      const isAdmin = role === "admin";
+      const isJudge = role === "judge";
       let nickname: string =
         (typeof user.user_metadata?.full_name === "string" &&
           user.user_metadata.full_name) ||
@@ -45,6 +47,7 @@ export default async function PublicLayout({
         nickname,
         avatarUrl,
         isAdmin,
+        isJudge,
       };
     }
   } catch {

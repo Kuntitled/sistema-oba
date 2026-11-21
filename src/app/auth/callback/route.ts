@@ -4,6 +4,10 @@ import {
   createRouteSupabaseClient,
   getRequestOrigin,
 } from "@/lib/supabase/route-cookies";
+import {
+  normalizeUserRole,
+  resolvePostLoginRedirect,
+} from "@/lib/auth-roles";
 
 const ALLOWED_OTP_TYPES = new Set<string>([
   "invite",
@@ -74,14 +78,8 @@ export async function GET(request: NextRequest) {
   if (isPasswordFlow) {
     destination = "/auth/definir-senha";
   } else {
-    const isAdmin = authenticatedUser?.user_metadata?.role === "admin";
-
-    if (safeNext) {
-      destination =
-        safeNext.startsWith("/admin") && !isAdmin ? "/meu-painel" : safeNext;
-    } else {
-      destination = isAdmin ? "/admin" : "/meu-painel";
-    }
+    const role = normalizeUserRole(authenticatedUser?.user_metadata?.role);
+    destination = resolvePostLoginRedirect(role, safeNext);
   }
 
   const response = NextResponse.redirect(new URL(destination, origin));

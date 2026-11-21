@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  MANAGED_ROLE_LABELS,
+  type ManagedUserRole,
+} from "@/lib/auth-roles";
 import { isValidUuid } from "@/lib/services/arena-queries";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const VALID_ROLES = new Set<ManagedUserRole>(["admin", "judge", "blader"]);
 
 async function requireAdminWithServiceRole() {
   const supabase = await createClient();
@@ -29,7 +34,7 @@ async function requireAdminWithServiceRole() {
       user,
       adminClient: null,
       error:
-        "SUPABASE_SERVICE_ROLE_KEY não configurada no servidor. Cadastre a chave nas variáveis de ambiente para gerenciar administradores.",
+        "SUPABASE_SERVICE_ROLE_KEY não configurada no servidor. Cadastre a chave nas variáveis de ambiente para gerenciar papéis de acesso.",
     } as const;
   }
 
@@ -79,11 +84,11 @@ async function resolveActionOrigin(): Promise<string> {
 }
 
 /**
- * Promove ou remove a permissão de administrador (user_metadata.role = "admin" | "blader").
+ * Atualiza o papel de acesso de um usuário (user_metadata.role = "admin" | "judge" | "blader").
  */
-export async function setUserAdminRoleAction(
+export async function setUserRoleAction(
   targetUserId: string,
-  makeAdmin: boolean
+  nextRole: ManagedUserRole
 ) {
   const auth = await requireAdminWithServiceRole();
   if (auth.error || !auth.user || !auth.adminClient) {
@@ -94,7 +99,11 @@ export async function setUserAdminRoleAction(
     return { error: "ID de usuário inválido." };
   }
 
-  if (!makeAdmin && targetUserId === auth.user.id) {
+  if (!VALID_ROLES.has(nextRole)) {
+    return { error: "Papel de acesso inválido." };
+  }
+
+  if (targetUserId === auth.user.id && nextRole !== "admin") {
     return {
       error: "Você não pode remover a própria permissão de administrador.",
     };
@@ -112,7 +121,7 @@ export async function setUserAdminRoleAction(
   const targetUser = userRes.user;
   const currentlyAdmin = targetUser.user_metadata?.role === "admin";
 
-  if (!makeAdmin && currentlyAdmin) {
+  if (currentlyAdmin && nextRole !== "admin") {
     const adminCount = await countActiveAdmins(auth.adminClient);
     if (adminCount <= 1) {
       return {
@@ -123,7 +132,7 @@ export async function setUserAdminRoleAction(
 
   const nextMetadata = {
     ...(targetUser.user_metadata ?? {}),
-    role: makeAdmin ? "admin" : "blader",
+    role: nextRole,
   };
 
   const { error: updateError } =
@@ -139,11 +148,12 @@ export async function setUserAdminRoleAction(
 
   revalidatePath("/admin/configuracoes");
   revalidatePath("/admin");
+  revalidatePath("/admin/arenas");
   return { success: true };
 }
 
 /**
- * Envia convite por e-mail já atribuindo user_metadata.role = "admin".
+ * Envia convite por e-mail atribuindo o papel escolhido ("admin" ou "judge").
  */
 export async function inviteAdminUserAction(formData: FormData) {
   const auth = await requireAdminWithServiceRole();
@@ -156,21 +166,28 @@ export async function inviteAdminUserAction(formData: FormData) {
     return { error: "Informe um e-mail válido para enviar o convite." };
   }
 
+  const rawRole = (formData.get("role") as string)?.trim();
+  const inviteRole: "admin" | "judge" =
+    rawRole === "judge" ? "judge" : "admin";
+
   const origin = await resolveActionOrigin();
   const redirectTo = `${origin}/auth/callback?next=/auth/definir-senha`;
 
   const { error: inviteError } =
     await auth.adminClient.auth.admin.inviteUserByEmail(rawEmail, {
-      data: { role: "admin" },
+      data: { role: inviteRole },
       redirectTo,
     });
 
   if (inviteError) {
     const msg = inviteError.message.toLowerCase();
-    if (msg.includes("already been registered") || msg.includes("already exists")) {
+    if (
+      msg.includes("already been registered") ||
+      msg.includes("already exists")
+    ) {
       return {
         error:
-          "Este e-mail já possui uma conta cadastrada. Use a busca na lista abaixo e clique em \"Tornar Admin\".",
+          "Este e-mail já possui uma conta cadastrada. Use a busca na lista abaixo e selecione o papel desejado (Juiz ou Admin).",
       };
     }
     return { error: `Erro ao enviar convite: ${inviteError.message}` };
@@ -179,6 +196,6 @@ export async function inviteAdminUserAction(formData: FormData) {
   revalidatePath("/admin/configuracoes");
   return {
     success: true,
-    message: `Convite enviado para ${rawEmail}. Ao aceitar e definir senha, a conta já entrará como Admin.`,
+    message: `Convite enviado para ${rawEmail}. Ao aceitar e definir senha, a conta já entrará como ${MANAGED_ROLE_LABELS[inviteRole]}.`,
   };
 }

@@ -50,12 +50,14 @@ interface ArenaManagerClientProps {
   initialArenas: Arena[];
   tournaments: Tournament[];
   bladers: Blader[];
+  canManageArenas?: boolean;
 }
 
 export function ArenaManagerClient({
   initialArenas,
   tournaments,
   bladers,
+  canManageArenas = true,
 }: ArenaManagerClientProps) {
   const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
@@ -278,114 +280,116 @@ export function ArenaManagerClient({
           </div>
         </div>
 
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger
-            render={
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5" />
-            }
-          >
-            <PlusCircle className="h-4 w-4" />
-            Nova Arena (Beystadium)
-          </DialogTrigger>
-          <DialogContent className="max-w-md bg-card border-border/80">
-            <DialogHeader>
-              <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
-                <Radio className="h-5 w-5 text-emerald-500" />
-                Cadastrar Arena Física
-              </DialogTitle>
-            </DialogHeader>
+        {canManageArenas && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger
+              render={
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5" />
+              }
+            >
+              <PlusCircle className="h-4 w-4" />
+              Nova Arena (Beystadium)
+            </DialogTrigger>
+            <DialogContent className="max-w-md bg-card border-border/80">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
+                  <Radio className="h-5 w-5 text-emerald-500" />
+                  Cadastrar Arena Física
+                </DialogTitle>
+              </DialogHeader>
 
-            {createError && (
-              <div className="p-3 rounded-lg bg-destructive/15 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{createError}</span>
-              </div>
-            )}
-
-            {tournaments.length === 0 ? (
-              <div className="p-4 rounded-lg bg-muted/40 text-xs text-muted-foreground space-y-2">
-                <p>Crie um torneio antes de cadastrar as arenas do evento.</p>
-                <Link href="/admin/torneios">
-                  <Button size="sm" variant="outline" className="text-xs">
-                    Ir para Torneios
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <form onSubmit={handleCreateArena} className="space-y-4 pt-1">
-                <div className="space-y-1.5">
-                  <Label htmlFor="arena-tournament" className="text-xs font-semibold">
-                    Torneio *
-                  </Label>
-                  <select
-                    id="arena-tournament"
-                    name="tournament_id"
-                    value={newArenaTournamentId}
-                    onChange={(e) => setNewArenaTournamentId(e.target.value)}
-                    required
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {tournaments.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.event_date})
-                      </option>
-                    ))}
-                  </select>
+              {createError && (
+                <div className="p-3 rounded-lg bg-destructive/15 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{createError}</span>
                 </div>
+              )}
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2 space-y-1.5">
-                    <Label htmlFor="arena-name" className="text-xs font-semibold">
-                      Nome da Arena *
-                    </Label>
-                    <Input
-                      id="arena-name"
-                      name="name"
-                      placeholder="Ex: Arena 1 — Xtreme Stadium"
-                      required
-                      className="h-9 text-xs"
-                    />
-                  </div>
-
+              {tournaments.length === 0 ? (
+                <div className="p-4 rounded-lg bg-muted/40 text-xs text-muted-foreground space-y-2">
+                  <p>Crie um torneio antes de cadastrar as arenas do evento.</p>
+                  <Link href="/admin/torneios">
+                    <Button size="sm" variant="outline" className="text-xs">
+                      Ir para Torneios
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <form onSubmit={handleCreateArena} className="space-y-4 pt-1">
                   <div className="space-y-1.5">
-                    <Label htmlFor="arena-order" className="text-xs font-semibold">
-                      Ordem
+                    <Label htmlFor="arena-tournament" className="text-xs font-semibold">
+                      Torneio *
                     </Label>
-                    <Input
-                      id="arena-order"
-                      name="display_order"
-                      type="number"
-                      min={1}
-                      placeholder="Auto"
-                      className="h-9 text-xs text-center"
-                    />
+                    <select
+                      id="arena-tournament"
+                      name="tournament_id"
+                      value={newArenaTournamentId}
+                      onChange={(e) => setNewArenaTournamentId(e.target.value)}
+                      required
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {tournaments.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.event_date})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
 
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCreateOpen(false)}
-                    className="text-xs"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={createLoading}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5"
-                  >
-                    {createLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Cadastrar Arena
-                  </Button>
-                </div>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2 space-y-1.5">
+                      <Label htmlFor="arena-name" className="text-xs font-semibold">
+                        Nome da Arena *
+                      </Label>
+                      <Input
+                        id="arena-name"
+                        name="name"
+                        placeholder="Ex: Arena 1 — Xtreme Stadium"
+                        required
+                        className="h-9 text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="arena-order" className="text-xs font-semibold">
+                        Ordem
+                      </Label>
+                      <Input
+                        id="arena-order"
+                        name="display_order"
+                        type="number"
+                        min={1}
+                        placeholder="Auto"
+                        className="h-9 text-xs text-center"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCreateOpen(false)}
+                      className="text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={createLoading}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5"
+                    >
+                      {createLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Cadastrar Arena
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {actionError && (
@@ -404,7 +408,9 @@ export function ArenaManagerClient({
               Nenhuma arena cadastrada para este filtro
             </h3>
             <p className="text-xs text-muted-foreground max-w-md">
-              Cadastre os Beystadiums físicos do evento (ex: Arena 1, Arena 2) para operar o placar touch dos juízes em tempo real.
+              {canManageArenas
+                ? "Cadastre os Beystadiums físicos do evento (ex: Arena 1, Arena 2) para operar o placar touch dos juízes em tempo real."
+                : "Aguarde a organização cadastrar as arenas físicas do torneio."}
             </p>
           </div>
         </Card>
@@ -466,21 +472,23 @@ export function ArenaManagerClient({
                         </Button>
                       )}
 
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={isBusy || match?.status === "in_progress"}
-                        onClick={() => void handleDeleteArena(arena)}
-                        title="Excluir arena"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      >
-                        {isBusy ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
+                      {canManageArenas && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={isBusy || match?.status === "in_progress"}
+                          onClick={() => void handleDeleteArena(arena)}
+                          title="Excluir arena"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          {isBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -556,7 +564,7 @@ export function ArenaManagerClient({
                       </Button>
                     </Link>
 
-                    {!match && arena.status === "available" && (
+                    {canManageArenas && !match && arena.status === "available" && (
                       <Button
                         type="button"
                         variant="outline"
@@ -588,7 +596,7 @@ export function ArenaManagerClient({
         </div>
       )}
 
-      {matchDialogArena && (
+      {canManageArenas && matchDialogArena && (
         <QuickStartMatchDialog
           open={Boolean(matchDialogArena)}
           onOpenChange={(open) => {

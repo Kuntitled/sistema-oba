@@ -23,6 +23,11 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getDefaultHomeForRole,
+  normalizeUserRole,
+  type ManagedUserRole,
+} from "@/lib/auth-roles";
 
 type PageStatus = "checking" | "ready" | "invalid" | "saved_pending_role";
 
@@ -31,7 +36,7 @@ export default function DefinirSenhaPage() {
 
   const [status, setStatus] = React.useState<PageStatus>("checking");
   const [userEmail, setUserEmail] = React.useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = React.useState(false);
+  const [userRole, setUserRole] = React.useState<ManagedUserRole>("blader");
   const [linkError, setLinkError] = React.useState<string | null>(null);
 
   const [password, setPassword] = React.useState("");
@@ -104,7 +109,7 @@ export default function DefinirSenhaPage() {
       }
 
       setUserEmail(user.email ?? null);
-      setIsAdmin(user.user_metadata?.role === "admin");
+      setUserRole(normalizeUserRole(user.user_metadata?.role));
       setStatus("ready");
     }
 
@@ -144,10 +149,14 @@ export default function DefinirSenhaPage() {
       }
 
       const confirmedEmail = data.user?.email ?? userEmail;
-      const hasAdminRole =
-        data.user?.user_metadata?.role === "admin" || isAdmin;
+      const resolvedRole = normalizeUserRole(
+        data.user?.user_metadata?.role ?? userRole
+      );
 
-      if (hasAdminRole && confirmedEmail) {
+      if (
+        (resolvedRole === "admin" || resolvedRole === "judge") &&
+        confirmedEmail
+      ) {
         const loginRes = await fetch("/api/auth/login", {
           method: "POST",
           credentials: "same-origin",
@@ -162,7 +171,10 @@ export default function DefinirSenhaPage() {
 
         if (loginRes.ok) {
           window.location.assign(
-            new URL("/admin", window.location.origin).toString()
+            new URL(
+              getDefaultHomeForRole(resolvedRole),
+              window.location.origin
+            ).toString()
           );
           return;
         }
@@ -243,7 +255,7 @@ export default function DefinirSenhaPage() {
                 <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
                   Senha definida com sucesso! Assim que sua permissão de
-                  administrador for liberada, acesse o painel em{" "}
+                  administrador ou juiz for liberada, acesse o painel em{" "}
                   <strong>/auth/login</strong>.
                 </span>
               </div>

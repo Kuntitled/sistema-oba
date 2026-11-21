@@ -13,6 +13,7 @@ import {
   Flame,
   User,
   LogIn,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ export interface NavbarUserInfo {
   nickname: string;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isJudge: boolean;
 }
 
 interface NavItem {
@@ -131,6 +133,18 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
                   >
                     <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                     Admin
+                  </Button>
+                </Link>
+              )}
+              {!user.isAdmin && user.isJudge && (
+                <Link href="/admin/arenas">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/40 hover:border-emerald-500 hover:bg-emerald-500/10 text-foreground font-semibold text-xs gap-1.5"
+                  >
+                    <Radio className="h-3.5 w-3.5 text-emerald-500" />
+                    Arenas (Juiz)
                   </Button>
                 </Link>
               )}
@@ -254,6 +268,21 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
                         >
                           <ShieldCheck className="h-4 w-4 text-primary" />
                           Área Administrativa
+                        </Button>
+                      </Link>
+                    )}
+                    {!user.isAdmin && user.isJudge && (
+                      <Link
+                        href="/admin/arenas"
+                        onClick={() => setIsOpen(false)}
+                        className="w-full"
+                      >
+                        <Button
+                          variant="outline"
+                          className="w-full font-semibold gap-2 border-emerald-500/40"
+                        >
+                          <Radio className="h-4 w-4 text-emerald-500" />
+                          Arenas (Juiz)
                         </Button>
                       </Link>
                     )}

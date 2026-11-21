@@ -4,6 +4,11 @@ import {
   getRequestIsHttps,
   getRequestOrigin,
 } from "@/lib/supabase/route-cookies";
+import {
+  canRoleAccessPath,
+  getDefaultHomeForRole,
+  normalizeUserRole,
+} from "@/lib/auth-roles";
 
 /**
  * Atualiza a sessão do Supabase em cada request.
@@ -62,11 +67,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Verifica role admin para acesso ao painel administrativo
+  // Verifica papel (admin ou judge apenas em arenas) para acesso às rotas /admin
   if (user && pathname.startsWith("/admin")) {
-    const role = user.user_metadata?.role;
-    if (role !== "admin") {
-      return NextResponse.redirect(new URL("/meu-painel", origin));
+    const role = normalizeUserRole(user.user_metadata?.role);
+    if (!canRoleAccessPath(role, pathname)) {
+      return NextResponse.redirect(
+        new URL(getDefaultHomeForRole(role), origin)
+      );
     }
   }
 

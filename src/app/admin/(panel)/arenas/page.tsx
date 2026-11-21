@@ -1,15 +1,23 @@
 import { Radio } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { normalizeUserRole } from "@/lib/auth-roles";
 import { getArenasOverview } from "@/lib/services/arenas";
 import { getBladers, getTournaments } from "@/lib/services/league";
 import { ArenaManagerClient } from "@/components/admin/ArenaManagerClient";
 import { Phase2SchemaNotice } from "@/components/arena/Phase2SchemaNotice";
 
 export default async function AdminArenasPage() {
-  const [{ arenas, schemaMissing }, tournaments, bladers] = await Promise.all([
-    getArenasOverview(),
-    getTournaments(),
-    getBladers(),
-  ]);
+  const supabase = await createClient();
+  const [{ data: authData }, { arenas, schemaMissing }, tournaments, bladers] =
+    await Promise.all([
+      supabase.auth.getUser(),
+      getArenasOverview(),
+      getTournaments(),
+      getBladers(),
+    ]);
+
+  const role = normalizeUserRole(authData.user?.user_metadata?.role);
+  const canManageArenas = role === "admin";
 
   return (
     <div className="space-y-6">
@@ -19,17 +27,20 @@ export default async function AdminArenasPage() {
           Gestão de Arenas ao Vivo
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-          Gerencie os Beystadiums físicos do torneio, atribua partidas e abra o placar touch dos juízes em tempo real.
+          {canManageArenas
+            ? "Gerencie os Beystadiums físicos do torneio, atribua partidas e abra o placar touch dos juízes em tempo real."
+            : "Acompanhe os Beystadiums do evento, gerencie partidas em andamento e opere o placar touch em tempo real."}
         </p>
       </div>
 
       {schemaMissing ? (
-        <Phase2SchemaNotice backHref="/admin" />
+        <Phase2SchemaNotice backHref={canManageArenas ? "/admin" : "/meu-painel"} />
       ) : (
         <ArenaManagerClient
           initialArenas={arenas}
           tournaments={tournaments}
           bladers={bladers}
+          canManageArenas={canManageArenas}
         />
       )}
     </div>

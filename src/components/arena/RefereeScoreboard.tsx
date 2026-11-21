@@ -62,6 +62,7 @@ interface RefereeScoreboardProps {
   initialGames: MatchGame[];
   pendingMatches: Match[];
   bladers: Blader[];
+  canQuickStart?: boolean;
 }
 
 const FINISH_ICONS: Record<Exclude<FinishType, "draw">, React.ElementType> = {
@@ -88,6 +89,7 @@ export function RefereeScoreboard({
   initialGames,
   pendingMatches: initialPendingMatches,
   bladers,
+  canQuickStart = true,
 }: RefereeScoreboardProps) {
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -489,7 +491,9 @@ export function RefereeScoreboard({
                   <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
                     {arena.status === "maintenance"
                       ? "Ative a arena para poder iniciar ou receber novas batalhas."
-                      : "Puxe uma partida da fila do torneio ou inicie uma partida rápida diretamente deste aparelho."}
+                      : canQuickStart
+                        ? "Puxe uma partida da fila do torneio ou inicie uma partida rápida diretamente deste aparelho."
+                        : "Puxe uma partida da fila do torneio abaixo ou aguarde a mesa diretora despachar a próxima batalha."}
                   </p>
                 </div>
 
@@ -509,14 +513,16 @@ export function RefereeScoreboard({
                       Reativar Arena
                     </Button>
                   ) : (
-                    <Button
-                      type="button"
-                      onClick={() => setQuickStartOpen(true)}
-                      className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm gap-2 shadow-lg shadow-primary/25"
-                    >
-                      <Swords className="h-4 w-4" />
-                      Iniciar Partida Rápida nesta Arena
-                    </Button>
+                    canQuickStart && (
+                      <Button
+                        type="button"
+                        onClick={() => setQuickStartOpen(true)}
+                        className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm gap-2 shadow-lg shadow-primary/25"
+                      >
+                        <Swords className="h-4 w-4" />
+                        Iniciar Partida Rápida nesta Arena
+                      </Button>
+                    )
                   )}
                 </div>
               </CardContent>
@@ -902,17 +908,19 @@ export function RefereeScoreboard({
       )}
 
       {/* Dialog Iniciar Partida Rápida */}
-      <QuickStartMatchDialog
-        open={quickStartOpen}
-        onOpenChange={setQuickStartOpen}
-        arenaId={arena.id}
-        arenaName={arena.name}
-        tournamentId={arena.tournament_id}
-        bladers={bladers}
-        onStarted={() => {
-          void refreshArenaData();
-        }}
-      />
+      {canQuickStart && (
+        <QuickStartMatchDialog
+          open={quickStartOpen}
+          onOpenChange={setQuickStartOpen}
+          arenaId={arena.id}
+          arenaName={arena.name}
+          tournamentId={arena.tournament_id}
+          bladers={bladers}
+          onStarted={() => {
+            void refreshArenaData();
+          }}
+        />
+      )}
 
       {/* Dialog Confirmação Reiniciar Placar */}
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>

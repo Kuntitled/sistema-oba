@@ -11,16 +11,25 @@ import {
   Settings,
   ExternalLink,
   LogOut,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/auth/actions";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { createClient } from "@/lib/supabase/server";
+import { normalizeUserRole } from "@/lib/auth-roles";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const role = normalizeUserRole(user?.user_metadata?.role);
+  const isAdmin = role === "admin";
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">
       {/* ─── Sidebar Desktop / Topbar Mobile ────────────────── */}
@@ -28,7 +37,10 @@ export default function AdminLayout({
         <div>
           {/* Header da Sidebar */}
           <div className="p-4 sm:p-6 flex items-center justify-between md:justify-start gap-3 border-b border-border/40">
-            <Link href="/admin" className="flex items-center gap-2.5">
+            <Link
+              href={isAdmin ? "/admin" : "/admin/arenas"}
+              className="flex items-center gap-2.5"
+            >
               <div className="relative h-9 w-9 rounded-full overflow-hidden border border-primary/50 shadow-sm">
                 <Image
                   src="/images/logo.jpg"
@@ -39,10 +51,11 @@ export default function AdminLayout({
               </div>
               <div>
                 <span className="font-black text-sm tracking-wide text-foreground">
-                  ADMIN <span className="text-fire-gradient">OBA</span>
+                  {isAdmin ? "ADMIN" : "JUIZ"}{" "}
+                  <span className="text-fire-gradient">OBA</span>
                 </span>
                 <span className="block text-[10px] text-muted-foreground font-medium">
-                  Painel de Gestão
+                  {isAdmin ? "Painel de Gestão" : "Painel de Arbitragem"}
                 </span>
               </div>
             </Link>
@@ -80,69 +93,91 @@ export default function AdminLayout({
 
           {/* Navegação */}
           <nav className="p-3 sm:p-4 flex flex-row md:flex-col gap-1 overflow-x-auto">
-            <Link
-              href="/admin"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <LayoutDashboard className="h-4 w-4 text-primary" />
-              <span>Dashboard</span>
-            </Link>
+            {isAdmin ? (
+              <>
+                <Link
+                  href="/admin"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <LayoutDashboard className="h-4 w-4 text-primary" />
+                  <span>Dashboard</span>
+                </Link>
 
-            <Link
-              href="/admin/bladers"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <Users className="h-4 w-4 text-fire-orange" />
-              <span>Bladers</span>
-            </Link>
+                <Link
+                  href="/admin/bladers"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Users className="h-4 w-4 text-fire-orange" />
+                  <span>Bladers</span>
+                </Link>
 
-            <Link
-              href="/admin/torneios"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <Swords className="h-4 w-4 text-fire-yellow" />
-              <span>Torneios</span>
-            </Link>
+                <Link
+                  href="/admin/torneios"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Swords className="h-4 w-4 text-fire-yellow" />
+                  <span>Torneios</span>
+                </Link>
 
-            <Link
-              href="/admin/arenas"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <Radio className="h-4 w-4 text-emerald-500" />
-              <span>Arenas ao Vivo</span>
-            </Link>
+                <Link
+                  href="/admin/arenas"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Radio className="h-4 w-4 text-emerald-500" />
+                  <span>Arenas ao Vivo</span>
+                </Link>
 
-            <Link
-              href="/admin/temporadas"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <CalendarRange className="h-4 w-4 text-primary" />
-              <span>Temporadas</span>
-            </Link>
+                <Link
+                  href="/admin/temporadas"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <CalendarRange className="h-4 w-4 text-primary" />
+                  <span>Temporadas</span>
+                </Link>
 
-            <Link
-              href="/admin/pecas"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <Layers className="h-4 w-4 text-primary" />
-              <span>Peças</span>
-            </Link>
+                <Link
+                  href="/admin/pecas"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Layers className="h-4 w-4 text-primary" />
+                  <span>Peças</span>
+                </Link>
 
-            <Link
-              href="/admin/formatos"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <ShieldBan className="h-4 w-4 text-fire-orange" />
-              <span>Formatos</span>
-            </Link>
+                <Link
+                  href="/admin/formatos"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <ShieldBan className="h-4 w-4 text-fire-orange" />
+                  <span>Formatos</span>
+                </Link>
 
-            <Link
-              href="/admin/configuracoes"
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-            >
-              <Settings className="h-4 w-4 text-primary" />
-              <span>Configurações &amp; Admins</span>
-            </Link>
+                <Link
+                  href="/admin/configuracoes"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Settings className="h-4 w-4 text-primary" />
+                  <span>Configurações &amp; Admins</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/admin/arenas"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <Radio className="h-4 w-4 text-emerald-500" />
+                  <span>Arenas ao Vivo</span>
+                </Link>
+
+                <Link
+                  href="/meu-painel"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
+                >
+                  <User className="h-4 w-4 text-primary" />
+                  <span>Meu Painel</span>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
 

@@ -253,7 +253,7 @@ export interface CreateAndAssignMatchInput {
 export async function createAndAssignMatchAction(
   input: CreateAndAssignMatchInput
 ) {
-  const auth = await requireRole(["admin", "judge"]);
+  const auth = await requireRole(["admin"]);
   if (auth.error) return { error: auth.error };
 
   if (

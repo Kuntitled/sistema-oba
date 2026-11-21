@@ -128,7 +128,10 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
   - [x] **Configuração de Inscrições por Torneio (`/admin/torneios`):** controles de `registration_status`, `entry_fee` e `max_players` em `TournamentForm.tsx` e `EditTournamentButton.tsx`.
   - [x] **Inscrição do Blader (`/torneios/[slug]#inscricao` e `/meu-painel`):** montagem de até **4 combos** via `<ComboBuilder />` com validação server-side de compatibilidade (`validateTournamentDeckCombo`) e ban-list do `ruleset`, QR Code + Copia e Cola PIX quando `entry_fee > 0`, upload leve de comprovante (`src/lib/receipt-upload.ts`) e aba **Minhas Inscrições** em `/meu-painel`.
   - [x] **Conferência Admin (`/admin/torneios/[id]/inscricoes`):** visualização de decklists (com alerta de peça banida), preview seguro de comprovante via Signed URL, flags `payment_verified`/`decks_verified`, rejeição com motivo e aprovação idempotente em `tournament_participants` respeitando `max_players`.
-- **Etapa 3C (Próxima):** check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`).
+- **Etapa 3C — Papel de Juiz (`role = 'judge'`) (Concluída):**
+  - [x] **Controle de Acesso por Papel (`src/lib/auth-roles.ts` & `src/lib/supabase/proxy.ts`):** `judge` tem acesso exclusivo a `/admin/arenas` e `/admin/arena/[id]` (Placar Touch), sendo redirecionado para `/admin/arenas` se tentar acessar qualquer outra rota `/admin/*`.
+  - [x] **Arbitragem Segura:** `createAndAssignMatchAction` restrita a `admin`; sidebar adaptada para Juiz (`JUIZ OBA` / `Painel de Arbitragem`) e ocultação de criação/exclusão de arenas e partida rápida avulsa na UI do juiz.
+  - [x] **Gestão de 3 Papéis (`/admin/configuracoes`):** seletor `Blader | Juiz | Admin` e envio de convites já definindo papel inicial (`judge` ou `admin`). *(Check-in presencial por QR Code removido do escopo por decisão operacional para agilizar o início dos torneios.)*
 
 ---
 
@@ -323,6 +326,7 @@ Sistema OBA/
     │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
+    │   ├── auth-roles.ts               ← Papéis (admin, judge, blader), regras de acesso e redirects pós-login
     │   ├── avatar-upload.ts            ← Crop quadrado, compressão WebP 400x400 e upload no bucket avatars
     │   ├── combo-rules.ts              ← Regras dos 6 sistemas, compatibilidade e validação de decklist
     │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
@@ -383,7 +387,7 @@ Sistema OBA/
 ## 🔐 Autenticação e Proteção de Rotas (`proxy.ts`)
 
 - O Next.js 16 descontinuou o `middleware.ts` e padronizou o `src/proxy.ts`.
-- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts`) intercepta `/admin/*` (exige `role = 'admin'`, redirecionando não-admins para `/meu-painel`) e `/meu-painel/*` (exige usuário autenticado).
+- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts` e `src/lib/auth-roles.ts`) intercepta `/admin/*` permitindo acesso total a `role = 'admin'`, acesso restrito a `/admin/arenas` e `/admin/arena/[id]` para `role = 'judge'` (redirecionando outras rotas `/admin/*` para `/admin/arenas`) e redirecionando `blader`/não-admins para `/meu-painel`; também protege `/meu-painel/*` exigindo usuário autenticado.
 - O helper `getRequestOrigin` (`src/lib/supabase/route-cookies.ts`) resolve a origem real do request (`host` / `x-forwarded-host`, convertendo `0.0.0.0` em `localhost`) para callbacks OAuth e redirects.
 - O login (`/auth/login`) oferece **Entrar com Google (OAuth)** além de E-mail/Senha (`POST /api/auth/login`) e recuperação de senha, com página pública de privacidade em `/privacidade`.
 - O fluxo de **convite de novos admins e recuperação de senha** utiliza `/auth/callback` (PKCE `?code=` e OTP `?token_hash=`), o listener global `AuthHashListener` (tokens em `#access_token=` ou parâmetros na raiz), a tela `/auth/definir-senha` e a opção **"Esqueceu a senha?"** em `/auth/login`.
@@ -411,13 +415,15 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ---
 
-## 🎯 Diretrizes para a Próxima Sessão (Etapa 3C)
+## 🎯 Diretrizes para a Próxima Sessão (Fase 4)
 
-Com as **Etapas 3A, 3A.5 e 3B** concluídas (`005`–`009`, catálogo de peças, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel`, Card Público, configuração PIX global e inscrições online com decklist até 4 combos e comprovante PIX), o próximo passo é a **Etapa 3C — Check-in Presencial & Acesso de Juízes**:
+Com toda a **Fase 3** concluída (Etapas 3A, 3A.5, 3B e 3C — papel `judge` em `/admin/arenas` e `/admin/arena/[id]`), o próximo passo é a **Fase 4 — Meta & Estatísticas Regionais**:
 
-1. **Check-in Presencial (QR Code) e Papel `judge`:**
-   - Geração de QR Code de inscrição confirmada e leitura rápida na entrada do evento.
-   - Acesso restrito para Juízes (`role = 'judge'`) em `/admin/arenas` e `/admin/arena/[id]` (atualizando `src/proxy.ts` e RLS).
+1. **Combo Mais Usado no Card Público & Estatísticas do Meta:**
+   - Ativar `mostUsedCombo` em `src/lib/services/blader-card.ts` a partir das `registration_combos` aprovadas.
+   - Ranking de peças e combos mais utilizados em torneios, sistemas (`BX`/`UX`/`CX`) e taxas de vitória / Top Cut.
+2. **Confrontos Diretos (Head-to-Head):**
+   - Histórico de duelos entre Bladers com placar e distribuição de finishes (`xtreme`, `burst`, `over`, `spin`).
 
 ---
 
