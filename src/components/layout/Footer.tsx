@@ -19,7 +19,6 @@ export function Footer() {
             </div>
             <div>
               <div className="flex items-center gap-1.5 font-black text-sm">
-                <span>LIGA</span>
                 <span className="text-fire-gradient">OBA</span>
                 <span className="text-muted-foreground font-normal text-xs">
                   — Organização de Beyblade do Amazonas

@@ -68,7 +68,6 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5 font-black tracking-wider text-base sm:text-lg">
-              <span className="text-foreground">LIGA</span>
               <span className="text-fire-gradient">OBA</span>
               <span className="flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-tight px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 ml-1">
                 <Flame className="h-2.5 w-2.5 text-fire-orange animate-pulse" />
@@ -183,7 +182,7 @@ export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {
                     </div>
                     <div>
                       <SheetTitle className="text-base font-black tracking-wide">
-                        LIGA <span className="text-fire-gradient">OBA</span>
+                        <span className="text-fire-gradient">OBA</span>
                       </SheetTitle>
                       <p className="text-xs text-muted-foreground">
                         Organização de Beyblade do Amazonas
