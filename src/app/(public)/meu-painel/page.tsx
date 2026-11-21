@@ -119,12 +119,21 @@ export default async function MeuPainelPage() {
     firstPlaces: 0,
     secondPlaces: 0,
     thirdPlaces: 0,
-    favoriteCombo: { blade: null, ratchet: null, bit: null },
+    favoriteCombo: {
+      system: null,
+      blade: null,
+      lockChip: null,
+      overBlade: null,
+      assistBlade: null,
+      ratchet: null,
+      bit: null,
+    },
     mostUsedCombo: null,
   };
 
   return (
     <BladerPanelClient
+      userId={user.id}
       blader={ownBlader}
       baseCardProfile={fallbackProfile}
       parts={parts}

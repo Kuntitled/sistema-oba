@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Search, X, ChevronDown, Check } from "lucide-react";
+import { Search, X, ChevronDown, Check, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { partMatchesQuery } from "@/lib/parts-search";
@@ -14,6 +14,10 @@ interface PartSearchSelectProps {
   parts: PartRow[];
   value: string;
   onChange: (partId: string) => void;
+  hideLineBadge?: boolean;
+  disabled?: boolean;
+  disabledMessage?: string;
+  notice?: string | null;
 }
 
 interface DropdownCoords {
@@ -31,6 +35,10 @@ export function PartSearchSelect({
   parts,
   value,
   onChange,
+  hideLineBadge = false,
+  disabled = false,
+  disabledMessage,
+  notice = null,
 }: PartSearchSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -73,8 +81,11 @@ export function PartSearchSelect({
     };
   }, []);
 
+  const isOpen = open && !disabled;
+
   const handleToggleOpen = () => {
-    if (open) {
+    if (disabled) return;
+    if (isOpen) {
       setOpen(false);
       return;
     }
@@ -86,7 +97,7 @@ export function PartSearchSelect({
   };
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
     const handleReposition = () => {
       const next = computeCoords();
@@ -119,10 +130,10 @@ export function PartSearchSelect({
       document.removeEventListener("mousedown", handleOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, computeCoords]);
+  }, [isOpen, computeCoords]);
 
   const dropdownNode =
-    open && coords && typeof document !== "undefined"
+    isOpen && coords && typeof document !== "undefined"
       ? createPortal(
           <div
             ref={dropdownRef}
@@ -176,9 +187,11 @@ export function PartSearchSelect({
                           <span className="truncate font-semibold">
                             {part.name}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            ({part.line})
-                          </span>
+                          {!hideLineBadge && part.line && (
+                            <span className="text-[10px] text-muted-foreground">
+                              ({part.line})
+                            </span>
+                          )}
                         </div>
                         {part.aliases && part.aliases.length > 0 && (
                           <div className="text-[10px] text-muted-foreground truncate">
@@ -205,20 +218,31 @@ export function PartSearchSelect({
         <button
           ref={triggerRef}
           type="button"
+          disabled={disabled}
           onClick={handleToggleOpen}
-          className="flex-1 h-9 px-3 rounded-md border border-input bg-background/70 hover:bg-background text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer"
+          className={`flex-1 h-9 px-3 rounded-md border border-input text-left text-xs flex items-center justify-between gap-2 transition-colors ${
+            disabled
+              ? "bg-muted/40 text-muted-foreground opacity-65 cursor-not-allowed"
+              : "bg-background/70 hover:bg-background cursor-pointer"
+          }`}
         >
-          {selectedPart ? (
+          {disabled ? (
+            <span className="text-muted-foreground truncate">
+              {disabledMessage || placeholder}
+            </span>
+          ) : selectedPart ? (
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="font-bold text-foreground truncate">
                 {selectedPart.name}
               </span>
-              <Badge
-                variant="outline"
-                className="text-[9px] px-1 py-0 border-primary/40 text-primary shrink-0"
-              >
-                {selectedPart.line}
-              </Badge>
+              {!hideLineBadge && selectedPart.line && (
+                <Badge
+                  variant="outline"
+                  className="text-[9px] px-1 py-0 border-primary/40 text-primary shrink-0"
+                >
+                  {selectedPart.line}
+                </Badge>
+              )}
             </span>
           ) : (
             <span className="text-muted-foreground truncate">{placeholder}</span>
@@ -226,7 +250,7 @@ export function PartSearchSelect({
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         </button>
 
-        {selectedPart && (
+        {selectedPart && !disabled && (
           <button
             type="button"
             onClick={() => onChange("")}
@@ -238,6 +262,13 @@ export function PartSearchSelect({
           </button>
         )}
       </div>
+
+      {notice && (
+        <p className="text-[11px] text-amber-500 flex items-start gap-1 leading-tight">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>{notice}</span>
+        </p>
+      )}
 
       {dropdownNode}
     </div>

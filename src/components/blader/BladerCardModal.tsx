@@ -20,7 +20,15 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { formatComboDisplay, type ComboBadgeChip } from "@/lib/combo-rules";
 import type { BladerCardProfile } from "@/types/domain";
+
+const CHIP_TONE_CLASSES: Record<ComboBadgeChip["tone"], string> = {
+  primary: "border-primary/40 text-primary",
+  orange: "border-fire-orange/40 text-fire-orange",
+  yellow: "border-fire-yellow/40 text-fire-yellow",
+  muted: "border-border/70 text-muted-foreground",
+};
 
 interface BladerCardModalProps {
   open: boolean;
@@ -97,10 +105,11 @@ export function BladerCardModal({
 
   const profile = previewProfile ?? fetchedProfile;
   const loading = Boolean(open && !previewProfile && bladerId && !profile && !error);
+  const comboDisplay = profile
+    ? formatComboDisplay(profile.favoriteCombo)
+    : null;
   const hasFavoriteCombo = Boolean(
-    profile?.favoriteCombo.blade ||
-      profile?.favoriteCombo.ratchet ||
-      profile?.favoriteCombo.bit
+    comboDisplay && comboDisplay.chips.length > 0
   );
 
   return (
@@ -243,36 +252,38 @@ export function BladerCardModal({
                 )}
 
                 <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-2">
-                  <div className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-fire-yellow" />
-                    Combo Favorito
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-muted-foreground font-semibold flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-fire-yellow" />
+                      Combo Favorito
+                    </div>
+                    {hasFavoriteCombo && comboDisplay?.system && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-primary/40 text-primary font-black"
+                      >
+                        {comboDisplay.system}
+                      </Badge>
+                    )}
                   </div>
-                  {hasFavoriteCombo ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {profile.favoriteCombo.blade && (
-                        <Badge
-                          variant="outline"
-                          className="border-primary/40 text-primary font-bold text-[11px]"
-                        >
-                          Blade: {profile.favoriteCombo.blade.name}
-                        </Badge>
+                  {hasFavoriteCombo && comboDisplay ? (
+                    <div className="space-y-2">
+                      {comboDisplay.summaryText && (
+                        <div className="font-black text-xs text-foreground">
+                          {comboDisplay.summaryText}
+                        </div>
                       )}
-                      {profile.favoriteCombo.ratchet && (
-                        <Badge
-                          variant="outline"
-                          className="border-fire-orange/40 text-fire-orange font-bold text-[11px]"
-                        >
-                          Ratchet: {profile.favoriteCombo.ratchet.name}
-                        </Badge>
-                      )}
-                      {profile.favoriteCombo.bit && (
-                        <Badge
-                          variant="outline"
-                          className="border-fire-yellow/40 text-fire-yellow font-bold text-[11px]"
-                        >
-                          Bit: {profile.favoriteCombo.bit.name}
-                        </Badge>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {comboDisplay.chips.map((chip) => (
+                          <Badge
+                            key={`${chip.slot}:${chip.name}`}
+                            variant="outline"
+                            className={`font-bold text-[10px] ${CHIP_TONE_CLASSES[chip.tone]}`}
+                          >
+                            {chip.slot}: {chip.name}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <p className="text-[11px] text-muted-foreground italic">

@@ -13,7 +13,8 @@ import {
   Search,
   Check,
   LogOut,
-  Sparkles,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import {
   Card,
@@ -29,24 +30,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
-import { PartSearchSelect } from "@/components/blader/PartSearchSelect";
+import { ComboBuilder } from "@/components/blader/ComboBuilder";
+import { uploadBladerAvatar } from "@/lib/avatar-upload";
+import { inferComboSystem } from "@/lib/combo-rules";
 import { partMatchesQuery } from "@/lib/parts-search";
 import {
   toggleInventoryPartAction,
+  updateOwnAvatarUrlAction,
   updateOwnBladerProfileAction,
 } from "@/app/meu-painel/actions";
 import { logoutToHomeAction } from "@/app/auth/actions";
 import {
+  PART_LINE_ORDER,
   PART_TYPE_LABELS,
   PART_TYPE_ORDER,
   type BladerCardProfile,
   type BladerRow,
+  type ComboSelection,
   type PartLine,
   type PartRow,
   type PartType,
 } from "@/types/domain";
 
 interface BladerPanelClientProps {
+  userId: string;
   blader: BladerRow;
   baseCardProfile: BladerCardProfile;
   parts: PartRow[];
@@ -56,6 +63,7 @@ interface BladerPanelClientProps {
 }
 
 export function BladerPanelClient({
+  userId,
   blader,
   baseCardProfile,
   parts,
@@ -68,6 +76,14 @@ export function BladerPanelClient({
     "profile"
   );
 
+  const partsById = React.useMemo(() => {
+    const map = new Map<string, PartRow>();
+    for (const p of parts) {
+      map.set(p.id, p);
+    }
+    return map;
+  }, [parts]);
+
   // Estado do formulário de perfil
   const [nickname, setNickname] = React.useState(blader.nickname);
   const [name, setName] = React.useState(blader.name);
@@ -77,15 +93,41 @@ export function BladerPanelClient({
   const [favoriteAnime, setFavoriteAnime] = React.useState(
     blader.favorite_anime ?? ""
   );
-  const [favoriteBladeId, setFavoriteBladeId] = React.useState(
-    blader.favorite_blade_id ?? ""
-  );
-  const [favoriteRatchetId, setFavoriteRatchetId] = React.useState(
-    blader.favorite_ratchet_id ?? ""
-  );
-  const [favoriteBitId, setFavoriteBitId] = React.useState(
-    blader.favorite_bit_id ?? ""
-  );
+  const [favoriteCombo, setFavoriteCombo] = React.useState<ComboSelection>(() => {
+    const blade = blader.favorite_blade_id
+      ? (parts.find((p) => p.id === blader.favorite_blade_id) ?? null)
+      : null;
+    const lockChip = blader.favorite_lock_chip_id
+      ? (parts.find((p) => p.id === blader.favorite_lock_chip_id) ?? null)
+      : null;
+    const overBlade = blader.favorite_over_blade_id
+      ? (parts.find((p) => p.id === blader.favorite_over_blade_id) ?? null)
+      : null;
+    const assistBlade = blader.favorite_assist_blade_id
+      ? (parts.find((p) => p.id === blader.favorite_assist_blade_id) ?? null)
+      : null;
+
+    return {
+      system: inferComboSystem({
+        system: blader.favorite_system,
+        blade,
+        lockChip,
+        overBlade,
+        assistBlade,
+      }),
+      bladeId: blader.favorite_blade_id ?? "",
+      lockChipId: blader.favorite_lock_chip_id ?? "",
+      overBladeId: blader.favorite_over_blade_id ?? "",
+      assistBladeId: blader.favorite_assist_blade_id ?? "",
+      ratchetId: blader.favorite_ratchet_id ?? "",
+      bitId: blader.favorite_bit_id ?? "",
+    };
+  });
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
+  const [avatarNotice, setAvatarNotice] = React.useState<string | null>(null);
+  const [avatarError, setAvatarError] = React.useState<string | null>(null);
 
   const [savingProfile, setSavingProfile] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
@@ -104,29 +146,10 @@ export function BladerPanelClient({
   );
   const [partSearch, setPartSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<"all" | PartType>("all");
-  const [lineFilter, setLineFilter] = React.useState<"all" | PartLine>("all");
+  const [lineFilter, setLineFilter] = React.useState<
+    "all" | PartLine | "universal"
+  >("all");
   const [onlyOwned, setOnlyOwned] = React.useState(false);
-
-  const blades = React.useMemo(
-    () => parts.filter((p) => p.part_type === "blade"),
-    [parts]
-  );
-  const ratchets = React.useMemo(
-    () => parts.filter((p) => p.part_type === "ratchet"),
-    [parts]
-  );
-  const bits = React.useMemo(
-    () => parts.filter((p) => p.part_type === "bit"),
-    [parts]
-  );
-
-  const partsById = React.useMemo(() => {
-    const map = new Map<string, PartRow>();
-    for (const p of parts) {
-      map.set(p.id, p);
-    }
-    return map;
-  }, [parts]);
 
   const livePreviewProfile: BladerCardProfile = React.useMemo(
     () => ({
@@ -139,16 +162,34 @@ export function BladerPanelClient({
         avatar_url: avatarUrl.trim() || null,
         bio: bio.trim() || null,
         favorite_anime: favoriteAnime.trim() || null,
-        favorite_blade_id: favoriteBladeId || null,
-        favorite_ratchet_id: favoriteRatchetId || null,
-        favorite_bit_id: favoriteBitId || null,
+        favorite_system: favoriteCombo.system,
+        favorite_blade_id: favoriteCombo.bladeId || null,
+        favorite_lock_chip_id: favoriteCombo.lockChipId || null,
+        favorite_over_blade_id: favoriteCombo.overBladeId || null,
+        favorite_assist_blade_id: favoriteCombo.assistBladeId || null,
+        favorite_ratchet_id: favoriteCombo.ratchetId || null,
+        favorite_bit_id: favoriteCombo.bitId || null,
       },
       favoriteCombo: {
-        blade: favoriteBladeId ? (partsById.get(favoriteBladeId) ?? null) : null,
-        ratchet: favoriteRatchetId
-          ? (partsById.get(favoriteRatchetId) ?? null)
+        system: favoriteCombo.system,
+        blade: favoriteCombo.bladeId
+          ? (partsById.get(favoriteCombo.bladeId) ?? null)
           : null,
-        bit: favoriteBitId ? (partsById.get(favoriteBitId) ?? null) : null,
+        lockChip: favoriteCombo.lockChipId
+          ? (partsById.get(favoriteCombo.lockChipId) ?? null)
+          : null,
+        overBlade: favoriteCombo.overBladeId
+          ? (partsById.get(favoriteCombo.overBladeId) ?? null)
+          : null,
+        assistBlade: favoriteCombo.assistBladeId
+          ? (partsById.get(favoriteCombo.assistBladeId) ?? null)
+          : null,
+        ratchet: favoriteCombo.ratchetId
+          ? (partsById.get(favoriteCombo.ratchetId) ?? null)
+          : null,
+        bit: favoriteCombo.bitId
+          ? (partsById.get(favoriteCombo.bitId) ?? null)
+          : null,
       },
     }),
     [
@@ -161,9 +202,7 @@ export function BladerPanelClient({
       avatarUrl,
       bio,
       favoriteAnime,
-      favoriteBladeId,
-      favoriteRatchetId,
-      favoriteBitId,
+      favoriteCombo,
       partsById,
     ]
   );
@@ -171,7 +210,14 @@ export function BladerPanelClient({
   const filteredParts = React.useMemo(() => {
     return parts.filter((part) => {
       if (typeFilter !== "all" && part.part_type !== typeFilter) return false;
-      if (lineFilter !== "all" && part.line !== lineFilter) return false;
+      if (lineFilter === "universal" && part.line !== null) return false;
+      if (
+        lineFilter !== "all" &&
+        lineFilter !== "universal" &&
+        part.line !== lineFilter
+      ) {
+        return false;
+      }
       if (onlyOwned && !inventoryIds.has(part.id)) return false;
       if (partSearch.trim() && !partMatchesQuery(part, partSearch)) return false;
       return true;
@@ -181,11 +227,13 @@ export function BladerPanelClient({
   const ownedCountByType = React.useMemo(() => {
     const counts: Record<PartType, number> = {
       blade: 0,
-      ratchet: 0,
-      bit: 0,
+      main_blade: 0,
+      metal_blade: 0,
+      over_blade: 0,
       lock_chip: 0,
       assist_blade: 0,
-      over_blade: 0,
+      ratchet: 0,
+      bit: 0,
     };
     for (const partId of inventoryIds) {
       const part = partsById.get(partId);
@@ -195,6 +243,40 @@ export function BladerPanelClient({
     }
     return counts;
   }, [inventoryIds, partsById]);
+
+  const handleAvatarFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    setAvatarError(null);
+    setAvatarNotice(null);
+
+    try {
+      const { publicUrl, sizeKb } = await uploadBladerAvatar(userId, file);
+      setAvatarUrl(publicUrl);
+
+      const res = await updateOwnAvatarUrlAction(publicUrl);
+      if (res.error) {
+        setAvatarError(res.error);
+        return;
+      }
+
+      setAvatarNotice(`Foto enviada e salva (${sizeKb} KB).`);
+      router.refresh();
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível processar a imagem."
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,9 +291,13 @@ export function BladerPanelClient({
     fd.set("avatar_url", avatarUrl);
     fd.set("bio", bio);
     fd.set("favorite_anime", favoriteAnime);
-    fd.set("favorite_blade_id", favoriteBladeId);
-    fd.set("favorite_ratchet_id", favoriteRatchetId);
-    fd.set("favorite_bit_id", favoriteBitId);
+    fd.set("favorite_system", favoriteCombo.system ?? "");
+    fd.set("favorite_blade_id", favoriteCombo.bladeId);
+    fd.set("favorite_lock_chip_id", favoriteCombo.lockChipId);
+    fd.set("favorite_over_blade_id", favoriteCombo.overBladeId);
+    fd.set("favorite_assist_blade_id", favoriteCombo.assistBladeId);
+    fd.set("favorite_ratchet_id", favoriteCombo.ratchetId);
+    fd.set("favorite_bit_id", favoriteCombo.bitId);
 
     const res = await updateOwnBladerProfileAction(fd);
     setSavingProfile(false);
@@ -432,28 +518,118 @@ export function BladerPanelClient({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="prof-avatar" className="text-xs font-semibold">
-                    URL da Foto / Avatar
-                  </Label>
-                  {googleAvatarUrl && avatarUrl !== googleAvatarUrl && (
-                    <button
+              {/* Avatar / Foto de Perfil */}
+              <div className="rounded-xl border border-border/60 bg-background/40 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <BladerAvatar
+                      avatarUrl={avatarUrl || blader.avatar_url}
+                      nickname={nickname || blader.nickname}
+                      sizeClass="h-16 w-16"
+                      textClass="text-lg font-black text-primary"
+                      borderClass="border-2 border-primary/50 shadow-sm"
+                    />
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="text-xs font-bold text-foreground">
+                        Foto de Perfil
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Recorte automático em quadrado (máx. 400×400px, WebP leve).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFileChange}
+                      className="hidden"
+                    />
+                    <Button
                       type="button"
-                      onClick={() => setAvatarUrl(googleAvatarUrl)}
-                      className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingAvatar}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs font-bold gap-1.5 border-primary/40 hover:border-primary"
                     >
-                      Usar foto do Google
-                    </button>
-                  )}
+                      {uploadingAvatar ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5 text-primary" />
+                      )}
+                      {uploadingAvatar ? "Enviando..." : "Enviar Foto"}
+                    </Button>
+
+                    {googleAvatarUrl && avatarUrl !== googleAvatarUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAvatarUrl(googleAvatarUrl);
+                          setAvatarNotice(null);
+                          setAvatarError(null);
+                        }}
+                        className="text-[11px] font-semibold text-primary hover:bg-primary/10"
+                      >
+                        Usar foto do Google
+                      </Button>
+                    )}
+
+                    {avatarUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Remover foto"
+                        onClick={() => {
+                          setAvatarUrl("");
+                          setAvatarNotice(null);
+                          setAvatarError(null);
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Input
-                  id="prof-avatar"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="h-9 text-xs"
-                />
+
+                {avatarError && (
+                  <div className="p-2.5 rounded-lg bg-destructive/15 border border-destructive/30 text-destructive text-[11px] flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{avatarError}</span>
+                  </div>
+                )}
+
+                {avatarNotice && (
+                  <div className="p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[11px] flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>{avatarNotice}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="prof-avatar"
+                    className="text-[11px] font-medium text-muted-foreground"
+                  >
+                    Ou informe uma URL externa (opcional)
+                  </Label>
+                  <Input
+                    id="prof-avatar"
+                    value={avatarUrl}
+                    onChange={(e) => {
+                      setAvatarUrl(e.target.value);
+                      setAvatarNotice(null);
+                    }}
+                    placeholder="https://..."
+                    className="h-8 text-xs bg-background/70"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -483,36 +659,13 @@ export function BladerPanelClient({
               </div>
 
               {/* Combo Favorito */}
-              <div className="rounded-xl border border-border/60 bg-background/40 p-4 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-black text-foreground">
-                  <Sparkles className="h-4 w-4 text-fire-yellow" />
-                  Combo Favorito (Busca por nome Takara Tomy ou Hasbro)
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <PartSearchSelect
-                    label="Blade"
-                    placeholder="Selecionar Blade..."
-                    parts={blades}
-                    value={favoriteBladeId}
-                    onChange={setFavoriteBladeId}
-                  />
-                  <PartSearchSelect
-                    label="Ratchet"
-                    placeholder="Selecionar Ratchet..."
-                    parts={ratchets}
-                    value={favoriteRatchetId}
-                    onChange={setFavoriteRatchetId}
-                  />
-                  <PartSearchSelect
-                    label="Bit"
-                    placeholder="Selecionar Bit..."
-                    parts={bits}
-                    value={favoriteBitId}
-                    onChange={setFavoriteBitId}
-                  />
-                </div>
-              </div>
+              <ComboBuilder
+                parts={parts}
+                value={favoriteCombo}
+                onChange={setFavoriteCombo}
+                title="Combo Favorito (Busca por nome Takara Tomy ou Hasbro)"
+                subtitle="Selecione o sistema do Beyblade e monte suas peças seguindo as regras oficiais de compatibilidade."
+              />
 
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                 <Button
@@ -611,18 +764,24 @@ export function BladerPanelClient({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {(["all", "BX", "UX", "CX"] as const).map((line) => (
-                    <Button
-                      key={line}
-                      type="button"
-                      size="xs"
-                      variant={lineFilter === line ? "default" : "outline"}
-                      onClick={() => setLineFilter(line)}
-                      className="font-bold"
-                    >
-                      {line === "all" ? "Todas Linhas" : line}
-                    </Button>
-                  ))}
+                  {(["all", ...PART_LINE_ORDER, "universal"] as const).map(
+                    (line) => (
+                      <Button
+                        key={line}
+                        type="button"
+                        size="xs"
+                        variant={lineFilter === line ? "default" : "outline"}
+                        onClick={() => setLineFilter(line)}
+                        className="font-bold"
+                      >
+                        {line === "all"
+                          ? "Todas Linhas"
+                          : line === "universal"
+                            ? "Universal"
+                            : line}
+                      </Button>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -685,7 +844,8 @@ export function BladerPanelClient({
                           variant="outline"
                           className="text-[9px] px-1 py-0 border-border/70 text-muted-foreground"
                         >
-                          {PART_TYPE_LABELS[part.part_type]} • {part.line}
+                          {PART_TYPE_LABELS[part.part_type]}
+                          {part.line ? ` • ${part.line}` : ""}
                         </Badge>
                       </div>
                       {part.aliases && part.aliases.length > 0 && (

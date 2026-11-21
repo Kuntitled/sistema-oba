@@ -21,7 +21,9 @@ export function partMatchesQuery(
   if (!normalized) return true;
 
   const compactQuery = compactPartText(normalized);
-  const candidates = [part.name, ...(part.aliases ?? []), part.line];
+  const candidates = [part.name, ...(part.aliases ?? []), part.line].filter(
+    (c): c is string => typeof c === "string" && c.trim().length > 0
+  );
 
   return candidates.some((candidate) => {
     const normCandidate = normalizePartQuery(candidate);

@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { isUniversalPartType } from "@/lib/combo-rules";
 import { partMatchesQuery } from "@/lib/parts-search";
 import {
   createPartAction,
@@ -30,6 +31,7 @@ import {
   updatePartAction,
 } from "@/app/admin/parts-actions";
 import {
+  PART_LINE_ORDER,
   PART_TYPE_LABELS,
   PART_TYPE_ORDER,
   type PartLine,
@@ -41,11 +43,28 @@ interface PartsCatalogClientProps {
   initialParts: PartRow[];
 }
 
+function defaultLineForPartType(partType: PartType): PartLine | "" {
+  if (isUniversalPartType(partType)) return "";
+  if (
+    partType === "main_blade" ||
+    partType === "lock_chip" ||
+    partType === "assist_blade"
+  ) {
+    return "CX";
+  }
+  if (partType === "metal_blade" || partType === "over_blade") {
+    return "CXE";
+  }
+  return "BX";
+}
+
 export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<"all" | PartType>("all");
-  const [lineFilter, setLineFilter] = React.useState<"all" | PartLine>("all");
+  const [lineFilter, setLineFilter] = React.useState<
+    "all" | PartLine | "universal"
+  >("all");
   const [statusFilter, setStatusFilter] = React.useState<
     "all" | "active" | "inactive"
   >("all");
@@ -55,9 +74,13 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
   const [editingPart, setEditingPart] = React.useState<PartRow | null>(null);
   const [name, setName] = React.useState("");
   const [partType, setPartType] = React.useState<PartType>("blade");
-  const [line, setLine] = React.useState<PartLine>("BX");
+  const [line, setLine] = React.useState<PartLine | "">("BX");
   const [aliasesStr, setAliasesStr] = React.useState("");
   const [isActive, setIsActive] = React.useState(true);
+  const [isSimpleRatchet, setIsSimpleRatchet] = React.useState(false);
+  const [requiresSimpleRatchet, setRequiresSimpleRatchet] =
+    React.useState(false);
+  const [blocksBit, setBlocksBit] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [formSuccess, setFormSuccess] = React.useState(false);
@@ -68,7 +91,14 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
   const filteredParts = React.useMemo(() => {
     return initialParts.filter((part) => {
       if (typeFilter !== "all" && part.part_type !== typeFilter) return false;
-      if (lineFilter !== "all" && part.line !== lineFilter) return false;
+      if (lineFilter === "universal" && part.line !== null) return false;
+      if (
+        lineFilter !== "all" &&
+        lineFilter !== "universal" &&
+        part.line !== lineFilter
+      ) {
+        return false;
+      }
       if (statusFilter === "active" && !part.is_active) return false;
       if (statusFilter === "inactive" && part.is_active) return false;
       if (search.trim() && !partMatchesQuery(part, search)) return false;
@@ -83,6 +113,9 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
     setLine("BX");
     setAliasesStr("");
     setIsActive(true);
+    setIsSimpleRatchet(false);
+    setRequiresSimpleRatchet(false);
+    setBlocksBit(false);
     setFormError(null);
     setFormSuccess(false);
     setDialogOpen(true);
@@ -92,12 +125,44 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
     setEditingPart(part);
     setName(part.name);
     setPartType(part.part_type);
-    setLine(part.line);
+    setLine(isUniversalPartType(part.part_type) ? "" : (part.line ?? "BX"));
     setAliasesStr((part.aliases ?? []).join(", "));
     setIsActive(part.is_active);
+    setIsSimpleRatchet(part.is_simple_ratchet);
+    setRequiresSimpleRatchet(part.requires_simple_ratchet);
+    setBlocksBit(part.blocks_bit);
     setFormError(null);
     setFormSuccess(false);
     setDialogOpen(true);
+  };
+
+  const handlePartTypeChange = (nextType: PartType) => {
+    setPartType(nextType);
+    if (isUniversalPartType(nextType)) {
+      setLine("");
+    } else if (!line) {
+      setLine(defaultLineForPartType(nextType));
+    } else if (
+      nextType === "main_blade" ||
+      nextType === "lock_chip" ||
+      nextType === "assist_blade"
+    ) {
+      setLine("CX");
+    } else if (nextType === "metal_blade" || nextType === "over_blade") {
+      setLine("CXE");
+    }
+
+    if (nextType !== "ratchet") {
+      setIsSimpleRatchet(false);
+      setBlocksBit(false);
+    }
+    if (
+      nextType !== "blade" &&
+      nextType !== "main_blade" &&
+      nextType !== "metal_blade"
+    ) {
+      setRequiresSimpleRatchet(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,9 +174,15 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
     const fd = new FormData();
     fd.set("name", name);
     fd.set("part_type", partType);
-    fd.set("line", line);
+    fd.set("line", isUniversalPartType(partType) ? "" : line);
     fd.set("aliases", aliasesStr);
     fd.set("is_active", isActive ? "true" : "false");
+    fd.set("is_simple_ratchet", isSimpleRatchet ? "true" : "false");
+    fd.set(
+      "requires_simple_ratchet",
+      requiresSimpleRatchet ? "true" : "false"
+    );
+    fd.set("blocks_bit", blocksBit ? "true" : "false");
 
     const res = editingPart
       ? await updatePartAction(editingPart.id, fd)
@@ -204,7 +275,7 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {(["all", "BX", "UX", "CX"] as const).map((l) => (
+            {(["all", ...PART_LINE_ORDER, "universal"] as const).map((l) => (
               <Button
                 key={l}
                 type="button"
@@ -213,7 +284,11 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
                 onClick={() => setLineFilter(l)}
                 className="font-bold"
               >
-                {l === "all" ? "Todas Linhas" : l}
+                {l === "all"
+                  ? "Todas Linhas"
+                  : l === "universal"
+                    ? "Universal"
+                    : l}
               </Button>
             ))}
             <select
@@ -249,8 +324,10 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
             Nenhuma peça no catálogo ainda
           </h3>
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
-            Aplique a migration{" "}
-            <code>006_seed_parts_catalog.sql</code> no Supabase SQL Editor para importar todas as 288 peças competitivas dos CSVs, ou cadastre peças manualmente acima.
+            Aplique as migrations{" "}
+            <code>006_seed_parts_catalog.sql</code>,{" "}
+            <code>007_phase3a_combo_systems_and_avatars.sql</code> e{" "}
+            <code>008_update_parts_classification.sql</code> no Supabase SQL Editor para importar todas as 288 peças competitivas dos CSVs, ou cadastre peças manualmente acima.
           </p>
         </Card>
       ) : filteredParts.length === 0 ? (
@@ -280,8 +357,32 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
                     {PART_TYPE_LABELS[part.part_type]}
                   </Badge>
                   <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
-                    {part.line}
+                    {part.line ?? "Universal"}
                   </Badge>
+                  {part.is_simple_ratchet && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 border-amber-500/40 text-amber-500"
+                    >
+                      Simple Ratchet
+                    </Badge>
+                  )}
+                  {part.requires_simple_ratchet && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 border-amber-500/40 text-amber-500"
+                    >
+                      Exige Simple Ratchet
+                    </Badge>
+                  )}
+                  {part.blocks_bit && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 border-fire-orange/40 text-fire-orange"
+                    >
+                      Bit Integrada
+                    </Badge>
+                  )}
                   {!part.is_active && (
                     <Badge
                       variant="outline"
@@ -377,7 +478,9 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
                 <select
                   id="part-type"
                   value={partType}
-                  onChange={(e) => setPartType(e.target.value as PartType)}
+                  onChange={(e) =>
+                    handlePartTypeChange(e.target.value as PartType)
+                  }
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs"
                 >
                   {PART_TYPE_ORDER.map((t) => (
@@ -390,17 +493,24 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
 
               <div className="space-y-1.5">
                 <Label htmlFor="part-line" className="text-xs font-semibold">
-                  Linha *
+                  Sistema / Linha {isUniversalPartType(partType) ? "" : "*"}
                 </Label>
                 <select
                   id="part-line"
-                  value={line}
-                  onChange={(e) => setLine(e.target.value as PartLine)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs"
+                  value={isUniversalPartType(partType) ? "" : line}
+                  disabled={isUniversalPartType(partType)}
+                  onChange={(e) => setLine(e.target.value as PartLine | "")}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs disabled:opacity-60"
                 >
-                  <option value="BX">BX</option>
-                  <option value="UX">UX</option>
-                  <option value="CX">CX</option>
+                  {isUniversalPartType(partType) ? (
+                    <option value="">Universal (sem sistema)</option>
+                  ) : (
+                    PART_LINE_ORDER.map((l) => (
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
@@ -417,6 +527,68 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
                 className="h-9 text-xs"
               />
             </div>
+
+            {partType === "ratchet" && (
+              <div className="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Regras de Compatibilidade da Ratchet
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={isSimpleRatchet}
+                    onChange={(e) => setIsSimpleRatchet(e.target.checked)}
+                    className="accent-primary mt-0.5"
+                  />
+                  <div>
+                    <div className="font-semibold text-foreground">
+                      Simple Ratchet (O-type joint)
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Ratchet simples com altura terminada em 5 (ex: 9-65, 4-55, 3-85).
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={blocksBit}
+                    onChange={(e) => setBlocksBit(e.target.checked)}
+                    className="accent-primary mt-0.5"
+                  />
+                  <div>
+                    <div className="font-semibold text-foreground">
+                      Ratchet Composta / Bit Integrada
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Bloqueia seleção de Bit separada no construtor de combos (ex: Operate, Turbo).
+                    </div>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {(partType === "blade" ||
+              partType === "main_blade" ||
+              partType === "metal_blade") && (
+              <label className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-background/40 p-3 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={requiresSimpleRatchet}
+                  onChange={(e) => setRequiresSimpleRatchet(e.target.checked)}
+                  className="accent-primary mt-0.5"
+                />
+                <div>
+                  <div className="font-semibold text-foreground">
+                    Exige Simple Ratchet
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Restringe a seleção de Ratchet apenas a peças com O-type joint (ex: ClockMirage).
+                  </div>
+                </div>
+              </label>
+            )}
 
             <label className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/50 p-3 cursor-pointer text-xs">
               <input

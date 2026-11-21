@@ -35,6 +35,7 @@ import {
   updateRulesetAction,
 } from "@/app/admin/parts-actions";
 import {
+  PART_LINE_ORDER,
   PART_TYPE_LABELS,
   PART_TYPE_ORDER,
   type PartLine,
@@ -107,7 +108,9 @@ export function RulesetsManagerClient({
   // Filtros de peças na ban-list
   const [partSearch, setPartSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<"all" | PartType>("all");
-  const [lineFilter, setLineFilter] = React.useState<"all" | PartLine>("all");
+  const [lineFilter, setLineFilter] = React.useState<
+    "all" | PartLine | "universal"
+  >("all");
   const [pendingPartIds, setPendingPartIds] = React.useState<Set<string>>(
     () => new Set()
   );
@@ -116,7 +119,14 @@ export function RulesetsManagerClient({
   const filteredParts = React.useMemo(() => {
     return parts.filter((part) => {
       if (typeFilter !== "all" && part.part_type !== typeFilter) return false;
-      if (lineFilter !== "all" && part.line !== lineFilter) return false;
+      if (lineFilter === "universal" && part.line !== null) return false;
+      if (
+        lineFilter !== "all" &&
+        lineFilter !== "universal" &&
+        part.line !== lineFilter
+      ) {
+        return false;
+      }
       if (partSearch.trim() && !partMatchesQuery(part, partSearch)) return false;
       return true;
     });
@@ -453,18 +463,24 @@ export function RulesetsManagerClient({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1">
-                      {(["all", "BX", "UX", "CX"] as const).map((l) => (
-                        <Button
-                          key={l}
-                          type="button"
-                          size="xs"
-                          variant={lineFilter === l ? "default" : "outline"}
-                          onClick={() => setLineFilter(l)}
-                          className="font-bold"
-                        >
-                          {l === "all" ? "Todas" : l}
-                        </Button>
-                      ))}
+                      {(["all", ...PART_LINE_ORDER, "universal"] as const).map(
+                        (l) => (
+                          <Button
+                            key={l}
+                            type="button"
+                            size="xs"
+                            variant={lineFilter === l ? "default" : "outline"}
+                            onClick={() => setLineFilter(l)}
+                            className="font-bold"
+                          >
+                            {l === "all"
+                              ? "Todas"
+                              : l === "universal"
+                                ? "Universal"
+                                : l}
+                          </Button>
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -527,7 +543,8 @@ export function RulesetsManagerClient({
                                 {part.name}
                               </span>
                               <span className="text-[10px] text-muted-foreground">
-                                {PART_TYPE_LABELS[part.part_type]} • {part.line}
+                                {PART_TYPE_LABELS[part.part_type]} •{" "}
+                                {part.line ?? "Universal"}
                               </span>
                             </div>
                             {part.aliases && part.aliases.length > 0 && (

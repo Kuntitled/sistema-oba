@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isValidUuid } from "@/lib/services/arena-queries";
+import {
+  isValidBeySystem,
+  validateComboCompatibility,
+} from "@/lib/combo-rules";
+import type { ComboSelection, PartRow } from "@/types/domain";
 
 async function requireAuthenticatedUser() {
   const supabase = await createClient();
@@ -200,6 +205,33 @@ export async function cancelBladerClaimAction(claimId: string) {
   return { success: true };
 }
 
+export async function updateOwnAvatarUrlAction(avatarUrl: string | null) {
+  const auth = await requireAuthenticatedUser();
+  if (auth.error || !auth.user) {
+    return { error: auth.error ?? "Não autenticado." };
+  }
+
+  const normalized = avatarUrl?.trim() || null;
+
+  const { data: updated, error } = await auth.supabase
+    .from("bladers")
+    .update({ avatar_url: normalized })
+    .eq("user_id", auth.user.id)
+    .select()
+    .maybeSingle();
+
+  if (error || !updated) {
+    return {
+      error: error
+        ? `Erro ao salvar avatar: ${error.message}`
+        : "Perfil de Blader não encontrado para esta conta.",
+    };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true, blader: updated };
+}
+
 export async function updateOwnBladerProfileAction(formData: FormData) {
   const auth = await requireAuthenticatedUser();
   if (auth.error || !auth.user) {
@@ -232,13 +264,80 @@ export async function updateOwnBladerProfileAction(formData: FormData) {
     return { error: "A bio deve ter no máximo 160 caracteres." };
   }
 
+  const systemRaw = (formData.get("favorite_system") as string)?.trim() || "";
+  if (systemRaw && !isValidBeySystem(systemRaw)) {
+    return { error: "Sistema do combo favorito inválido." };
+  }
+
   const bladeParsed = parseOptionalUuid(formData.get("favorite_blade_id"));
+  const lockChipParsed = parseOptionalUuid(
+    formData.get("favorite_lock_chip_id")
+  );
+  const overBladeParsed = parseOptionalUuid(
+    formData.get("favorite_over_blade_id")
+  );
+  const assistBladeParsed = parseOptionalUuid(
+    formData.get("favorite_assist_blade_id")
+  );
   const ratchetParsed = parseOptionalUuid(formData.get("favorite_ratchet_id"));
   const bitParsed = parseOptionalUuid(formData.get("favorite_bit_id"));
 
-  if (bladeParsed.invalid || ratchetParsed.invalid || bitParsed.invalid) {
-    return { error: "Uma das peças selecionadas para o combo favorito é inválida." };
+  if (
+    bladeParsed.invalid ||
+    lockChipParsed.invalid ||
+    overBladeParsed.invalid ||
+    assistBladeParsed.invalid ||
+    ratchetParsed.invalid ||
+    bitParsed.invalid
+  ) {
+    return {
+      error: "Uma das peças selecionadas para o combo favorito é inválida.",
+    };
   }
+
+  const candidateIds = [
+    bladeParsed.value,
+    lockChipParsed.value,
+    overBladeParsed.value,
+    assistBladeParsed.value,
+    ratchetParsed.value,
+    bitParsed.value,
+  ].filter((id): id is string => Boolean(id));
+
+  const partsById = new Map<string, PartRow>();
+  if (candidateIds.length > 0) {
+    const { data: partRows, error: partsError } = await auth.supabase
+      .from("parts_catalog")
+      .select("*")
+      .in("id", candidateIds);
+
+    if (partsError) {
+      return {
+        error: `Erro ao validar peças do combo favorito: ${partsError.message}`,
+      };
+    }
+
+    for (const part of partRows ?? []) {
+      partsById.set(part.id, part);
+    }
+  }
+
+  const rawCombo: ComboSelection = {
+    system: isValidBeySystem(systemRaw) ? systemRaw : null,
+    bladeId: bladeParsed.value ?? "",
+    lockChipId: lockChipParsed.value ?? "",
+    overBladeId: overBladeParsed.value ?? "",
+    assistBladeId: assistBladeParsed.value ?? "",
+    ratchetId: ratchetParsed.value ?? "",
+    bitId: bitParsed.value ?? "",
+  };
+
+  const validation = validateComboCompatibility(rawCombo, partsById);
+  if (!validation.valid) {
+    return { error: validation.error };
+  }
+
+  const combo = validation.sanitized;
 
   const { data: updated, error } = await auth.supabase
     .from("bladers")
@@ -249,9 +348,13 @@ export async function updateOwnBladerProfileAction(formData: FormData) {
       avatar_url,
       bio: rawBio,
       favorite_anime,
-      favorite_blade_id: bladeParsed.value,
-      favorite_ratchet_id: ratchetParsed.value,
-      favorite_bit_id: bitParsed.value,
+      favorite_system: combo.system,
+      favorite_blade_id: combo.bladeId || null,
+      favorite_lock_chip_id: combo.lockChipId || null,
+      favorite_over_blade_id: combo.overBladeId || null,
+      favorite_assist_blade_id: combo.assistBladeId || null,
+      favorite_ratchet_id: combo.ratchetId || null,
+      favorite_bit_id: combo.bitId || null,
     })
     .eq("id", ownBlader.id)
     .eq("user_id", auth.user.id)

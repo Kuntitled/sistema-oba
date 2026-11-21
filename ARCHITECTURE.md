@@ -117,7 +117,12 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
   - [x] **Gestão Admin de Peças & Formatos:** rotas `/admin/pecas` e `/admin/formatos` para CRUD do catálogo e ban-lists independentes por formato, integradas à criação/edição de torneios.
   - [x] **Auth Google OAuth & Vínculo de Perfis:** botão Entrar com Google em `/auth/login`, `/privacidade` pública para consentimento OAuth, redirecionamento adaptativo (`getRequestOrigin`), fluxo de primeiro acesso/vínculo em `/meu-painel` e aprovação/vínculo manual em `/admin/bladers`.
   - [x] **Painel Pessoal (`/meu-painel`) & Card Público (`BladerCardModal`):** edição de perfil, bio (160 chars), combo favorito pesquisável por nome TT/Hasbro, inventário de coleção pessoal e modal público interativo no Ranking, Bladers e Torneios.
-- **Etapa 3B (Próxima):** configuração PIX global (`league_settings`), inscrição de Bladers com decklist validada pela ban-list do `ruleset`, PIX/comprovante e aprovação administrativa.
+- **Etapa 3A.5 — Sistemas de Combo, Upload Leve de Avatar & Unificação de Vagas (Concluída):**
+  - [x] **Migrations `007` e `008`:** unificação de `max_participants` → `max_players` em `tournaments`, expansão de `parts_catalog` para 8 tipos (`blade`, `main_blade`, `metal_blade`, `over_blade`, `lock_chip`, `assist_blade`, `ratchet`, `bit`), 6 sistemas (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE`) + `NULL` universal (para Ratchets/Bits) e flags de compatibilidade (`is_simple_ratchet`, `requires_simple_ratchet`, `blocks_bit`), colunas de combo completo em `bladers` e `registration_combos`, e bucket público `avatars` com RLS por `{auth.uid()}/avatar.webp`.
+  - [x] **Reclassificação das 288 peças:** atualização idempotente via `scripts/generate-parts-seed.ts` (preservando UUIDs, movendo `Operate`/`Turbo` para Ratchets com `blocks_bit = true`, marcando `ClockMirage` com `requires_simple_ratchet = true` e 6 Simple Ratchets terminadas em `5`) e suporte completo em `/admin/pecas` e `/admin/formatos`.
+  - [x] **Upload Leve de Avatar (`/meu-painel`):** processamento client-side via `<canvas>` (`src/lib/avatar-upload.ts`: recorte quadrado central, máx. `400x400px`, WebP qualidade `0.75`), envio com `upsert: true` em `avatars/{user_id}/avatar.webp` e cache-busting `?v=`.
+  - [x] **`ComboBuilder.tsx` Reutilizável & Card Público:** seleção obrigatória de sistema (`BX`/`BXE`/`UX`/`UXE`/`CX`/`CXE`), slots dinâmicos (sem tag de sistema em Ratchet/Bit, ocultamento de Ratchet em `UXE`, filtro de Simple Ratchet para `ClockMirage`, bloqueio de Bit para `Operate`/`Turbo`) e exibição completa no `BladerCardModal.tsx`.
+- **Etapa 3B (Próxima):** configuração PIX global (`league_settings`), inscrição de Bladers com decklist (reutilizando `ComboBuilder.tsx`) validada pela ban-list do `ruleset`, PIX/comprovante e aprovação administrativa.
 - **Etapa 3C:** check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`).
 
 ---
@@ -194,15 +199,22 @@ Sistema OBA/
 ├── ARCHITECTURE.md              ← Guia mestre (este arquivo)
 ├── .env.example                 ← Template de variáveis (versionado)
 ├── .env.local                   ← Credenciais locais (ignorado no git)
-├── next.config.ts               ← Configuração Next.js 16 (Turbopack + allowedDevOrigins LAN)
+├── next.config.ts               ← Configuração Next.js 16 (Turbopack, allowedDevOrigins LAN, images HTTPS)
 ├── components.json              ← Configuração do shadcn/ui
+├── scripts/
+│   ├── generate-parts-seed.ts   ← Parser/deduplicador dos CSVs e gerador da migration 008
+│   └── seed-data/               ← Planilhas CSV (TT e Hasbro) do catálogo Beyblade X
 ├── supabase/
 │   ├── migrations/
-│   │   ├── 001_phase1_schema.sql               ← Tabelas, RLS e triggers da Fase 1
-│   │   ├── 002_grant_permissions.sql           ← Permissões GRANT para anon/authenticated
-│   │   ├── 003_phase2_live_tournaments.sql     ← Arenas, partidas, lances, RLS e Realtime
-│   │   └── 004_oba_official_rules_and_engine.sql ← Temporadas, formatos OBA, Top Cut e desempates
-│   └── seed.sql                                ← Dados de exemplo para desenvolvimento
+│   │   ├── 001_phase1_schema.sql                       ← Tabelas, RLS e triggers da Fase 1
+│   │   ├── 002_grant_permissions.sql                   ← Permissões GRANT para anon/authenticated
+│   │   ├── 003_phase2_live_tournaments.sql             ← Arenas, partidas, lances, RLS e Realtime
+│   │   ├── 004_oba_official_rules_and_engine.sql       ← Temporadas, formatos OBA, Top Cut e desempates
+│   │   ├── 005_phase3_ecosystem_schema.sql             ← Peças, formatos/ban-lists, perfil/inventário e base 3B
+│   │   ├── 006_seed_parts_catalog.sql                  ← Seed idempotente das 288 peças únicas
+│   │   ├── 007_phase3a_combo_systems_and_avatars.sql   ← Unificação max_players, 6 sistemas, combos e bucket avatars
+│   │   └── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
+│   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
 │   └── icons/                          ← Ícones PWA (180x180, 192x192, 512x512)
@@ -218,11 +230,16 @@ Sistema OBA/
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
     │   │   │   └── [slug]/page.tsx     ← Detalhes, arenas ao vivo, chaveamento e resultados
-    │   │   └── bladers/page.tsx        ← Lista pública de competidores
+    │   │   ├── bladers/page.tsx        ← Lista pública de competidores (abre Card Público)
+    │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (onboarding/claim, perfil e coleção)
+    │   │   └── privacidade/page.tsx    ← Política de Privacidade pública (OAuth / LGPD)
     │   ├── torneios/
     │   │   └── [slug]/telao/page.tsx   ← Modo Telão / TV full-screen (fora de (public), sem Navbar/Footer)
+    │   ├── meu-painel/
+    │   │   └── actions.ts              ← Server Actions do perfil, claim e coleção do Blader
     │   ├── admin/                      ← Rotas administrativas protegidas pelo proxy.ts
-    │   │   ├── actions.ts              ← Server Actions CRUD (Bladers, Torneios, Resultados)
+    │   │   ├── actions.ts              ← Server Actions CRUD (Bladers, Claims, Torneios, Resultados)
+    │   │   ├── parts-actions.ts        ← Server Actions CRUD de Peças, Formatos e Ban-lists
     │   │   ├── arena/
     │   │   │   ├── actions.ts          ← Server Actions do Gestor de Arenas e Placar do Juiz
     │   │   │   └── [id]/page.tsx       ← Placar Touch mobile do juiz (tela cheia sem sidebar)
@@ -232,7 +249,9 @@ Sistema OBA/
     │   │       ├── layout.tsx          ← Sidebar admin + menu mobile + botão de logout
     │   │       ├── page.tsx            ← Dashboard de métricas e resumo
     │   │       ├── arenas/page.tsx     ← Gestor de Arenas físicas (Multi-Stadium)
-    │   │       ├── bladers/page.tsx    ← Gestão de Bladers (cadastro, edição e status ativo)
+    │   │       ├── bladers/page.tsx    ← Gestão de Bladers, aprovações de vínculo e UUID manual
+    │   │       ├── formatos/page.tsx   ← CRUD de Formatos e Ban-lists independentes
+    │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
     │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
     │   │       └── torneios/
     │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição e ações)
@@ -240,20 +259,24 @@ Sistema OBA/
     │   │               ├── chaveamento/page.tsx ← Motor Suíço + Tiebreaker + Top Cut + Publicação
     │   │               └── resultados/page.tsx  ← Lançamento manual/retroativo de colocações e pontos
     │   ├── api/
-    │   │   └── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
+    │   │   ├── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
+    │   │   └── bladers/[id]/card/route.ts ← Endpoint público do Card do Blader
     │   └── auth/
     │       ├── actions.ts              ← Server Actions de logout
-    │       ├── callback/route.ts       ← Callback SSR para PKCE (?code=) e OTP (?token_hash=)
+    │       ├── callback/route.ts       ← Callback SSR para OAuth Google, PKCE (?code=) e OTP (?token_hash=)
     │       ├── definir-senha/page.tsx  ← Definição de senha via convite ou recuperação
-    │       └── login/page.tsx          ← Formulário de login admin + "Esqueceu a senha?"
+    │       └── login/page.tsx          ← Login Google OAuth + E-mail/Senha + "Esqueceu a senha?"
     ├── components/
-    │   ├── admin/                      ← Componentes do painel e motor de chaveamento
+    │   ├── admin/                      ← Componentes do painel, catálogo, formatos e motor de chaveamento
     │   │   ├── ArenaManagerClient.tsx
+    │   │   ├── BladerClaimsBanner.tsx
     │   │   ├── BladerForm.tsx
     │   │   ├── DeleteBladerButton.tsx
     │   │   ├── DeleteTournamentButton.tsx
     │   │   ├── EditBladerButton.tsx
     │   │   ├── EditTournamentButton.tsx
+    │   │   ├── PartsCatalogClient.tsx
+    │   │   ├── RulesetsManagerClient.tsx
     │   │   ├── SeasonManagerClient.tsx
     │   │   ├── TournamentEngineClient.tsx
     │   │   ├── TournamentForm.tsx
@@ -264,9 +287,19 @@ Sistema OBA/
     │   │   ├── QuickStartMatchDialog.tsx
     │   │   └── RefereeScoreboard.tsx
     │   ├── auth/
-    │   │   └── AuthHashListener.tsx    ← Captura tokens em hash (#access_token=) de convite/recovery
-    │   ├── layout/                     ← Navbar, Footer e ThemeToggle
-    │   ├── ranking/                    ← RankingTable com filtro por temporada e busca instantânea
+    │   │   ├── AuthHashListener.tsx    ← Captura tokens em hash (#access_token=) de convite/recovery
+    │   │   └── LoginFormClient.tsx     ← Formulário cliente de login (Google OAuth + E-mail/Senha)
+    │   ├── blader/                     ← Painel do Blader, Onboarding/Claim, ComboBuilder e Card Público
+    │   │   ├── BladerCardModal.tsx
+    │   │   ├── BladerOnboardingClient.tsx
+    │   │   ├── BladerPanelClient.tsx
+    │   │   ├── BladersGridClient.tsx
+    │   │   ├── ComboBuilder.tsx
+    │   │   └── PartSearchSelect.tsx
+    │   ├── layout/                     ← Navbar (com estado da sessão), Footer e ThemeToggle
+    │   ├── ranking/                    ← RankingTable com filtro por temporada, busca e Card do Blader
+    │   ├── shared/
+    │   │   └── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
     │   ├── tournament/                 ← Componentes públicos de torneio, telão e arenas ao vivo
     │   │   ├── BroadcastBoardClient.tsx
     │   │   ├── HomeLiveTournamentBanner.tsx
@@ -274,22 +307,27 @@ Sistema OBA/
     │   │   └── PublicTournamentLive.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
+    │   ├── avatar-upload.ts            ← Crop quadrado, compressão WebP 400x400 e upload no bucket avatars
+    │   ├── combo-rules.ts              ← Regras dos 6 sistemas (BX/BXE/UX/UXE/CX/CXE) e compatibilidade de peças
     │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
+    │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro
     │   ├── utils.ts                    ← Helper cn()
     │   ├── engine/
     │   │   └── tournament-engine.ts    ← Motor puro OBA (Suíço, Finishes, Tiebreaker, Top Cut)
     │   ├── services/                   ← Consultas e regras de aplicação no Supabase
     │   │   ├── arena-queries.ts
     │   │   ├── arenas.ts
+    │   │   ├── blader-card.ts
     │   │   ├── bracket-advancement.ts
     │   │   ├── league.ts
+    │   │   ├── parts.ts
     │   │   ├── ranking-recalc.ts
     │   │   ├── tournament-live.ts
     │   │   └── tournament-queries.ts
     │   └── supabase/
     │       ├── client.ts               ← Browser client Supabase
     │       ├── proxy.ts                ← Helper de atualização e proteção de sessão para o proxy
-    │       ├── route-cookies.ts        ← Helper compartilhado de cookies (flag secure HTTP/HTTPS)
+    │       ├── route-cookies.ts        ← Helper compartilhado de cookies e getRequestOrigin()
     │       └── server.ts               ← Server client Supabase (SSR cookies)
     └── types/
         ├── database.ts                 ← Tipos estritos do banco Supabase
@@ -302,8 +340,8 @@ Sistema OBA/
 
 ### Tabelas em Produção e Fase 2 (`001`–`004`)
 - `seasons`: Id, year (único), name, starts_at, ends_at, is_active (índice parcial único para temporada ativa), timestamps.
-- `bladers`: Id, user_id (opcional), name, nickname (único), city, avatar_url, bio, is_active, timestamps.
-- `tournaments`: Id, season_id, name, slug (único), description, location, event_date, category (`semanal`, `oficial`), format (`swiss_top_cut`, `swiss_only`, legados `swiss`, `single_elim`, `double_elim`), swiss_rounds, top_cut_size (`4`, `8`, `16`), status (`draft`, `open`, `ongoing`, `finished`), max_players, created_by, timestamps.
+- `bladers`: Id, user_id (único/opcional), name, nickname (único), city, avatar_url, bio (máx. 160 chars), favorite_anime, favorite_system (`BX | BXE | UX | UXE | CX | CXE`), favorite_blade_id, favorite_lock_chip_id, favorite_over_blade_id, favorite_assist_blade_id, favorite_ratchet_id, favorite_bit_id, is_active, timestamps.
+- `tournaments`: Id, season_id, ruleset_id, name, slug (único), description, location, event_date, category (`semanal`, `oficial`), format (`swiss_top_cut`, `swiss_only`, legados `swiss`, `single_elim`, `double_elim`), swiss_rounds, top_cut_size (`4`, `8`, `16`), status (`draft`, `open`, `ongoing`, `finished`), registration_status (`closed`, `open`, `finished`), entry_fee, max_players, created_by, timestamps.
 - `tournament_participants`: Id, tournament_id, blader_id, seed, is_dropped, created_at (unique por tournament + blader).
 - `tournament_results`: Id, tournament_id, blader_id, final_position, swiss_wins, swiss_points, is_swiss_leader, swiss_leader_bonus, podium_points, points_earned (unique por tournament + blader e tournament + final_position).
 - `ranking`: Id, season_id, blader_id (unique por season + blader), total_points, tournaments_played, swiss_wins, podiums_count, first_places, second_places, third_places, best_podium, best_position, created_at, updated_at.
@@ -311,11 +349,12 @@ Sistema OBA/
 - `matches`: Id, tournament_id, arena_id, round, match_number, stage (`swiss`, `top_cut`), bracket_label, player1_id, player2_id, player1_score, player2_score, target_score, winner_id, status (`pending`, `in_progress`, `finished`, `cancelled`), is_bye, is_tiebreaker, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, timestamps.
 - `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, timestamp.
 
-### Tabelas da Fase 3 (`005`–`006`)
-- `parts_catalog`: Id, name, aliases (`TEXT[]`), part_type (`blade`, `ratchet`, `bit`, `lock_chip`, `assist_blade`, `over_blade`), line (`BX`, `UX`, `CX`), is_active, timestamps (unique por `name + part_type`).
+### Tabelas & Storage da Fase 3 (`005`–`008`)
+- `parts_catalog`: Id, name, aliases (`TEXT[]`), part_type (`blade`, `main_blade`, `metal_blade`, `over_blade`, `lock_chip`, `assist_blade`, `ratchet`, `bit`), line (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE` ou `NULL` universal para `ratchet`/`bit`), `is_simple_ratchet`, `requires_simple_ratchet`, `blocks_bit`, is_active, timestamps (unique por `name + part_type`).
 - `rulesets` & `ruleset_banned_parts`: formatos competitivos independentes (`Livre`, etc.) e peças banidas por formato.
 - `league_settings`: singleton (`id = 1`) com chave PIX, recebedor e cidade da liga.
-- `blader_inventory`, `blader_claim_requests`, `tournament_registrations`, `registration_combos`: coleção pessoal de peças, solicitações de vínculo de conta e base de inscrições/decklists para a Etapa 3B.
+- `blader_inventory`, `blader_claim_requests`, `tournament_registrations`, `registration_combos` (com `system`, `over_blade_id`, `ratchet_id`/`bit_id` nullable): coleção pessoal de peças, solicitações de vínculo de conta e base de inscrições/decklists para a Etapa 3B.
+- Storage bucket `avatars` (`public = true`, teto `512 KB`): leitura pública e `INSERT`/`UPDATE`/`DELETE` restritos via RLS ao caminho `{auth.uid()}/avatar.webp`.
 
 ---
 
@@ -351,11 +390,11 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ## 🎯 Diretrizes para a Próxima Sessão (Etapa 3B)
 
-Com a **Etapa 3A** concluída (`005` e `006`, catálogo de peças, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel` e Card Público), o próximo passo é a **Etapa 3B — Inscrições, Decklists & PIX**:
+Com a **Etapa 3A** e a **Etapa 3A.5** concluídas (`005`–`008`, catálogo de peças com os 6 sistemas + regras de compatibilidade, `ComboBuilder.tsx`, upload leve de avatar, formatos/ban-lists, Google OAuth, vínculo de contas, `/meu-painel` e Card Público), o próximo passo é a **Etapa 3B — Inscrições, Decklists & PIX**:
 
 1. **Configuração PIX & Inscrições em Torneios:**
-   - Painel admin para editar `league_settings` (PIX global da OBA) e habilitar `registration_status`, `entry_fee` e `max_participants` nos torneios.
-   - Fluxo de inscrição do Blader com montagem de até 4 combos validados contra a ban-list do `ruleset` e upload de comprovante PIX.
+   - Painel admin para editar `league_settings` (PIX global da OBA) e habilitar `registration_status`, `entry_fee` e `max_players` nos torneios.
+   - Fluxo de inscrição do Blader com montagem de até 4 combos (reutilizando `ComboBuilder.tsx`) validados contra a ban-list do `ruleset` e upload de comprovante PIX.
    - Fila administrativa `/admin/torneios/[id]/inscricoes` para conferência de pagamento/decklist e envio automático para `tournament_participants`.
 2. **Na sequência (Etapa 3C):**
    - Check-in presencial (QR Code) e acesso restrito para Juízes (`role = 'judge'`) em `/admin/arenas` e `/admin/arena/[id]`.

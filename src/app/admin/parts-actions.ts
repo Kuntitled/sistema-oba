@@ -3,18 +3,92 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isValidUuid } from "@/lib/services/arena-queries";
-import type { PartLine, PartType } from "@/types/domain";
+import {
+  PART_LINE_ORDER,
+  PART_TYPE_ORDER,
+  type PartLine,
+  type PartType,
+} from "@/types/domain";
 
-const VALID_PART_TYPES = new Set<PartType>([
+const VALID_PART_TYPES = new Set<PartType>(PART_TYPE_ORDER);
+const VALID_PART_LINES = new Set<PartLine>(PART_LINE_ORDER);
+const UNIVERSAL_PART_TYPES = new Set<PartType>(["ratchet", "bit"]);
+const BLADE_LIKE_PART_TYPES = new Set<PartType>([
   "blade",
-  "ratchet",
-  "bit",
-  "lock_chip",
-  "assist_blade",
-  "over_blade",
+  "main_blade",
+  "metal_blade",
 ]);
 
-const VALID_PART_LINES = new Set<PartLine>(["BX", "UX", "CX"]);
+function parseBooleanFlag(value: FormDataEntryValue | null): boolean {
+  return value === "true" || value === "on";
+}
+
+function parsePartPayload(formData: FormData):
+  | {
+      error: string;
+    }
+  | {
+      error: null;
+      data: {
+        name: string;
+        part_type: PartType;
+        line: PartLine | null;
+        aliases: string[];
+        is_active: boolean;
+        is_simple_ratchet: boolean;
+        requires_simple_ratchet: boolean;
+        blocks_bit: boolean;
+      };
+    } {
+  const name = (formData.get("name") as string)?.trim();
+  const partTypeRaw = (formData.get("part_type") as string)?.trim() as PartType;
+  const lineRawStr = (formData.get("line") as string)?.trim() ?? "";
+  const aliases = parseAliases(formData.get("aliases"));
+  const isActiveRaw = formData.get("is_active");
+  const is_active =
+    isActiveRaw === null ? true : parseBooleanFlag(isActiveRaw);
+
+  if (!name) {
+    return { error: "Nome da peça é obrigatório." };
+  }
+  if (!VALID_PART_TYPES.has(partTypeRaw)) {
+    return { error: "Tipo de peça inválido." };
+  }
+
+  let line: PartLine | null = null;
+  if (!UNIVERSAL_PART_TYPES.has(partTypeRaw)) {
+    if (!lineRawStr || !VALID_PART_LINES.has(lineRawStr as PartLine)) {
+      return {
+        error:
+          "Linha da peça inválida (use BX, BXE, UX, UXE, CX ou CXE).",
+      };
+    }
+    line = lineRawStr as PartLine;
+  }
+
+  const is_simple_ratchet =
+    partTypeRaw === "ratchet" &&
+    parseBooleanFlag(formData.get("is_simple_ratchet"));
+  const blocks_bit =
+    partTypeRaw === "ratchet" && parseBooleanFlag(formData.get("blocks_bit"));
+  const requires_simple_ratchet =
+    BLADE_LIKE_PART_TYPES.has(partTypeRaw) &&
+    parseBooleanFlag(formData.get("requires_simple_ratchet"));
+
+  return {
+    error: null,
+    data: {
+      name,
+      part_type: partTypeRaw,
+      line,
+      aliases,
+      is_active,
+      is_simple_ratchet,
+      requires_simple_ratchet,
+      blocks_bit,
+    },
+  };
+}
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -54,40 +128,19 @@ export async function createPartAction(formData: FormData) {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
 
-  const name = (formData.get("name") as string)?.trim();
-  const partTypeRaw = (formData.get("part_type") as string)?.trim() as PartType;
-  const lineRaw = ((formData.get("line") as string)?.trim() || "BX") as PartLine;
-  const aliases = parseAliases(formData.get("aliases"));
-  const isActiveRaw = formData.get("is_active");
-  const is_active =
-    isActiveRaw === null ? true : isActiveRaw === "true" || isActiveRaw === "on";
-
-  if (!name) {
-    return { error: "Nome da peça é obrigatório." };
-  }
-  if (!VALID_PART_TYPES.has(partTypeRaw)) {
-    return { error: "Tipo de peça inválido." };
-  }
-  if (!VALID_PART_LINES.has(lineRaw)) {
-    return { error: "Linha da peça inválida (use BX, UX ou CX)." };
-  }
+  const parsed = parsePartPayload(formData);
+  if (parsed.error !== null) return { error: parsed.error };
 
   const { data: part, error } = await auth.supabase
     .from("parts_catalog")
-    .insert({
-      name,
-      part_type: partTypeRaw,
-      line: lineRaw,
-      aliases,
-      is_active,
-    })
+    .insert(parsed.data)
     .select()
     .single();
 
   if (error) {
     if (error.code === "23505") {
       return {
-        error: `Já existe uma peça "${name}" cadastrada nesse mesmo tipo.`,
+        error: `Já existe uma peça "${parsed.data.name}" cadastrada nesse mesmo tipo.`,
       };
     }
     return { error: `Erro ao cadastrar peça: ${error.message}` };
@@ -107,33 +160,12 @@ export async function updatePartAction(partId: string, formData: FormData) {
     return { error: "Peça inválida." };
   }
 
-  const name = (formData.get("name") as string)?.trim();
-  const partTypeRaw = (formData.get("part_type") as string)?.trim() as PartType;
-  const lineRaw = ((formData.get("line") as string)?.trim() || "BX") as PartLine;
-  const aliases = parseAliases(formData.get("aliases"));
-  const isActiveRaw = formData.get("is_active");
-  const is_active =
-    isActiveRaw === null ? true : isActiveRaw === "true" || isActiveRaw === "on";
-
-  if (!name) {
-    return { error: "Nome da peça é obrigatório." };
-  }
-  if (!VALID_PART_TYPES.has(partTypeRaw)) {
-    return { error: "Tipo de peça inválido." };
-  }
-  if (!VALID_PART_LINES.has(lineRaw)) {
-    return { error: "Linha da peça inválida (use BX, UX ou CX)." };
-  }
+  const parsed = parsePartPayload(formData);
+  if (parsed.error !== null) return { error: parsed.error };
 
   const { data: part, error } = await auth.supabase
     .from("parts_catalog")
-    .update({
-      name,
-      part_type: partTypeRaw,
-      line: lineRaw,
-      aliases,
-      is_active,
-    })
+    .update(parsed.data)
     .eq("id", partId)
     .select()
     .single();
@@ -141,7 +173,7 @@ export async function updatePartAction(partId: string, formData: FormData) {
   if (error) {
     if (error.code === "23505") {
       return {
-        error: `Já existe outra peça "${name}" nesse mesmo tipo.`,
+        error: `Já existe outra peça "${parsed.data.name}" nesse mesmo tipo.`,
       };
     }
     return { error: `Erro ao atualizar peça: ${error.message}` };

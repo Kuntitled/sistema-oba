@@ -199,6 +199,17 @@ export interface UserProfile {
 export type PartRow = Database["public"]["Tables"]["parts_catalog"]["Row"];
 export type PartType = Database["public"]["Enums"]["part_type"];
 export type PartLine = Database["public"]["Enums"]["part_line"];
+export type BeySystem = Database["public"]["Enums"]["bey_system"];
+
+export interface ComboSelection {
+  system: BeySystem | null;
+  bladeId: string;
+  lockChipId: string;
+  overBladeId: string;
+  assistBladeId: string;
+  ratchetId: string;
+  bitId: string;
+}
 
 export type RulesetRow = Database["public"]["Tables"]["rulesets"]["Row"];
 export type RulesetBannedPartRow =
@@ -231,7 +242,11 @@ export interface BladerCardProfile {
   secondPlaces: number;
   thirdPlaces: number;
   favoriteCombo: {
+    system: BeySystem | null;
     blade: PartRow | null;
+    lockChip: PartRow | null;
+    overBlade: PartRow | null;
+    assistBlade: PartRow | null;
     ratchet: PartRow | null;
     bit: PartRow | null;
   };
@@ -240,24 +255,58 @@ export interface BladerCardProfile {
 
 export const PART_TYPE_ORDER: PartType[] = [
   "blade",
-  "ratchet",
-  "bit",
+  "main_blade",
+  "metal_blade",
+  "over_blade",
   "lock_chip",
   "assist_blade",
-  "over_blade",
+  "ratchet",
+  "bit",
 ];
 
 export const PART_TYPE_LABELS: Record<PartType, string> = {
   blade: "Blade",
-  ratchet: "Ratchet",
-  bit: "Bit",
+  main_blade: "Main Blade",
+  metal_blade: "Metal Blade",
+  over_blade: "Over Blade",
   lock_chip: "Lock Chip",
   assist_blade: "Assist Blade",
-  over_blade: "Over Blade",
+  ratchet: "Ratchet",
+  bit: "Bit",
 } as const;
+
+export const PART_LINE_ORDER: PartLine[] = [
+  "BX",
+  "BXE",
+  "UX",
+  "UXE",
+  "CX",
+  "CXE",
+];
 
 export const PART_LINE_LABELS: Record<PartLine, string> = {
   BX: "Basic Line (BX)",
+  BXE: "Basic Expand (BXE)",
   UX: "Unique Line (UX)",
+  UXE: "Unique Expand (UXE)",
   CX: "Custom Line (CX)",
+  CXE: "Custom Expand (CXE)",
+} as const;
+
+export const BEY_SYSTEM_ORDER: BeySystem[] = [
+  "BX",
+  "BXE",
+  "UX",
+  "UXE",
+  "CX",
+  "CXE",
+];
+
+export const BEY_SYSTEM_LABELS: Record<BeySystem, string> = {
+  BX: "Basic Line (BX)",
+  BXE: "Basic Expand (BXE)",
+  UX: "Unique Line (UX)",
+  UXE: "Unique Expand (UXE)",
+  CX: "Custom Line (CX)",
+  CXE: "Custom Expand (CXE)",
 } as const;

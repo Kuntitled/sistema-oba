@@ -56,7 +56,11 @@ export type Database = {
           avatar_url: string | null;
           bio: string | null;
           favorite_anime: string | null;
+          favorite_system: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           favorite_blade_id: string | null;
+          favorite_lock_chip_id: string | null;
+          favorite_over_blade_id: string | null;
+          favorite_assist_blade_id: string | null;
           favorite_ratchet_id: string | null;
           favorite_bit_id: string | null;
           is_active: boolean;
@@ -72,7 +76,11 @@ export type Database = {
           avatar_url?: string | null;
           bio?: string | null;
           favorite_anime?: string | null;
+          favorite_system?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           favorite_blade_id?: string | null;
+          favorite_lock_chip_id?: string | null;
+          favorite_over_blade_id?: string | null;
+          favorite_assist_blade_id?: string | null;
           favorite_ratchet_id?: string | null;
           favorite_bit_id?: string | null;
           is_active?: boolean;
@@ -88,7 +96,11 @@ export type Database = {
           avatar_url?: string | null;
           bio?: string | null;
           favorite_anime?: string | null;
+          favorite_system?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           favorite_blade_id?: string | null;
+          favorite_lock_chip_id?: string | null;
+          favorite_over_blade_id?: string | null;
+          favorite_assist_blade_id?: string | null;
           favorite_ratchet_id?: string | null;
           favorite_bit_id?: string | null;
           is_active?: boolean;
@@ -106,6 +118,27 @@ export type Database = {
           {
             foreignKeyName: "bladers_favorite_blade_id_fkey";
             columns: ["favorite_blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_lock_chip_id_fkey";
+            columns: ["favorite_lock_chip_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_over_blade_id_fkey";
+            columns: ["favorite_over_blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bladers_favorite_assist_blade_id_fkey";
+            columns: ["favorite_assist_blade_id"];
             isOneToOne: false;
             referencedRelation: "parts_catalog";
             referencedColumns: ["id"];
@@ -149,7 +182,6 @@ export type Database = {
           registration_status: "closed" | "open" | "finished";
           entry_fee: number | null;
           max_players: number | null;
-          max_participants: number | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -176,7 +208,6 @@ export type Database = {
           registration_status?: "closed" | "open" | "finished";
           entry_fee?: number | null;
           max_players?: number | null;
-          max_participants?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -203,7 +234,6 @@ export type Database = {
           registration_status?: "closed" | "open" | "finished";
           entry_fee?: number | null;
           max_players?: number | null;
-          max_participants?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -625,12 +655,17 @@ export type Database = {
           aliases: string[];
           part_type:
             | "blade"
-            | "ratchet"
-            | "bit"
+            | "main_blade"
+            | "metal_blade"
+            | "over_blade"
             | "lock_chip"
             | "assist_blade"
-            | "over_blade";
-          line: "BX" | "UX" | "CX";
+            | "ratchet"
+            | "bit";
+          line: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
+          is_simple_ratchet: boolean;
+          requires_simple_ratchet: boolean;
+          blocks_bit: boolean;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -641,12 +676,17 @@ export type Database = {
           aliases?: string[];
           part_type:
             | "blade"
-            | "ratchet"
-            | "bit"
+            | "main_blade"
+            | "metal_blade"
+            | "over_blade"
             | "lock_chip"
             | "assist_blade"
-            | "over_blade";
-          line?: "BX" | "UX" | "CX";
+            | "ratchet"
+            | "bit";
+          line?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
+          is_simple_ratchet?: boolean;
+          requires_simple_ratchet?: boolean;
+          blocks_bit?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -657,12 +697,17 @@ export type Database = {
           aliases?: string[];
           part_type?:
             | "blade"
-            | "ratchet"
-            | "bit"
+            | "main_blade"
+            | "metal_blade"
+            | "over_blade"
             | "lock_chip"
             | "assist_blade"
-            | "over_blade";
-          line?: "BX" | "UX" | "CX";
+            | "ratchet"
+            | "bit";
+          line?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
+          is_simple_ratchet?: boolean;
+          requires_simple_ratchet?: boolean;
+          blocks_bit?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -864,7 +909,9 @@ export type Database = {
           id: string;
           registration_id: string;
           slot_number: number;
+          system: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           blade_id: string | null;
+          over_blade_id: string | null;
           ratchet_id: string | null;
           bit_id: string | null;
           lock_chip_id: string | null;
@@ -875,7 +922,9 @@ export type Database = {
           id?: string;
           registration_id: string;
           slot_number: number;
+          system?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           blade_id?: string | null;
+          over_blade_id?: string | null;
           ratchet_id?: string | null;
           bit_id?: string | null;
           lock_chip_id?: string | null;
@@ -886,7 +935,9 @@ export type Database = {
           id?: string;
           registration_id?: string;
           slot_number?: number;
+          system?: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE" | null;
           blade_id?: string | null;
+          over_blade_id?: string | null;
           ratchet_id?: string | null;
           bit_id?: string | null;
           lock_chip_id?: string | null;
@@ -904,6 +955,13 @@ export type Database = {
           {
             foreignKeyName: "registration_combos_blade_id_fkey";
             columns: ["blade_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_catalog";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_combos_over_blade_id_fkey";
+            columns: ["over_blade_id"];
             isOneToOne: false;
             referencedRelation: "parts_catalog";
             referencedColumns: ["id"];
@@ -1023,12 +1081,15 @@ export type Database = {
       finish_type: "spin" | "over" | "burst" | "xtreme" | "draw";
       part_type:
         | "blade"
-        | "ratchet"
-        | "bit"
+        | "main_blade"
+        | "metal_blade"
+        | "over_blade"
         | "lock_chip"
         | "assist_blade"
-        | "over_blade";
-      part_line: "BX" | "UX" | "CX";
+        | "ratchet"
+        | "bit";
+      part_line: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE";
+      bey_system: "BX" | "BXE" | "UX" | "UXE" | "CX" | "CXE";
       tournament_registration_status: "closed" | "open" | "finished";
       registration_status: "pending" | "approved" | "rejected";
       claim_request_status: "pending" | "approved" | "rejected";

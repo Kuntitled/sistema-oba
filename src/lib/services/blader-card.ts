@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sortSeasonRankingEntries } from "@/lib/engine/tournament-engine";
+import { inferComboSystem } from "@/lib/combo-rules";
 import { isMissingTableError, isValidUuid } from "@/lib/services/arena-queries";
 import type { Database } from "@/types/database";
 import type {
@@ -99,9 +100,12 @@ export async function getBladerCardProfile(
     }
   }
 
-  // Combo favorito (se migrations 005/006 já aplicadas e colunas preenchidas)
+  // Combo favorito (se migrations 005–008 já aplicadas e colunas preenchidas)
   const favIds = [
     blader.favorite_blade_id,
+    blader.favorite_lock_chip_id,
+    blader.favorite_over_blade_id,
+    blader.favorite_assist_blade_id,
     blader.favorite_ratchet_id,
     blader.favorite_bit_id,
   ].filter((id): id is string => Boolean(id));
@@ -120,6 +124,33 @@ export async function getBladerCardProfile(
     }
   }
 
+  const favoriteBlade = blader.favorite_blade_id
+    ? (partsById.get(blader.favorite_blade_id) ?? null)
+    : null;
+  const favoriteLockChip = blader.favorite_lock_chip_id
+    ? (partsById.get(blader.favorite_lock_chip_id) ?? null)
+    : null;
+  const favoriteOverBlade = blader.favorite_over_blade_id
+    ? (partsById.get(blader.favorite_over_blade_id) ?? null)
+    : null;
+  const favoriteAssistBlade = blader.favorite_assist_blade_id
+    ? (partsById.get(blader.favorite_assist_blade_id) ?? null)
+    : null;
+  const favoriteRatchet = blader.favorite_ratchet_id
+    ? (partsById.get(blader.favorite_ratchet_id) ?? null)
+    : null;
+  const favoriteBit = blader.favorite_bit_id
+    ? (partsById.get(blader.favorite_bit_id) ?? null)
+    : null;
+
+  const favoriteSystem = inferComboSystem({
+    system: blader.favorite_system,
+    blade: favoriteBlade,
+    lockChip: favoriteLockChip,
+    overBlade: favoriteOverBlade,
+    assistBlade: favoriteAssistBlade,
+  });
+
   return {
     blader,
     seasonName: targetSeason?.name ?? null,
@@ -132,15 +163,13 @@ export async function getBladerCardProfile(
     secondPlaces,
     thirdPlaces,
     favoriteCombo: {
-      blade: blader.favorite_blade_id
-        ? (partsById.get(blader.favorite_blade_id) ?? null)
-        : null,
-      ratchet: blader.favorite_ratchet_id
-        ? (partsById.get(blader.favorite_ratchet_id) ?? null)
-        : null,
-      bit: blader.favorite_bit_id
-        ? (partsById.get(blader.favorite_bit_id) ?? null)
-        : null,
+      system: favoriteSystem,
+      blade: favoriteBlade,
+      lockChip: favoriteLockChip,
+      overBlade: favoriteOverBlade,
+      assistBlade: favoriteAssistBlade,
+      ratchet: favoriteRatchet,
+      bit: favoriteBit,
     },
     mostUsedCombo: null,
   };

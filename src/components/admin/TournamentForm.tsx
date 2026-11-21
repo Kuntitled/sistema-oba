@@ -221,7 +221,22 @@ export function TournamentForm({
               />
             </div>
 
-            <div className="col-span-2 space-y-1.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="max_players" className="text-xs font-semibold">
+                Vagas (Opc.)
+              </Label>
+              <Input
+                id="max_players"
+                name="max_players"
+                type="number"
+                min={2}
+                max={128}
+                placeholder="Livre"
+                className="h-9 text-xs text-center"
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="location" className="text-xs font-semibold">
                 Local
               </Label>
