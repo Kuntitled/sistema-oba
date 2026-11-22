@@ -103,9 +103,9 @@ export default async function AdminTorneiosPage() {
             return (
               <Card
                 key={tournament.id}
-                className="border-border/60 bg-card/60 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                className="border-border/60 bg-card/60 p-4 sm:p-5 flex flex-col gap-3.5"
               >
-                <div className="space-y-1.5 min-w-0">
+                <div className="space-y-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <TournamentStatusSelect
                       tournamentId={tournament.id}
@@ -167,11 +167,11 @@ export default async function AdminTorneiosPage() {
                     )}
                   </div>
 
-                  <div className="font-bold text-base text-foreground">
+                  <div className="font-bold text-base sm:text-lg text-foreground">
                     {tournament.name}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3 text-primary" />
                       {formatDate(tournament.event_date)}
@@ -210,106 +210,112 @@ export default async function AdminTorneiosPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/40">
-                  <TournamentPromoCardButton
-                    variant="admin"
-                    tournament={{
-                      id: tournament.id,
-                      updated_at: tournament.updated_at,
-                      name: tournament.name,
-                      slug: tournament.slug,
-                      event_date: tournament.event_date,
-                      event_time: tournament.event_time,
-                      category: tournament.category ?? "semanal",
-                      format: tournament.format,
-                      swiss_rounds: tournament.swiss_rounds ?? 4,
-                      location: tournament.location,
-                      location_url: tournament.location_url,
-                      rulesetName: tournament.ruleset?.name ?? null,
-                      bannedCount,
-                      seasonName: tournament.season?.name ?? null,
-                      registration_status:
-                        tournament.registration_status ?? "closed",
-                      entry_fee: tournament.entry_fee ?? 0,
-                      max_players: tournament.max_players ?? null,
-                      prize_info: tournament.prize_info,
-                      description: tournament.description,
-                    }}
-                  />
+                <div className="pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-2">
+                  {/* Operação & Divulgação */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/admin/torneios/${tournament.id}/chaveamento`}>
+                      <Button
+                        size="sm"
+                        className="h-8 bg-emerald-600 hover:bg-emerald-600/90 text-white font-semibold text-xs gap-1.5 shadow-sm"
+                      >
+                        <GitBranch className="h-3.5 w-3.5" />
+                        Chaveamento / Ao Vivo
+                      </Button>
+                    </Link>
 
-                  <Link href={`/torneios/${tournament.slug}`} target="_blank">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
+                    <Link href={`/admin/torneios/${tournament.id}/inscricoes`}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-8 font-semibold text-xs gap-1.5 ${
+                          pendingCount > 0
+                            ? "border-amber-500/60 text-amber-500 hover:bg-amber-500/10"
+                            : "border-primary/40 text-primary hover:bg-primary/10"
+                        }`}
+                      >
+                        <ClipboardCheck className="h-3.5 w-3.5" />
+                        Inscrições
+                        {pendingCount > 0 ? ` (${pendingCount})` : ""}
+                      </Button>
+                    </Link>
+
+                    <Link href={`/admin/torneios/${tournament.id}/resultados`}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 font-semibold text-xs gap-1.5 border-border/80"
+                      >
+                        <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                        Manual
+                      </Button>
+                    </Link>
+
+                    <TournamentPromoCardButton
+                      variant="admin"
+                      tournament={{
+                        id: tournament.id,
+                        updated_at: tournament.updated_at,
+                        name: tournament.name,
+                        slug: tournament.slug,
+                        event_date: tournament.event_date,
+                        event_time: tournament.event_time,
+                        category: tournament.category ?? "semanal",
+                        format: tournament.format,
+                        swiss_rounds: tournament.swiss_rounds ?? 4,
+                        location: tournament.location,
+                        location_url: tournament.location_url,
+                        rulesetName: tournament.ruleset?.name ?? null,
+                        bannedCount,
+                        seasonName: tournament.season?.name ?? null,
+                        registration_status:
+                          tournament.registration_status ?? "closed",
+                        entry_fee: tournament.entry_fee ?? 0,
+                        max_players: tournament.max_players ?? null,
+                        prize_info: tournament.prize_info,
+                        description: tournament.description,
+                      }}
+                    />
+                  </div>
+
+                  {/* Links & Gestão */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Link href={`/torneios/${tournament.slug}`} target="_blank">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Ver Público
+                      </Button>
+                    </Link>
+
+                    <Link
+                      href={`/torneios/${tournament.slug}/telao`}
+                      target="_blank"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Ver Público
-                    </Button>
-                  </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
+                        title="Abrir Modo Telão / TV em tela cheia"
+                      >
+                        <Tv className="h-3.5 w-3.5 text-fire-orange" />
+                        Telão
+                      </Button>
+                    </Link>
 
-                  <Link
-                    href={`/torneios/${tournament.slug}/telao`}
-                    target="_blank"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
-                      title="Abrir Modo Telão / TV em tela cheia"
-                    >
-                      <Tv className="h-3.5 w-3.5 text-fire-orange" />
-                      Telão
-                    </Button>
-                  </Link>
+                    <EditTournamentButton
+                      tournament={tournament}
+                      rulesets={rulesets}
+                      pixConfigured={pixConfigured}
+                    />
 
-                  <Link href={`/admin/torneios/${tournament.id}/inscricoes`}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`h-8 font-semibold text-xs gap-1.5 ${
-                        pendingCount > 0
-                          ? "border-amber-500/60 text-amber-500 hover:bg-amber-500/10"
-                          : "border-primary/40 text-primary hover:bg-primary/10"
-                      }`}
-                    >
-                      <ClipboardCheck className="h-3.5 w-3.5" />
-                      Inscrições
-                      {pendingCount > 0 ? ` (${pendingCount})` : ""}
-                    </Button>
-                  </Link>
-
-                  <Link href={`/admin/torneios/${tournament.id}/chaveamento`}>
-                    <Button
-                      size="sm"
-                      className="h-8 bg-emerald-600 hover:bg-emerald-600/90 text-white font-semibold text-xs gap-1.5 shadow-sm"
-                    >
-                      <GitBranch className="h-3.5 w-3.5" />
-                      Chaveamento / Ao Vivo
-                    </Button>
-                  </Link>
-
-                  <Link href={`/admin/torneios/${tournament.id}/resultados`}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 font-semibold text-xs gap-1.5 border-border/80"
-                    >
-                      <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                      Manual
-                    </Button>
-                  </Link>
-
-                  <EditTournamentButton
-                    tournament={tournament}
-                    rulesets={rulesets}
-                    pixConfigured={pixConfigured}
-                  />
-
-                  <DeleteTournamentButton
-                    tournamentId={tournament.id}
-                    tournamentName={tournament.name}
-                  />
+                    <DeleteTournamentButton
+                      tournamentId={tournament.id}
+                      tournamentName={tournament.name}
+                    />
+                  </div>
                 </div>
               </Card>
             );
