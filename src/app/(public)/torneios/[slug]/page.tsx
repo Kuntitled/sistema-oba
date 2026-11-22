@@ -2,12 +2,15 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   Calendar,
+  Clock,
+  ExternalLink,
   MapPin,
   Users,
   ChevronLeft,
   ShieldCheck,
   Tv,
   ClipboardCheck,
+  Trophy,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +25,10 @@ import {
   getRulesetBannedParts,
 } from "@/lib/services/registrations";
 import { formatCurrencyBRL } from "@/lib/pix";
+import { sanitizeHttpUrl } from "@/lib/tournament-card-canvas";
 import { PublicTournamentLive } from "@/components/tournament/PublicTournamentLive";
 import { TournamentBanlistButton } from "@/components/tournament/TournamentBanlistButton";
+import { TournamentPromoCardButton } from "@/components/tournament/TournamentPromoCardButton";
 import { TournamentRegistrationClient } from "@/components/tournament/TournamentRegistrationClient";
 import {
   TOURNAMENT_CATEGORY_LABELS,
@@ -103,6 +108,8 @@ export default async function TorneioDetalhePage({
     tournament.registration_status === "open" ||
     Boolean(existingRegData.registration);
 
+  const safeMapsUrl = sanitizeHttpUrl(tournament.location_url);
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
     const [year, month, day] = dateStr.split("-");
@@ -170,16 +177,47 @@ export default async function TorneioDetalhePage({
             </p>
           )}
 
+          {tournament.prize_info && (
+            <div className="rounded-xl border border-fire-yellow/35 bg-fire-yellow/10 p-3.5 flex items-start gap-2.5 text-xs">
+              <Trophy className="h-4 w-4 text-fire-yellow shrink-0 mt-0.5" />
+              <div className="space-y-0.5 min-w-0">
+                <div className="font-bold uppercase tracking-wider text-[10px] text-fire-yellow">
+                  Premiação Oficial
+                </div>
+                <div className="text-foreground font-medium whitespace-pre-line leading-relaxed">
+                  {tournament.prize_info}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border/40">
-            <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-4 w-4 text-primary" />
                 {formatDate(tournament.event_date)}
               </span>
-              {tournament.location && (
+              {tournament.event_time && (
                 <span className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-fire-yellow" />
+                  {tournament.event_time}
+                </span>
+              )}
+              {(tournament.location || safeMapsUrl) && (
+                <span className="flex items-center gap-1.5 flex-wrap">
                   <MapPin className="h-4 w-4 text-fire-orange" />
-                  {tournament.location}
+                  <span>{tournament.location || "Localização do Evento"}</span>
+                  {safeMapsUrl && (
+                    <a
+                      href={safeMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-bold text-primary hover:underline ml-0.5"
+                    >
+                      Ver no Google Maps
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </span>
               )}
               {tournament.max_players && (
@@ -191,6 +229,32 @@ export default async function TorneioDetalhePage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <TournamentPromoCardButton
+                variant="public"
+                tournament={{
+                  id: tournament.id,
+                  updated_at: tournament.updated_at,
+                  name: tournament.name,
+                  slug: tournament.slug,
+                  event_date: tournament.event_date,
+                  event_time: tournament.event_time,
+                  category: tournament.category ?? "semanal",
+                  format: tournament.format,
+                  swiss_rounds: tournament.swiss_rounds ?? 4,
+                  location: tournament.location,
+                  location_url: tournament.location_url,
+                  rulesetName: tournament.ruleset?.name ?? null,
+                  bannedCount: bansRes.bannedParts.length,
+                  seasonName: tournament.season?.name ?? null,
+                  registration_status:
+                    tournament.registration_status ?? "closed",
+                  entry_fee: tournament.entry_fee ?? 0,
+                  max_players: tournament.max_players ?? null,
+                  prize_info: tournament.prize_info,
+                  description: tournament.description,
+                }}
+              />
+
               {tournament.ruleset && (
                 <TournamentBanlistButton
                   rulesetName={tournament.ruleset.name}

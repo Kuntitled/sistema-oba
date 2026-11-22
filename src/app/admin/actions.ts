@@ -76,6 +76,44 @@ function parseEntryFee(raw: FormDataEntryValue | null): {
   return { value: Math.round(num * 100) / 100, error: null };
 }
 
+function parseSafeHttpUrl(raw: FormDataEntryValue | null): {
+  value: string | null;
+  error: string | null;
+} {
+  if (typeof raw !== "string") return { value: null, error: null };
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: null, error: null };
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(trimmed)
+      ? `https://${trimmed}`
+      : trimmed;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return {
+        value: null,
+        error: "O link do Google Maps deve usar http:// ou https://.",
+      };
+    }
+    return { value: parsed.toString(), error: null };
+  } catch {
+    return {
+      value: null,
+      error: "O link do Google Maps informado não é uma URL válida.",
+    };
+  }
+}
+
+function isMissingColumnError(
+  error: { code?: string | null; message?: string | null } | null | undefined
+): boolean {
+  if (!error) return false;
+  return error.code === "42703" || error.code === "PGRST204";
+}
+
 /**
  * Cadastra um novo Blader e inicializa sua entrada na temporada ativa.
  */
@@ -278,6 +316,14 @@ export async function createTournamentAction(formData: FormData) {
 
   const name = (formData.get("name") as string)?.trim();
   const location = (formData.get("location") as string)?.trim() || null;
+  const event_time =
+    (formData.get("event_time") as string)?.trim().slice(0, 120) || null;
+  const parsedLocationUrl = parseSafeHttpUrl(formData.get("location_url"));
+  if (parsedLocationUrl.error) {
+    return { error: parsedLocationUrl.error };
+  }
+  const prize_info =
+    (formData.get("prize_info") as string)?.trim().slice(0, 600) || null;
   const event_date = formData.get("event_date") as string;
   const categoryRaw = (formData.get("category") as string) || "semanal";
   const formatRaw =
@@ -341,7 +387,10 @@ export async function createTournamentAction(formData: FormData) {
     slug: string;
     description: string | null;
     location: string | null;
+    location_url?: string | null;
     event_date: string;
+    event_time?: string | null;
+    prize_info?: string | null;
     category: TournamentCategory;
     format: TournamentFormat;
     swiss_rounds: number;
@@ -368,6 +417,16 @@ export async function createTournamentAction(formData: FormData) {
     max_players,
   };
 
+  if (parsedLocationUrl.value) {
+    insertPayload.location_url = parsedLocationUrl.value;
+  }
+  if (event_time) {
+    insertPayload.event_time = event_time;
+  }
+  if (prize_info) {
+    insertPayload.prize_info = prize_info;
+  }
+
   if (hasRulesetField && parsedRuleset.value) {
     insertPayload.ruleset_id = parsedRuleset.value;
   }
@@ -379,6 +438,12 @@ export async function createTournamentAction(formData: FormData) {
     .single();
 
   if (error) {
+    if (isMissingColumnError(error)) {
+      return {
+        error:
+          "Os campos Horário, Link Google Maps e Premiação exigem a execução da migration supabase/migrations/010_tournament_promo_fields.sql no Supabase SQL Editor.",
+      };
+    }
     if (error.code === "23505") {
       return { error: "Já existe um torneio com esse nome na mesma data." };
     }
@@ -415,6 +480,19 @@ export async function updateTournamentAction(
 
   const name = (formData.get("name") as string)?.trim();
   const location = (formData.get("location") as string)?.trim() || null;
+  const hasEventTimeField = formData.has("event_time");
+  const event_time =
+    (formData.get("event_time") as string)?.trim().slice(0, 120) || null;
+  const hasLocationUrlField = formData.has("location_url");
+  const parsedLocationUrl = hasLocationUrlField
+    ? parseSafeHttpUrl(formData.get("location_url"))
+    : { value: existing.location_url ?? null, error: null };
+  if (parsedLocationUrl.error) {
+    return { error: parsedLocationUrl.error };
+  }
+  const hasPrizeInfoField = formData.has("prize_info");
+  const prize_info =
+    (formData.get("prize_info") as string)?.trim().slice(0, 600) || null;
   const event_date = (formData.get("event_date") as string)?.trim();
   const categoryRaw = (formData.get("category") as string) || existing.category;
   const formatRaw = (formData.get("format") as string) || existing.format;
@@ -489,7 +567,10 @@ export async function updateTournamentAction(
     name: string;
     description: string | null;
     location: string | null;
+    location_url?: string | null;
     event_date: string;
+    event_time?: string | null;
+    prize_info?: string | null;
     category: TournamentCategory;
     format: TournamentFormat;
     swiss_rounds: number;
@@ -515,6 +596,21 @@ export async function updateTournamentAction(
     max_players,
   };
 
+  if (hasEventTimeField && event_time !== (existing.event_time ?? null)) {
+    updatePayload.event_time = event_time;
+  }
+
+  if (
+    hasLocationUrlField &&
+    parsedLocationUrl.value !== (existing.location_url ?? null)
+  ) {
+    updatePayload.location_url = parsedLocationUrl.value;
+  }
+
+  if (hasPrizeInfoField && prize_info !== (existing.prize_info ?? null)) {
+    updatePayload.prize_info = prize_info;
+  }
+
   if (
     hasRulesetField &&
     (parsedRuleset.value !== null || existing.ruleset_id !== null)
@@ -530,6 +626,12 @@ export async function updateTournamentAction(
     .single();
 
   if (updateError || !tournament) {
+    if (isMissingColumnError(updateError)) {
+      return {
+        error:
+          "Os campos Horário, Link Google Maps e Premiação exigem a execução da migration supabase/migrations/010_tournament_promo_fields.sql no Supabase SQL Editor.",
+      };
+    }
     return {
       error: `Erro ao atualizar torneio: ${updateError?.message ?? "falha desconhecida"}`,
     };

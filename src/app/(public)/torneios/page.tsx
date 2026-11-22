@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Swords, Calendar, MapPin, Users, ChevronRight, Flame, Radio } from "lucide-react";
+import { Swords, Calendar, Clock, MapPin, Users, ChevronRight, Flame, Radio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -155,6 +155,12 @@ export default async function TorneiosPage() {
                           <Calendar className="h-3.5 w-3.5 text-primary" />
                           {formatDate(tournament.event_date)}
                         </span>
+                        {tournament.event_time && (
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-fire-yellow" />
+                            {tournament.event_time}
+                          </span>
+                        )}
                         {tournament.location && (
                           <span className="flex items-center gap-1.5">
                             <MapPin className="h-3.5 w-3.5 text-fire-orange" />

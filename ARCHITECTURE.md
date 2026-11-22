@@ -222,7 +222,8 @@ Sistema OBA/
 │   │   ├── 006_seed_parts_catalog.sql                  ← Seed idempotente das 288 peças únicas
 │   │   ├── 007_phase3a_combo_systems_and_avatars.sql   ← Unificação max_players, 6 sistemas, combos e bucket avatars
 │   │   ├── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
-│   │   └── 009_phase3b_registrations_and_receipts.sql  ← Bucket privado receipts, RLS de reenvio e proteção de inscrições
+│   │   ├── 009_phase3b_registrations_and_receipts.sql  ← Bucket privado receipts, RLS de reenvio e proteção de inscrições
+│   │   └── 010_tournament_promo_fields.sql             ← Campos event_time, location_url (Google Maps) e prize_info em torneios
 │   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
@@ -238,7 +239,7 @@ Sistema OBA/
     │   │   ├── page.tsx                ← Home: Hero, redes sociais OBA, Banner Ao Vivo, Pódio Top 3 e Top 10 Ranking por Temporada (com combos)
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
-    │   │   │   └── [slug]/page.tsx     ← Detalhes, card de ban-list (PNG), inscrição online (#inscricao), arenas e resultados
+    │   │   │   └── [slug]/page.tsx     ← Detalhes, cards de divulgação/ban-list (PNG), inscrição online, arenas e resultados
     │   │   ├── bladers/page.tsx        ← Lista pública de competidores (abre Card Público)
     │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (perfil, coleção e minhas inscrições)
     │   │   └── privacidade/page.tsx    ← Política de Privacidade pública (OAuth / LGPD)
@@ -267,7 +268,7 @@ Sistema OBA/
     │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
     │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
     │   │       └── torneios/
-    │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição, taxas/vagas e ações)
+    │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição, card PNG, taxas/vagas e ações)
     │   │           └── [id]/
     │   │               ├── chaveamento/page.tsx ← Motor Suíço + Tiebreaker + Top Cut + Publicação
     │   │               ├── inscricoes/page.tsx  ← Conferência de inscrições, decklists e comprovantes PIX
@@ -318,7 +319,8 @@ Sistema OBA/
     │   ├── shared/
     │   │   ├── BanlistCardModal.tsx    ← Modal gerador de card PNG da ban-list (Feed 4:5, Quadrado 1:1, Story 9:16)
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
-    │   │   └── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
+    │   │   ├── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
+    │   │   └── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
     │   ├── tournament/                 ← Componentes públicos de torneio, telão, arenas, PIX e inscrição
     │   │   ├── BroadcastBoardClient.tsx
     │   │   ├── HomeLiveTournamentBanner.tsx
@@ -326,6 +328,7 @@ Sistema OBA/
     │   │   ├── PixPaymentBox.tsx
     │   │   ├── PublicTournamentLive.tsx
     │   │   ├── TournamentBanlistButton.tsx
+    │   │   ├── TournamentPromoCardButton.tsx
     │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
@@ -337,6 +340,7 @@ Sistema OBA/
     │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro
     │   ├── pix.ts                      ← Gerador PIX estático EMVCo/BACEN (BR Code + CRC16) e formatador BRL
     │   ├── receipt-upload.ts           ← Compressão client-side e upload privado no bucket receipts
+    │   ├── tournament-card-canvas.ts   ← Renderizador Canvas 2D e legenda de cards de torneio OBA (4:5, 1:1, 9:16) + QR Code
     │   ├── utils.ts                    ← Helper cn()
     │   ├── engine/
     │   │   └── tournament-engine.ts    ← Motor puro OBA (Suíço, Finishes, Tiebreaker, Top Cut)

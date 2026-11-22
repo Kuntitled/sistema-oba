@@ -251,6 +251,48 @@ export function TournamentForm({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="event_time" className="text-xs font-semibold">
+                Horário(s) (Opcional)
+              </Label>
+              <Input
+                id="event_time"
+                name="event_time"
+                placeholder="Ex: Check-in 13h30 • Início 14h00"
+                maxLength={120}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="location_url" className="text-xs font-semibold">
+                Link Google Maps (Opcional)
+              </Label>
+              <Input
+                id="location_url"
+                name="location_url"
+                type="url"
+                placeholder="https://maps.app.goo.gl/..."
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="prize_info" className="text-xs font-semibold">
+              Premiação (Opcional)
+            </Label>
+            <Textarea
+              id="prize_info"
+              name="prize_info"
+              placeholder={"Ex: 1º Booster Beyblade X + Medalha\n2º e 3º Medalhas + Brindes"}
+              rows={2}
+              maxLength={600}
+              className="text-xs"
+            />
+          </div>
+
           <div className="rounded-xl border border-border/60 bg-background/40 p-3.5 space-y-3">
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
               Inscrições Online &amp; PIX

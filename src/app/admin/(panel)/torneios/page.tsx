@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Swords,
   Calendar,
+  Clock,
   MapPin,
   Users,
   Trophy,
@@ -14,16 +15,18 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getTournaments } from "@/lib/services/league";
-import { getRulesets } from "@/lib/services/parts";
+import { getRulesetsWithBans } from "@/lib/services/parts";
 import {
   getLeagueSettings,
   getTournamentsRegistrationStats,
 } from "@/lib/services/registrations";
 import { formatCurrencyBRL, isPixConfigured } from "@/lib/pix";
+import { sanitizeHttpUrl } from "@/lib/tournament-card-canvas";
 import { TournamentForm } from "@/components/admin/TournamentForm";
 import { EditTournamentButton } from "@/components/admin/EditTournamentButton";
 import { TournamentStatusSelect } from "@/components/admin/TournamentStatusSelect";
 import { DeleteTournamentButton } from "@/components/admin/DeleteTournamentButton";
+import { TournamentPromoCardButton } from "@/components/tournament/TournamentPromoCardButton";
 import {
   TOURNAMENT_CATEGORY_LABELS,
   TOURNAMENT_FORMAT_LABELS,
@@ -33,10 +36,14 @@ import {
 export default async function AdminTorneiosPage() {
   const [tournaments, { rulesets }, { settings }] = await Promise.all([
     getTournaments(),
-    getRulesets({ includeInactive: true }),
+    getRulesetsWithBans(),
     getLeagueSettings(),
   ]);
   const activeRulesets = rulesets.filter((r) => r.is_active);
+  const bannedCountByRulesetId = new Map<string, number>();
+  for (const rs of rulesets) {
+    bannedCountByRulesetId.set(rs.id, rs.bannedPartIds.length);
+  }
   const pixConfigured = isPixConfigured(settings);
   const regStats = await getTournamentsRegistrationStats(
     tournaments.map((t) => t.id)
@@ -88,6 +95,10 @@ export default async function AdminTorneiosPage() {
             const entryFee = Number(tournament.entry_fee ?? 0);
             const pendingCount = stat?.pending ?? 0;
             const participantsCount = stat?.participantsCount ?? 0;
+            const safeMapsUrl = sanitizeHttpUrl(tournament.location_url);
+            const bannedCount = tournament.ruleset_id
+              ? (bannedCountByRulesetId.get(tournament.ruleset_id) ?? 0)
+              : 0;
 
             return (
               <Card
@@ -165,10 +176,28 @@ export default async function AdminTorneiosPage() {
                       <Calendar className="h-3 w-3 text-primary" />
                       {formatDate(tournament.event_date)}
                     </span>
-                    {tournament.location && (
+                    {tournament.event_time && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-fire-yellow" />
+                        {tournament.event_time}
+                      </span>
+                    )}
+                    {(tournament.location || safeMapsUrl) && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3 text-fire-orange" />
-                        {tournament.location}
+                        <span>{tournament.location || "Google Maps"}</span>
+                        {safeMapsUrl && (
+                          <a
+                            href={safeMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-primary hover:underline font-semibold ml-1"
+                            title="Abrir local no Google Maps"
+                          >
+                            Maps
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
                       </span>
                     )}
                     <span className="flex items-center gap-1">
@@ -182,6 +211,32 @@ export default async function AdminTorneiosPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/40">
+                  <TournamentPromoCardButton
+                    variant="admin"
+                    tournament={{
+                      id: tournament.id,
+                      updated_at: tournament.updated_at,
+                      name: tournament.name,
+                      slug: tournament.slug,
+                      event_date: tournament.event_date,
+                      event_time: tournament.event_time,
+                      category: tournament.category ?? "semanal",
+                      format: tournament.format,
+                      swiss_rounds: tournament.swiss_rounds ?? 4,
+                      location: tournament.location,
+                      location_url: tournament.location_url,
+                      rulesetName: tournament.ruleset?.name ?? null,
+                      bannedCount,
+                      seasonName: tournament.season?.name ?? null,
+                      registration_status:
+                        tournament.registration_status ?? "closed",
+                      entry_fee: tournament.entry_fee ?? 0,
+                      max_players: tournament.max_players ?? null,
+                      prize_info: tournament.prize_info,
+                      description: tournament.description,
+                    }}
+                  />
+
                   <Link href={`/torneios/${tournament.slug}`} target="_blank">
                     <Button
                       variant="ghost"

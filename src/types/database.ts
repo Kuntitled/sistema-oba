@@ -168,7 +168,10 @@ export type Database = {
           slug: string;
           description: string | null;
           location: string | null;
+          location_url: string | null;
           event_date: string;
+          event_time: string | null;
+          prize_info: string | null;
           category: "semanal" | "oficial";
           format:
             | "swiss_top_cut"
@@ -194,7 +197,10 @@ export type Database = {
           slug: string;
           description?: string | null;
           location?: string | null;
+          location_url?: string | null;
           event_date: string;
+          event_time?: string | null;
+          prize_info?: string | null;
           category?: "semanal" | "oficial";
           format?:
             | "swiss_top_cut"
@@ -220,7 +226,10 @@ export type Database = {
           slug?: string;
           description?: string | null;
           location?: string | null;
+          location_url?: string | null;
           event_date?: string;
+          event_time?: string | null;
+          prize_info?: string | null;
           category?: "semanal" | "oficial";
           format?:
             | "swiss_top_cut"

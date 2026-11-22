@@ -69,6 +69,11 @@ export function EditTournamentButton({
     tournament.max_players ? String(tournament.max_players) : ""
   );
   const [location, setLocation] = React.useState(tournament.location ?? "");
+  const [locationUrl, setLocationUrl] = React.useState(
+    tournament.location_url ?? ""
+  );
+  const [eventTime, setEventTime] = React.useState(tournament.event_time ?? "");
+  const [prizeInfo, setPrizeInfo] = React.useState(tournament.prize_info ?? "");
   const [description, setDescription] = React.useState(
     tournament.description ?? ""
   );
@@ -89,6 +94,9 @@ export function EditTournamentButton({
         tournament.max_players ? String(tournament.max_players) : ""
       );
       setLocation(tournament.location ?? "");
+      setLocationUrl(tournament.location_url ?? "");
+      setEventTime(tournament.event_time ?? "");
+      setPrizeInfo(tournament.prize_info ?? "");
       setDescription(tournament.description ?? "");
       setError(null);
       setSuccess(false);
@@ -122,6 +130,9 @@ export function EditTournamentButton({
     formData.set("entry_fee", entryFee);
     formData.set("max_players", maxPlayers);
     formData.set("location", location);
+    formData.set("location_url", locationUrl);
+    formData.set("event_time", eventTime);
+    formData.set("prize_info", prizeInfo);
     formData.set("description", description);
 
     const result = await updateTournamentAction(tournament.id, formData);
@@ -332,6 +343,60 @@ export function EditTournamentButton({
                   className="h-9 text-xs"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor={`edit-t-time-${tournament.id}`}
+                  className="text-xs font-semibold"
+                >
+                  Horário(s) (Opcional)
+                </Label>
+                <Input
+                  id={`edit-t-time-${tournament.id}`}
+                  value={eventTime}
+                  onChange={(e) => setEventTime(e.target.value)}
+                  placeholder="Ex: Check-in 13h30 • Início 14h00"
+                  maxLength={120}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor={`edit-t-maps-${tournament.id}`}
+                  className="text-xs font-semibold"
+                >
+                  Link Google Maps (Opcional)
+                </Label>
+                <Input
+                  id={`edit-t-maps-${tournament.id}`}
+                  type="url"
+                  value={locationUrl}
+                  onChange={(e) => setLocationUrl(e.target.value)}
+                  placeholder="https://maps.app.goo.gl/..."
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor={`edit-t-prize-${tournament.id}`}
+                className="text-xs font-semibold"
+              >
+                Premiação (Opcional)
+              </Label>
+              <Textarea
+                id={`edit-t-prize-${tournament.id}`}
+                value={prizeInfo}
+                onChange={(e) => setPrizeInfo(e.target.value)}
+                placeholder={"Ex: 1º Booster Beyblade X + Medalha\n2º e 3º Medalhas + Brindes"}
+                rows={2}
+                maxLength={600}
+                className="text-xs"
+              />
             </div>
 
             <div className="rounded-xl border border-border/60 bg-background/40 p-3.5 space-y-3">
