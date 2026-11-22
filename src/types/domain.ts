@@ -56,10 +56,17 @@ export interface TournamentResult extends TournamentResultRow {
 
 export type RankingRow = Database["public"]["Tables"]["ranking"]["Row"];
 
+export interface BladerComboSummary {
+  system: BeySystem | null;
+  summaryText: string;
+}
+
 export interface RankingEntry extends RankingRow {
   blader?: BladerRow;
   season?: SeasonRow;
   position?: number; // Posição calculada (1º, 2º, etc.)
+  favoriteCombo?: BladerComboSummary | null;
+  mostUsedCombo?: (BladerComboSummary & { count: number }) | null;
 }
 
 // ─── Arenas & Partidas (Fase 2) ───────────────────────────────────────────────

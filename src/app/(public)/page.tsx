@@ -1,17 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Flame, Trophy, Swords, Shield, Zap, ChevronRight } from "lucide-react";
+import {
+  Flame,
+  Trophy,
+  Swords,
+  Shield,
+  Zap,
+  ChevronRight,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RankingTable } from "@/components/ranking/RankingTable";
 import { HomeLiveTournamentBanner } from "@/components/tournament/HomeLiveTournamentBanner";
+import {
+  DiscordIcon,
+  InstagramIcon,
+  WhatsAppIcon,
+} from "@/components/shared/SocialIcons";
 import { getSeasonRanking, getTournaments } from "@/lib/services/league";
 import { getArenasOverview } from "@/lib/services/arenas";
+import { getBladersComboSummaries } from "@/lib/services/blader-combos";
 import {
   OBA_PODIUM_POINTS,
+  OBA_SOCIAL_LINKS,
   OBA_SWISS_LEADER_BONUS,
   OBA_SWISS_WIN_POINTS,
 } from "@/lib/constants";
+import type { BladerRow } from "@/types/domain";
 
 export default async function HomePage({
   searchParams,
@@ -21,6 +37,21 @@ export default async function HomePage({
   const { season: seasonParam } = await searchParams;
   const [{ ranking, seasons, activeSeason, selectedSeason }, tournaments] =
     await Promise.all([getSeasonRanking(seasonParam), getTournaments()]);
+
+  const top10Ranking = ranking.slice(0, 10);
+  const top10Bladers = top10Ranking
+    .map((entry) => entry.blader)
+    .filter((b): b is BladerRow => Boolean(b));
+  const comboSummaries = await getBladersComboSummaries(top10Bladers);
+
+  const hydratedTop10 = top10Ranking.map((entry) => {
+    const combos = entry.blader ? comboSummaries.get(entry.blader.id) : null;
+    return {
+      ...entry,
+      favoriteCombo: combos?.favoriteCombo ?? null,
+      mostUsedCombo: combos?.mostUsedCombo ?? null,
+    };
+  });
 
   const ongoingTournament =
     tournaments.find((t) => t.status === "ongoing") ??
@@ -90,6 +121,39 @@ export default async function HomePage({
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </Link>
+            </div>
+
+            {/* Links rápidos das redes sociais oficiais */}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <a
+                href={OBA_SOCIAL_LINKS.instagram.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-pink-500/35 bg-pink-500/10 text-xs font-semibold text-foreground hover:border-pink-500/70 hover:bg-pink-500/20 transition-colors"
+              >
+                <InstagramIcon className="h-3.5 w-3.5 text-pink-500" />
+                <span>{OBA_SOCIAL_LINKS.instagram.handle}</span>
+              </a>
+
+              <a
+                href={OBA_SOCIAL_LINKS.whatsapp.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 text-xs font-semibold text-foreground hover:border-emerald-500/70 hover:bg-emerald-500/20 transition-colors"
+              >
+                <WhatsAppIcon className="h-3.5 w-3.5 text-emerald-500" />
+                <span>{OBA_SOCIAL_LINKS.whatsapp.label}</span>
+              </a>
+
+              <a
+                href={OBA_SOCIAL_LINKS.discord.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-indigo-500/35 bg-indigo-500/10 text-xs font-semibold text-foreground hover:border-indigo-500/70 hover:bg-indigo-500/20 transition-colors"
+              >
+                <DiscordIcon className="h-3.5 w-3.5 text-indigo-400" />
+                <span>{OBA_SOCIAL_LINKS.discord.label}</span>
+              </a>
             </div>
 
             {ongoingTournament && (
@@ -207,19 +271,19 @@ export default async function HomePage({
         </div>
       </section>
 
-      {/* ─── Tabela de Classificação Geral ─────────────────────── */}
+      {/* ─── Tabela de Classificação Geral (Top 10) ─────────────────────── */}
       <section className="container mx-auto px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" />
               <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-                Ranking Geral{" "}
+                Top 10 Ranking Geral{" "}
                 {selectedSeason ? `— ${selectedSeason.name}` : "da Liga"}
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Pontuação oficial acumulada em etapas Semanais, Oficiais e Fase Suíça.
+              Elite da temporada com combos favoritos e mais usados em etapas Semanais, Oficiais e Fase Suíça.
             </p>
           </div>
 
@@ -232,11 +296,99 @@ export default async function HomePage({
         </div>
 
         <RankingTable
-          initialRanking={ranking}
+          initialRanking={hydratedTop10}
           seasons={seasons}
           selectedSeason={selectedSeason}
           activeSeason={activeSeason}
+          totalRankedCount={ranking.length}
         />
+      </section>
+
+      {/* ─── Comunidade Oficial OBA (Redes Sociais) ────────────────────── */}
+      <section className="container mx-auto px-4 sm:px-6">
+        <Card className="border-border/60 bg-card/60 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-pink-500 via-emerald-500 to-indigo-500" />
+          <CardContent className="p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-foreground">
+                  Comunidade Oficial OBA
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Acompanhe novidades dos eventos, combine treinos e tire dúvidas com os Bladers do Amazonas.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <a
+                href={OBA_SOCIAL_LINKS.instagram.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-xl border border-border/60 bg-background/50 hover:border-pink-500/50 hover:bg-pink-500/5 p-4 flex items-center justify-between gap-3 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center shrink-0">
+                    <InstagramIcon className="h-5 w-5 text-pink-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground group-hover:text-pink-400 transition-colors">
+                      {OBA_SOCIAL_LINKS.instagram.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {OBA_SOCIAL_LINKS.instagram.handle}
+                    </div>
+                  </div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-pink-400 shrink-0" />
+              </a>
+
+              <a
+                href={OBA_SOCIAL_LINKS.whatsapp.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-xl border border-border/60 bg-background/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 p-4 flex items-center justify-between gap-3 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <WhatsAppIcon className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground group-hover:text-emerald-400 transition-colors">
+                      {OBA_SOCIAL_LINKS.whatsapp.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Entrar no grupo oficial
+                    </div>
+                  </div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-emerald-400 shrink-0" />
+              </a>
+
+              <a
+                href={OBA_SOCIAL_LINKS.discord.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-xl border border-border/60 bg-background/50 hover:border-indigo-500/50 hover:bg-indigo-500/5 p-4 flex items-center justify-between gap-3 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                    <DiscordIcon className="h-5 w-5 text-indigo-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground group-hover:text-indigo-400 transition-colors">
+                      {OBA_SOCIAL_LINKS.discord.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {OBA_SOCIAL_LINKS.discord.handle}
+                    </div>
+                  </div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-indigo-400 shrink-0" />
+              </a>
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

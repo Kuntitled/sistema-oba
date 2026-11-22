@@ -25,7 +25,6 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
 
   const [nickname, setNickname] = React.useState(blader.nickname);
   const [name, setName] = React.useState(blader.name);
-  const [city, setCity] = React.useState(blader.city ?? "");
   const [avatarUrl, setAvatarUrl] = React.useState(blader.avatar_url ?? "");
   const [bio, setBio] = React.useState(blader.bio ?? "");
   const [userId, setUserId] = React.useState(blader.user_id ?? "");
@@ -36,7 +35,6 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
     if (nextOpen) {
       setNickname(blader.nickname);
       setName(blader.name);
-      setCity(blader.city ?? "");
       setAvatarUrl(blader.avatar_url ?? "");
       setBio(blader.bio ?? "");
       setUserId(blader.user_id ?? "");
@@ -55,7 +53,6 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
     const formData = new FormData();
     formData.set("nickname", nickname);
     formData.set("name", name);
-    formData.set("city", city);
     formData.set("avatar_url", avatarUrl);
     formData.set("bio", bio);
     formData.set("user_id", userId);
@@ -148,38 +145,20 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor={`edit-city-${blader.id}`}
-                  className="text-xs font-semibold"
-                >
-                  Cidade (Amazonas)
-                </Label>
-                <Input
-                  id={`edit-city-${blader.id}`}
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Ex: Manaus"
-                  className="h-9 text-xs"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor={`edit-avatar-${blader.id}`}
-                  className="text-xs font-semibold"
-                >
-                  URL da Foto/Avatar
-                </Label>
-                <Input
-                  id={`edit-avatar-${blader.id}`}
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="h-9 text-xs"
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label
+                htmlFor={`edit-avatar-${blader.id}`}
+                className="text-xs font-semibold"
+              >
+                URL da Foto/Avatar
+              </Label>
+              <Input
+                id={`edit-avatar-${blader.id}`}
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder="https://..."
+                className="h-9 text-xs"
+              />
             </div>
 
             <div className="space-y-1.5">

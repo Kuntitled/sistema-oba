@@ -47,7 +47,7 @@ export default function PrivacidadePage() {
                 <strong className="text-foreground">Sistema OBA</strong>, coletamos apenas as informações básicas fornecidas pelo provedor de autenticação: nome, endereço de e-mail e URL da foto de perfil.
               </p>
               <p>
-                No seu Painel Pessoal (<code>/meu-painel</code>), você também pode preencher ou atualizar voluntariamente seu apelido (nickname), cidade, bio, anime favorito, combo favorito e coleção de peças, além de acompanhar seu histórico público de torneios e pontuação no ranking estadual.
+                No seu Painel Pessoal (<code>/meu-painel</code>), você também pode preencher ou atualizar voluntariamente seu apelido (nickname), bio, anime favorito, combo favorito e coleção de peças, além de acompanhar seu histórico público de torneios e pontuação no ranking estadual.
               </p>
             </section>
 

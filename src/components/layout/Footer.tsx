@@ -1,6 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Flame } from "lucide-react";
+import {
+  DiscordIcon,
+  InstagramIcon,
+  WhatsAppIcon,
+} from "@/components/shared/SocialIcons";
+import { OBA_SOCIAL_LINKS } from "@/lib/constants";
 
 export function Footer() {
   return (
@@ -56,6 +62,40 @@ export function Footer() {
             <Link href="/admin" className="hover:text-primary transition-colors font-medium">
               Admin
             </Link>
+          </div>
+
+          {/* Redes Sociais */}
+          <div className="flex items-center gap-2">
+            <a
+              href={OBA_SOCIAL_LINKS.instagram.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Instagram (${OBA_SOCIAL_LINKS.instagram.handle})`}
+              aria-label="Instagram da OBA"
+              className="h-8 w-8 rounded-full border border-border/60 bg-background/50 hover:border-pink-500/60 hover:text-pink-500 text-muted-foreground flex items-center justify-center transition-colors"
+            >
+              <InstagramIcon className="h-4 w-4" />
+            </a>
+            <a
+              href={OBA_SOCIAL_LINKS.whatsapp.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={OBA_SOCIAL_LINKS.whatsapp.label}
+              aria-label="Grupo no WhatsApp da OBA"
+              className="h-8 w-8 rounded-full border border-border/60 bg-background/50 hover:border-emerald-500/60 hover:text-emerald-500 text-muted-foreground flex items-center justify-center transition-colors"
+            >
+              <WhatsAppIcon className="h-4 w-4" />
+            </a>
+            <a
+              href={OBA_SOCIAL_LINKS.discord.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={OBA_SOCIAL_LINKS.discord.label}
+              aria-label="Discord da OBA"
+              className="h-8 w-8 rounded-full border border-border/60 bg-background/50 hover:border-indigo-500/60 hover:text-indigo-400 text-muted-foreground flex items-center justify-center transition-colors"
+            >
+              <DiscordIcon className="h-4 w-4" />
+            </a>
           </div>
         </div>
 

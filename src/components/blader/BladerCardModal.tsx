@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   Trophy,
   Swords,
-  MapPin,
   Sparkles,
   Tv,
   Flame,
@@ -185,13 +184,6 @@ export function BladerCardModal({
                           ? `Sem ranking • ${profile.seasonName}`
                           : "Sem ranking na temporada"}
                       </Badge>
-                    )}
-
-                    {profile.blader.city && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <MapPin className="h-3 w-3 text-fire-orange" />
-                        {profile.blader.city}
-                      </span>
                     )}
                   </div>
                 </div>

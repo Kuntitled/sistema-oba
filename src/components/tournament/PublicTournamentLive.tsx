@@ -828,8 +828,7 @@ export function PublicTournamentLive({
                                 {blader?.nickname}
                               </div>
                               <div className="text-xs text-muted-foreground truncate">
-                                {blader?.name}{" "}
-                                {blader?.city ? `• ${blader.city}` : ""}
+                                {blader?.name}
                               </div>
                               {(res.swiss_wins > 0 ||
                                 res.is_swiss_leader ||

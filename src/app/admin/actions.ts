@@ -164,6 +164,7 @@ export async function updateBladerAction(bladerId: string, formData: FormData) {
 
   const name = (formData.get("name") as string)?.trim();
   const nickname = (formData.get("nickname") as string)?.trim();
+  const hasCityField = formData.has("city");
   const city = (formData.get("city") as string)?.trim() || null;
   const bio = (formData.get("bio") as string)?.trim() || null;
   const avatar_url = (formData.get("avatar_url") as string)?.trim() || null;
@@ -197,7 +198,7 @@ export async function updateBladerAction(bladerId: string, formData: FormData) {
   const updatePayload: {
     name: string;
     nickname: string;
-    city: string | null;
+    city?: string | null;
     bio: string | null;
     avatar_url: string | null;
     is_active: boolean;
@@ -205,11 +206,14 @@ export async function updateBladerAction(bladerId: string, formData: FormData) {
   } = {
     name,
     nickname,
-    city,
     bio,
     avatar_url,
     is_active,
   };
+
+  if (hasCityField) {
+    updatePayload.city = city;
+  }
 
   if (hasUserIdField) {
     updatePayload.user_id = parsedUserId.value;

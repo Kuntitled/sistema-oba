@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Trophy, Swords } from "lucide-react";
+import { Trophy, Swords } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
@@ -49,12 +49,6 @@ export function BladersGridClient({ bladers }: BladersGridClientProps) {
                         <p className="text-xs text-muted-foreground truncate">
                           {blader.name}
                         </p>
-                        {blader.city && (
-                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                            <MapPin className="h-3 w-3 text-fire-orange" />
-                            {blader.city}
-                          </span>
-                        )}
                       </div>
                     </div>
 

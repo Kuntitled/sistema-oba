@@ -25,7 +25,7 @@
 
 Sistema web progressivo (PWA) e responsivo (Mobile-First) voltado para a gestão completa da **Organização de Beyblade do Amazonas (OBA)**, cobrindo:
 
-- **Vitrine pública:** Ranking oficial por temporada anual (Temporada 2026 ativa com o `Torneio Semanal 01` importado), Pódio Top 3, acompanhamento ao vivo de arenas, placares e chaveamento em tempo real (`/` e `/torneios/[slug]`), histórico de torneios e galeria de competidores (Bladers).
+- **Vitrine pública:** Ranking Top 10 por temporada anual (com combos favoritos e mais usados, Pódio Top 3 e links sociais oficiais da OBA), acompanhamento ao vivo de arenas, placares e chaveamento em tempo real (`/` e `/torneios/[slug]`), histórico de torneios e galeria completa de competidores (`/bladers`).
 - **Painel administrativo protegido:** Gestão de Bladers, criação de torneios (atuais e retroativos), motor oficial de torneios ao vivo (Suíço + Top Cut / Exclusivamente Suíço), Gestor de Arenas físicas, Placar Touch mobile para juiz (`/admin/arena/[id]`) e recálculo automático do ranking anual.
 - **Autenticação & Onboarding:** Login same-origin, proteção de rotas via `src/proxy.ts` (Next.js 16), fluxo de convite de novos administradores e recuperação de senha.
 - **Ambiente de Produção Ativo:**
@@ -235,7 +235,7 @@ Sistema OBA/
     │   ├── globals.css                 ← Design system OBA e variáveis oklch
     │   ├── (public)/                   ← Rotas públicas (usam Navbar e Footer)
     │   │   ├── layout.tsx
-    │   │   ├── page.tsx                ← Home: Hero, Banner Ao Vivo, Pódio Top 3 e Ranking por Temporada
+    │   │   ├── page.tsx                ← Home: Hero, redes sociais OBA, Banner Ao Vivo, Pódio Top 3 e Top 10 Ranking por Temporada (com combos)
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
     │   │   │   └── [slug]/page.tsx     ← Detalhes, inscrição online (#inscricao), arenas ao vivo, chaveamento e resultados
@@ -316,7 +316,8 @@ Sistema OBA/
     │   ├── layout/                     ← Navbar (com estado da sessão), Footer e ThemeToggle
     │   ├── ranking/                    ← RankingTable com filtro por temporada, busca e Card do Blader
     │   ├── shared/
-    │   │   └── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
+    │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
+    │   │   └── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
     │   ├── tournament/                 ← Componentes públicos de torneio, telão, arenas, PIX e inscrição
     │   │   ├── BroadcastBoardClient.tsx
     │   │   ├── HomeLiveTournamentBanner.tsx
@@ -341,6 +342,7 @@ Sistema OBA/
     │   │   ├── arena-queries.ts
     │   │   ├── arenas.ts
     │   │   ├── blader-card.ts
+    │   │   ├── blader-combos.ts
     │   │   ├── bracket-advancement.ts
     │   │   ├── league.ts
     │   │   ├── parts.ts

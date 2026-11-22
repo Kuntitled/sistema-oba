@@ -13,7 +13,6 @@ import {
   Copy,
   Check,
   LogOut,
-  MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,7 +55,6 @@ export function BladerOnboardingClient({
 
   const [nickname, setNickname] = React.useState("");
   const [name, setName] = React.useState(suggestedName);
-  const [city, setCity] = React.useState("Manaus");
   const [avatarUrl, setAvatarUrl] = React.useState(suggestedAvatarUrl ?? "");
 
   const [loading, setLoading] = React.useState(false);
@@ -69,8 +67,7 @@ export function BladerOnboardingClient({
     return unclaimedBladers.filter(
       (b) =>
         b.nickname.toLowerCase().includes(q) ||
-        b.name.toLowerCase().includes(q) ||
-        (b.city ?? "").toLowerCase().includes(q)
+        b.name.toLowerCase().includes(q)
     );
   }, [unclaimedBladers, search]);
 
@@ -128,7 +125,6 @@ export function BladerOnboardingClient({
     const fd = new FormData();
     fd.set("nickname", nickname);
     fd.set("name", name);
-    fd.set("city", city);
     fd.set("avatar_url", avatarUrl);
 
     const res = await createOwnBladerProfileAction(fd);
@@ -343,12 +339,6 @@ export function BladerOnboardingClient({
                               <div className="text-[11px] text-muted-foreground truncate">
                                 {b.name}
                               </div>
-                              {b.city && (
-                                <div className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                  <MapPin className="h-2.5 w-2.5 text-fire-orange" />
-                                  {b.city}
-                                </div>
-                              )}
                             </div>
                             {selected && (
                               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
@@ -422,35 +412,20 @@ export function BladerOnboardingClient({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="create-city" className="text-xs font-semibold">
-                      Cidade (Amazonas)
-                    </Label>
-                    <Input
-                      id="create-city"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Ex: Manaus"
-                      className="h-9 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="create-avatar"
-                      className="text-xs font-semibold"
-                    >
-                      URL da Foto / Avatar
-                    </Label>
-                    <Input
-                      id="create-avatar"
-                      value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="h-9 text-xs"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="create-avatar"
+                    className="text-xs font-semibold"
+                  >
+                    URL da Foto / Avatar
+                  </Label>
+                  <Input
+                    id="create-avatar"
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="h-9 text-xs"
+                  />
                 </div>
 
                 <Button

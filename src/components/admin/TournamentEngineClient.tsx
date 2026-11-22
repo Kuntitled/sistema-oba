@@ -297,8 +297,7 @@ export function TournamentEngineClient({
     return allBladers.filter(
       (b) =>
         b.nickname.toLowerCase().includes(term) ||
-        b.name.toLowerCase().includes(term) ||
-        (b.city?.toLowerCase().includes(term) ?? false)
+        b.name.toLowerCase().includes(term)
     );
   }, [allBladers, bladerSearch]);
 

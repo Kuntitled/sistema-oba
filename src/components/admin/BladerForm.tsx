@@ -106,31 +106,16 @@ export function BladerForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="city" className="text-xs font-semibold">
-                Cidade (Amazonas)
-              </Label>
-              <Input
-                id="city"
-                name="city"
-                defaultValue="Manaus"
-                placeholder="Ex: Manaus, Parintins..."
-                className="h-9 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="avatar_url" className="text-xs font-semibold">
-                URL da Foto/Avatar
-              </Label>
-              <Input
-                id="avatar_url"
-                name="avatar_url"
-                placeholder="https://..."
-                className="h-9 text-xs"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="avatar_url" className="text-xs font-semibold">
+              URL da Foto/Avatar
+            </Label>
+            <Input
+              id="avatar_url"
+              name="avatar_url"
+              placeholder="https://..."
+              className="h-9 text-xs"
+            />
           </div>
 
           <div className="space-y-1.5">

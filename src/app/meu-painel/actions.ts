@@ -250,6 +250,7 @@ export async function updateOwnBladerProfileAction(formData: FormData) {
 
   const nickname = (formData.get("nickname") as string)?.trim();
   const name = (formData.get("name") as string)?.trim();
+  const hasCityField = formData.has("city");
   const city = (formData.get("city") as string)?.trim() || null;
   const avatar_url = (formData.get("avatar_url") as string)?.trim() || null;
   const rawBio = (formData.get("bio") as string)?.trim() || null;
@@ -344,7 +345,7 @@ export async function updateOwnBladerProfileAction(formData: FormData) {
     .update({
       nickname,
       name,
-      city,
+      ...(hasCityField ? { city } : {}),
       avatar_url,
       bio: rawBio,
       favorite_anime,

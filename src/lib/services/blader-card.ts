@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sortSeasonRankingEntries } from "@/lib/engine/tournament-engine";
 import { inferComboSystem } from "@/lib/combo-rules";
 import { isMissingTableError, isValidUuid } from "@/lib/services/arena-queries";
+import { getMostUsedCombosByBladerId } from "@/lib/services/blader-combos";
 import type { Database } from "@/types/database";
 import type {
   BladerCardProfile,
@@ -151,6 +152,12 @@ export async function getBladerCardProfile(
     assistBlade: favoriteAssistBlade,
   });
 
+  const mostUsedMap = await getMostUsedCombosByBladerId([blader.id], partsById);
+  const mostUsedEntry = mostUsedMap.get(blader.id) ?? null;
+  const mostUsedCombo = mostUsedEntry
+    ? `${mostUsedEntry.system ? `[${mostUsedEntry.system}] ` : ""}${mostUsedEntry.summaryText}${mostUsedEntry.count > 1 ? ` (${mostUsedEntry.count}x)` : ""}`
+    : null;
+
   return {
     blader,
     seasonName: targetSeason?.name ?? null,
@@ -171,6 +178,6 @@ export async function getBladerCardProfile(
       ratchet: favoriteRatchet,
       bit: favoriteBit,
     },
-    mostUsedCombo: null,
+    mostUsedCombo,
   };
 }

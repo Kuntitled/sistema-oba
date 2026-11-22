@@ -1,4 +1,4 @@
-import { Users, MapPin, Link2, Unlink } from "lucide-react";
+import { Users, Link2, Unlink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getBladers } from "@/lib/services/league";
@@ -101,12 +101,6 @@ export default async function AdminBladersPage() {
                   <div className="text-xs text-muted-foreground truncate">
                     {blader.name}
                   </div>
-                  {blader.city && (
-                    <div className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
-                      <MapPin className="h-2.5 w-2.5 text-fire-orange" />
-                      {blader.city}
-                    </div>
-                  )}
                 </div>
               </div>
 

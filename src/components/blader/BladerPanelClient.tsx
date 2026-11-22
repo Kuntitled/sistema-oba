@@ -104,7 +104,6 @@ export function BladerPanelClient({
   // Estado do formulário de perfil
   const [nickname, setNickname] = React.useState(blader.nickname);
   const [name, setName] = React.useState(blader.name);
-  const [city, setCity] = React.useState(blader.city ?? "");
   const [avatarUrl, setAvatarUrl] = React.useState(blader.avatar_url ?? "");
   const [bio, setBio] = React.useState(blader.bio ?? "");
   const [favoriteAnime, setFavoriteAnime] = React.useState(
@@ -175,7 +174,6 @@ export function BladerPanelClient({
         ...baseCardProfile.blader,
         nickname: nickname.trim() || blader.nickname,
         name: name.trim() || blader.name,
-        city: city.trim() || null,
         avatar_url: avatarUrl.trim() || null,
         bio: bio.trim() || null,
         favorite_anime: favoriteAnime.trim() || null,
@@ -215,7 +213,6 @@ export function BladerPanelClient({
       blader.name,
       nickname,
       name,
-      city,
       avatarUrl,
       bio,
       favoriteAnime,
@@ -304,7 +301,6 @@ export function BladerPanelClient({
     const fd = new FormData();
     fd.set("nickname", nickname);
     fd.set("name", name);
-    fd.set("city", city);
     fd.set("avatar_url", avatarUrl);
     fd.set("bio", bio);
     fd.set("favorite_anime", favoriteAnime);
@@ -518,32 +514,17 @@ export function BladerPanelClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="prof-city" className="text-xs font-semibold">
-                    Cidade (Amazonas)
-                  </Label>
-                  <Input
-                    id="prof-city"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="Ex: Manaus"
-                    className="h-9 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="prof-anime" className="text-xs font-semibold">
-                    Anime Favorito
-                  </Label>
-                  <Input
-                    id="prof-anime"
-                    value={favoriteAnime}
-                    onChange={(e) => setFavoriteAnime(e.target.value)}
-                    placeholder="Ex: Beyblade Burst / Metal Fight / Beyblade X..."
-                    className="h-9 text-xs"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="prof-anime" className="text-xs font-semibold">
+                  Anime Favorito
+                </Label>
+                <Input
+                  id="prof-anime"
+                  value={favoriteAnime}
+                  onChange={(e) => setFavoriteAnime(e.target.value)}
+                  placeholder="Ex: Beyblade Burst / Metal Fight / Beyblade X..."
+                  className="h-9 text-xs"
+                />
               </div>
 
               {/* Avatar / Foto de Perfil */}

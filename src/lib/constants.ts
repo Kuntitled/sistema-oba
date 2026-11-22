@@ -104,3 +104,22 @@ export const APP_FULL_NAME = "Organização de Beyblade do Amazonas";
 export const APP_DESCRIPTION =
   "Sistema oficial de gestão de torneios, chaveamentos e ranking da Organização de Beyblade do Amazonas.";
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+// ─── Redes Sociais Oficiais OBA ─────────────────────────────────────────────────
+export const OBA_SOCIAL_LINKS = {
+  instagram: {
+    label: "Instagram",
+    handle: "@beybladeamazonas_oba",
+    url: "https://instagram.com/beybladeamazonas_oba",
+  },
+  whatsapp: {
+    label: "Grupo WhatsApp",
+    handle: "Comunidade OBA",
+    url: "https://chat.whatsapp.com/E0wxBvuCyGs8mt1t7V9143",
+  },
+  discord: {
+    label: "Discord",
+    handle: "Servidor Oficial OBA",
+    url: "https://discord.gg/M5EQRdFQhd",
+  },
+} as const;

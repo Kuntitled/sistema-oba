@@ -3,7 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trophy, Search, MapPin, Sparkles, Calendar, Info } from "lucide-react";
+import {
+  Trophy,
+  Search,
+  Sparkles,
+  Calendar,
+  Info,
+  Flame,
+  ChevronRight,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +25,7 @@ interface RankingTableProps {
   seasons?: Season[];
   selectedSeason?: Season | null;
   activeSeason?: Season | null;
+  totalRankedCount?: number;
 }
 
 const MEDAL_BY_POSITION: Record<number, string> = {
@@ -35,6 +44,7 @@ export function RankingTable({
   seasons = [],
   selectedSeason = null,
   activeSeason = null,
+  totalRankedCount,
 }: RankingTableProps) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
@@ -49,13 +59,43 @@ export function RankingTable({
       const blader = item.blader;
       return (
         blader?.name.toLowerCase().includes(term) ||
-        blader?.nickname.toLowerCase().includes(term) ||
-        blader?.city?.toLowerCase().includes(term)
+        blader?.nickname.toLowerCase().includes(term)
       );
     });
   }, [initialRanking, search]);
 
   const top3 = initialRanking.slice(0, 3);
+  const isLimitedToTop10 = Boolean(
+    totalRankedCount && totalRankedCount > initialRanking.length
+  );
+
+  const renderPodiumCombos = (entry: RankingEntry) => {
+    if (!entry.favoriteCombo && !entry.mostUsedCombo) return null;
+    return (
+      <div className="mt-2.5 pt-2.5 border-t border-border/40 w-full space-y-1 text-[10px]">
+        {entry.favoriteCombo && (
+          <div className="flex items-center justify-center gap-1 min-w-0">
+            <Sparkles className="h-3 w-3 text-fire-yellow shrink-0" />
+            <span className="text-muted-foreground shrink-0">Fav:</span>
+            <span className="font-bold text-foreground truncate">
+              {entry.favoriteCombo.system ? `[${entry.favoriteCombo.system}] ` : ""}
+              {entry.favoriteCombo.summaryText}
+            </span>
+          </div>
+        )}
+        {entry.mostUsedCombo && (
+          <div className="flex items-center justify-center gap-1 min-w-0">
+            <Flame className="h-3 w-3 text-fire-orange shrink-0" />
+            <span className="text-muted-foreground shrink-0">+Usado:</span>
+            <span className="font-bold text-foreground truncate">
+              {entry.mostUsedCombo.system ? `[${entry.mostUsedCombo.system}] ` : ""}
+              {entry.mostUsedCombo.summaryText}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleSelectSeason = (season: Season) => {
     if (activeSeason && season.id === activeSeason.id) {
@@ -128,7 +168,11 @@ export function RankingTable({
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar por nome, apelido ou cidade..."
+            placeholder={
+              isLimitedToTop10
+                ? "Buscar no Top 10 por nome ou apelido..."
+                : "Buscar por nome ou apelido..."
+            }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 bg-card/60 border-border/60 focus-visible:ring-primary h-10 text-sm rounded-xl"
@@ -180,6 +224,7 @@ export function RankingTable({
                       {top3[1].swiss_wins} vit. Suíço • {top3[1].podiums_count}{" "}
                       pódios
                     </div>
+                    {renderPodiumCombos(top3[1])}
                   </button>
                 </CardContent>
               </Card>
@@ -231,6 +276,7 @@ export function RankingTable({
                       {top3[0].swiss_wins} vit. Suíço • {top3[0].podiums_count}{" "}
                       pódios
                     </div>
+                    {renderPodiumCombos(top3[0])}
                   </button>
                 </CardContent>
               </Card>
@@ -278,6 +324,7 @@ export function RankingTable({
                       {top3[2].swiss_wins} vit. Suíço • {top3[2].podiums_count}{" "}
                       pódios
                     </div>
+                    {renderPodiumCombos(top3[2])}
                   </button>
                 </CardContent>
               </Card>
@@ -369,15 +416,6 @@ export function RankingTable({
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                             <span className="truncate">{blader?.name}</span>
-                            {blader?.city && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-0.5 shrink-0">
-                                  <MapPin className="h-3 w-3" />
-                                  {blader.city}
-                                </span>
-                              </>
-                            )}
                           </div>
                         </div>
                       </button>
@@ -436,9 +474,90 @@ export function RankingTable({
                     </div>
                   </div>
                 </div>
+
+                {/* Combo Favorito e Combo Mais Usado */}
+                <div className="border-t border-border/35 bg-background/30 px-4 sm:px-5 py-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sparkles className="h-3.5 w-3.5 text-fire-yellow shrink-0" />
+                    <span className="text-muted-foreground font-semibold shrink-0">
+                      Combo Favorito:
+                    </span>
+                    {item.favoriteCombo ? (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {item.favoriteCombo.system && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] px-1 py-0 border-primary/40 text-primary font-black shrink-0"
+                          >
+                            {item.favoriteCombo.system}
+                          </Badge>
+                        )}
+                        <span className="font-bold text-foreground truncate">
+                          {item.favoriteCombo.summaryText}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/70 italic truncate">
+                        Não definido
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Flame className="h-3.5 w-3.5 text-fire-orange shrink-0" />
+                    <span className="text-muted-foreground font-semibold shrink-0">
+                      Combo Mais Usado:
+                    </span>
+                    {item.mostUsedCombo ? (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {item.mostUsedCombo.system && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] px-1 py-0 border-fire-orange/40 text-fire-orange font-black shrink-0"
+                          >
+                            {item.mostUsedCombo.system}
+                          </Badge>
+                        )}
+                        <span className="font-bold text-foreground truncate">
+                          {item.mostUsedCombo.summaryText}
+                        </span>
+                        {item.mostUsedCombo.count > 1 && (
+                          <span className="text-[10px] text-muted-foreground font-semibold shrink-0 tabular-nums">
+                            ({item.mostUsedCombo.count}x)
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/70 italic truncate">
+                        Sem histórico em torneios
+                      </span>
+                    )}
+                  </div>
+                </div>
               </Card>
             );
           })}
+
+          {isLimitedToTop10 && (
+            <div className="rounded-xl border border-border/50 bg-card/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">
+                Exibindo o <strong className="text-foreground">Top 10</strong>{" "}
+                de <strong className="text-foreground">{totalRankedCount}</strong>{" "}
+                Bladers ranqueados na temporada.
+              </span>
+              <Link href="/bladers">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  className="font-bold gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                >
+                  Ver todos os Bladers
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            </div>
+          )}
 
           {/* Legenda oficial dos critérios de desempate */}
           <div className="pt-2 flex items-start gap-2 text-[11px] text-muted-foreground">
