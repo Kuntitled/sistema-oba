@@ -23,6 +23,7 @@ import {
 } from "@/lib/services/registrations";
 import { formatCurrencyBRL } from "@/lib/pix";
 import { PublicTournamentLive } from "@/components/tournament/PublicTournamentLive";
+import { TournamentBanlistButton } from "@/components/tournament/TournamentBanlistButton";
 import { TournamentRegistrationClient } from "@/components/tournament/TournamentRegistrationClient";
 import {
   TOURNAMENT_CATEGORY_LABELS,
@@ -86,19 +87,17 @@ export default async function TorneioDetalhePage({
 
   const entryFee = Number(tournament.entry_fee ?? 0);
 
-  const [partsRes, bansRes, settingsRes] = shouldLoadRegistrationCatalog
-    ? await Promise.all([
-        getPartsCatalog({ includeInactive: false }),
-        getRulesetBannedParts(tournament.ruleset_id),
-        entryFee > 0
-          ? getLeagueSettings()
-          : Promise.resolve({ settings: null, schemaMissing: false }),
-      ])
-    : [
-        { parts: [], schemaMissing: false },
-        { bannedPartIds: [], bannedParts: [] },
-        { settings: null, schemaMissing: false },
-      ];
+  const [partsRes, bansRes, settingsRes] = await Promise.all([
+    shouldLoadRegistrationCatalog
+      ? getPartsCatalog({ includeInactive: false })
+      : Promise.resolve({ parts: [], schemaMissing: false }),
+    tournament.ruleset_id
+      ? getRulesetBannedParts(tournament.ruleset_id)
+      : Promise.resolve({ bannedPartIds: [], bannedParts: [] }),
+    shouldLoadRegistrationCatalog && entryFee > 0
+      ? getLeagueSettings()
+      : Promise.resolve({ settings: null, schemaMissing: false }),
+  ]);
 
   const showRegistrationPriority =
     tournament.registration_status === "open" ||
@@ -191,17 +190,28 @@ export default async function TorneioDetalhePage({
               )}
             </div>
 
-            <Link href={`/torneios/${tournament.slug}/telao`} target="_blank">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs font-semibold gap-1.5 border-primary/40 hover:border-primary"
-              >
-                <Tv className="h-3.5 w-3.5 text-fire-orange" />
-                Modo Telão (TV)
-              </Button>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {tournament.ruleset && (
+                <TournamentBanlistButton
+                  rulesetName={tournament.ruleset.name}
+                  rulesetDescription={tournament.ruleset.description}
+                  bannedParts={bansRes.bannedParts}
+                  tournamentSubtitle={`${tournament.name} • ${formatDate(tournament.event_date)}`}
+                />
+              )}
+
+              <Link href={`/torneios/${tournament.slug}/telao`} target="_blank">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs font-semibold gap-1.5 border-primary/40 hover:border-primary"
+                >
+                  <Tv className="h-3.5 w-3.5 text-fire-orange" />
+                  Modo Telão (TV)
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>

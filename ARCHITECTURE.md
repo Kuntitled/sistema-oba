@@ -238,7 +238,7 @@ Sistema OBA/
     │   │   ├── page.tsx                ← Home: Hero, redes sociais OBA, Banner Ao Vivo, Pódio Top 3 e Top 10 Ranking por Temporada (com combos)
     │   │   ├── torneios/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
-    │   │   │   └── [slug]/page.tsx     ← Detalhes, inscrição online (#inscricao), arenas ao vivo, chaveamento e resultados
+    │   │   │   └── [slug]/page.tsx     ← Detalhes, card de ban-list (PNG), inscrição online (#inscricao), arenas e resultados
     │   │   ├── bladers/page.tsx        ← Lista pública de competidores (abre Card Público)
     │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (perfil, coleção e minhas inscrições)
     │   │   └── privacidade/page.tsx    ← Política de Privacidade pública (OAuth / LGPD)
@@ -263,7 +263,7 @@ Sistema OBA/
     │   │       ├── arenas/page.tsx     ← Gestor de Arenas físicas (Multi-Stadium)
     │   │       ├── bladers/page.tsx    ← Gestão de Bladers, aprovações de vínculo e UUID manual
     │   │       ├── configuracoes/page.tsx ← Configuração PIX global e gestão de administradores
-    │   │       ├── formatos/page.tsx   ← CRUD de Formatos e Ban-lists independentes
+    │   │       ├── formatos/page.tsx   ← CRUD de Formatos, Ban-lists independentes e Gerador de Card PNG
     │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
     │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
     │   │       └── torneios/
@@ -316,6 +316,7 @@ Sistema OBA/
     │   ├── layout/                     ← Navbar (com estado da sessão), Footer e ThemeToggle
     │   ├── ranking/                    ← RankingTable com filtro por temporada, busca e Card do Blader
     │   ├── shared/
+    │   │   ├── BanlistCardModal.tsx    ← Modal gerador de card PNG da ban-list (Feed 4:5, Quadrado 1:1, Story 9:16)
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
     │   │   └── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
     │   ├── tournament/                 ← Componentes públicos de torneio, telão, arenas, PIX e inscrição
@@ -324,11 +325,13 @@ Sistema OBA/
     │   │   ├── LiveArenaCard.tsx
     │   │   ├── PixPaymentBox.tsx
     │   │   ├── PublicTournamentLive.tsx
+    │   │   ├── TournamentBanlistButton.tsx
     │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
     ├── lib/
     │   ├── auth-roles.ts               ← Papéis (admin, judge, blader), regras de acesso e redirects pós-login
     │   ├── avatar-upload.ts            ← Crop quadrado, compressão WebP 400x400 e upload no bucket avatars
+    │   ├── banlist-card-canvas.ts      ← Renderizador Canvas 2D de cards de ban-list OBA para divulgação PNG
     │   ├── combo-rules.ts              ← Regras dos 6 sistemas, compatibilidade e validação de decklist
     │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
     │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro

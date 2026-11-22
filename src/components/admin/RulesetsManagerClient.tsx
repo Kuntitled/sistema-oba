@@ -14,6 +14,7 @@ import {
   X,
   Ban,
   Check,
+  ImageDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { partMatchesQuery } from "@/lib/parts-search";
+import { BanlistCardModal } from "@/components/shared/BanlistCardModal";
 import {
   createRulesetAction,
   deleteRulesetAction,
@@ -143,6 +145,25 @@ export function RulesetsManagerClient({
   const [formError, setFormError] = React.useState<string | null>(null);
   const [formSuccess, setFormSuccess] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [cardModalRulesetId, setCardModalRulesetId] = React.useState<
+    string | null
+  >(null);
+
+  const cardModalRuleset = React.useMemo(
+    () => initialRulesets.find((r) => r.id === cardModalRulesetId) ?? null,
+    [initialRulesets, cardModalRulesetId]
+  );
+
+  const cardModalBannedParts = React.useMemo(() => {
+    if (!cardModalRuleset) return [];
+    const bannedSet = getRulesetBannedSet(cardModalRuleset);
+    const list: PartRow[] = [];
+    for (const id of bannedSet) {
+      const part = partsById.get(id);
+      if (part) list.push(part);
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [cardModalRuleset, getRulesetBannedSet, partsById]);
 
   const openCreateModal = () => {
     setEditingRuleset(null);
@@ -349,6 +370,16 @@ export function RulesetsManagerClient({
                           type="button"
                           variant="ghost"
                           size="icon-sm"
+                          onClick={() => setCardModalRulesetId(rs.id)}
+                          title="Gerar card de divulgação (PNG)"
+                          className="h-7 w-7 text-muted-foreground hover:text-fire-orange"
+                        >
+                          <ImageDown className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => openEditModal(rs)}
                           title="Editar formato"
                           className="h-7 w-7 text-muted-foreground hover:text-primary"
@@ -410,9 +441,21 @@ export function RulesetsManagerClient({
                       Clique nas peças abaixo para banir ou liberar neste formato.
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-xs font-bold">
-                    {currentBannedSet.size} peça(s) banida(s)
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCardModalRulesetId(selectedRuleset.id)}
+                      className="h-8 text-xs font-bold gap-1.5 border-fire-orange/40 text-fire-orange hover:bg-fire-orange/10 hover:text-fire-orange"
+                    >
+                      <ImageDown className="h-3.5 w-3.5" />
+                      Gerar Card (PNG)
+                    </Button>
+                    <Badge variant="outline" className="text-xs font-bold">
+                      {currentBannedSet.size} peça(s) banida(s)
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
 
@@ -678,6 +721,16 @@ export function RulesetsManagerClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      <BanlistCardModal
+        open={Boolean(cardModalRuleset)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setCardModalRulesetId(null);
+        }}
+        rulesetName={cardModalRuleset?.name ?? ""}
+        rulesetDescription={cardModalRuleset?.description ?? null}
+        bannedParts={cardModalBannedParts}
+      />
     </div>
   );
 }
