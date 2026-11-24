@@ -831,39 +831,52 @@ export function PublicTournamentLive({
                                 {blader?.name}
                               </div>
                               {(res.swiss_wins > 0 ||
-                                res.is_swiss_leader ||
-                                res.podium_points > 0) && (
+                                (tournament.category !== "amistoso" &&
+                                  (res.is_swiss_leader ||
+                                    res.podium_points > 0))) && (
                                 <div className="text-[11px] text-muted-foreground/90 mt-0.5 flex flex-wrap items-center gap-1.5">
                                   {res.swiss_wins > 0 && (
                                     <span>
-                                      {res.swiss_wins} vit. Suíço (+
-                                      {res.swiss_points})
+                                      {res.swiss_wins} vit. Suíço
+                                      {tournament.category !== "amistoso"
+                                        ? ` (+${res.swiss_points})`
+                                        : ""}
                                     </span>
                                   )}
-                                  {res.swiss_leader_bonus > 0 && (
-                                    <span className="text-fire-yellow font-semibold">
-                                      • Líder (+{res.swiss_leader_bonus})
-                                    </span>
-                                  )}
-                                  {res.podium_points > 0 && (
-                                    <span className="text-primary font-semibold">
-                                      • Pódio (+{res.podium_points})
-                                    </span>
-                                  )}
+                                  {tournament.category !== "amistoso" &&
+                                    res.swiss_leader_bonus > 0 && (
+                                      <span className="text-fire-yellow font-semibold">
+                                        • Líder (+{res.swiss_leader_bonus})
+                                      </span>
+                                    )}
+                                  {tournament.category !== "amistoso" &&
+                                    res.podium_points > 0 && (
+                                      <span className="text-primary font-semibold">
+                                        • Pódio (+{res.podium_points})
+                                      </span>
+                                    )}
                                 </div>
                               )}
                             </div>
                           </button>
                         </div>
 
-                        <div className="bg-primary/10 border border-primary/20 rounded-xl px-3 py-1 text-right shrink-0">
-                          <span className="text-sm sm:text-base font-black text-primary">
-                            +{res.points_earned}
-                          </span>
-                          <span className="text-[10px] font-semibold text-muted-foreground ml-1">
-                            pts
-                          </span>
-                        </div>
+                        {tournament.category === "amistoso" ? (
+                          <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl px-3 py-1 text-right shrink-0">
+                            <span className="text-xs font-black text-sky-400">
+                              Amistoso
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="bg-primary/10 border border-primary/20 rounded-xl px-3 py-1 text-right shrink-0">
+                            <span className="text-sm sm:text-base font-black text-primary">
+                              +{res.points_earned}
+                            </span>
+                            <span className="text-[10px] font-semibold text-muted-foreground ml-1">
+                              pts
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </Card>
                   );

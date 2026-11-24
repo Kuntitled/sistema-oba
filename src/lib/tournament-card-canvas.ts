@@ -1,4 +1,8 @@
-import { OBA_PODIUM_POINTS, OBA_SOCIAL_LINKS } from "@/lib/constants";
+import {
+  normalizeTournamentCategory,
+  OBA_PODIUM_POINTS,
+  OBA_SOCIAL_LINKS,
+} from "@/lib/constants";
 import {
   BANLIST_CARD_ASPECT_ORDER,
   BANLIST_CARD_PRESETS,
@@ -144,11 +148,14 @@ export function buildTournamentShareCaption(params: {
   const safeMapsUrl = sanitizeHttpUrl(params.locationUrl);
   const feeText =
     params.entryFee > 0 ? formatCurrencyBRL(params.entryFee) : "Gratuito";
-  const categoryLabel = TOURNAMENT_CATEGORY_LABELS[params.category ?? "semanal"];
+  const category = normalizeTournamentCategory(params.category);
+  const categoryLabel = TOURNAMENT_CATEGORY_LABELS[category];
   const formatLabel = TOURNAMENT_FORMAT_LABELS[params.format];
 
   const lines: string[] = [
-    `🔥 *${params.name}* — Liga Oficial OBA (${categoryLabel})`,
+    category === "amistoso"
+      ? `🔥 *${params.name}* — Torneio Amistoso OBA (Sem ranking oficial)`
+      : `🔥 *${params.name}* — Liga Oficial OBA (${categoryLabel})`,
     "",
     `📅 *Data:* ${fullLabel}`,
   ];
@@ -617,8 +624,14 @@ export function renderTournamentCardToCanvas(
   }
   ctx.restore();
 
-  const isOficial = options.category === "oficial";
-  const categoryStamp = isOficial ? "TORNEIO OFICIAL" : "ETAPA SEMANAL";
+  const normalizedCategory = normalizeTournamentCategory(options.category);
+  const isOficial = normalizedCategory === "oficial";
+  const isAmistoso = normalizedCategory === "amistoso";
+  const categoryStamp = isOficial
+    ? "TORNEIO OFICIAL"
+    : isAmistoso
+      ? "TORNEIO AMISTOSO"
+      : "ETAPA SEMANAL";
   ctx.font = `800 15px ${FONT_SANS}`;
   const stampW = ctx.measureText(categoryStamp).width + 36;
   const stampH = 38;
@@ -631,9 +644,17 @@ export function renderTournamentCardToCanvas(
     stampY,
     categoryStamp,
     15,
-    isOficial ? "rgba(237, 189, 3, 0.2)" : "rgba(189, 8, 245, 0.22)",
-    isOficial ? "rgba(237, 189, 3, 0.68)" : "rgba(189, 8, 245, 0.65)",
-    isOficial ? "#fde047" : "#f0abfc",
+    isOficial
+      ? "rgba(237, 189, 3, 0.2)"
+      : isAmistoso
+        ? "rgba(14, 165, 233, 0.22)"
+        : "rgba(189, 8, 245, 0.22)",
+    isOficial
+      ? "rgba(237, 189, 3, 0.68)"
+      : isAmistoso
+        ? "rgba(56, 189, 248, 0.68)"
+        : "rgba(189, 8, 245, 0.65)",
+    isOficial ? "#fde047" : isAmistoso ? "#7dd3fc" : "#f0abfc",
     stampH,
     18
   );
@@ -981,9 +1002,11 @@ export function renderTournamentCardToCanvas(
     }
 
     if (options.showPointsHint) {
-      const podiumMap = OBA_PODIUM_POINTS[options.category ?? "semanal"];
-      const ptsLabel = `Pódio Liga: ${podiumMap[1]} / ${podiumMap[2]} / ${podiumMap[3]} pts`;
-      ctx.fillStyle = "#cbd5e1";
+      const podiumMap = OBA_PODIUM_POINTS[normalizedCategory];
+      const ptsLabel = isAmistoso
+        ? "Evento Amistoso • Não vale pontos no ranking"
+        : `Pódio Liga: ${podiumMap[1]} / ${podiumMap[2]} / ${podiumMap[3]} pts`;
+      ctx.fillStyle = isAmistoso ? "#7dd3fc" : "#cbd5e1";
       ctx.font = `600 ${useCompact ? 13 : 15}px ${FONT_SANS}`;
       ctx.fillText(truncateText(ctx, ptsLabel, fMaxW), fx, tagY + 2);
     }

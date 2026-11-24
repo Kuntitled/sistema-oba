@@ -774,8 +774,16 @@ export function BroadcastBoardClient({
                 <div className="text-lg xl:text-xl font-black text-white truncate">
                   {row.nickname}
                 </div>
-                <div className="text-sm font-black text-[#e47aff] tabular-nums">
-                  +{row.pointsEarned} pts
+                <div
+                  className={`text-sm font-black tabular-nums ${
+                    tournament.category === "amistoso"
+                      ? "text-sky-300"
+                      : "text-[#e47aff]"
+                  }`}
+                >
+                  {tournament.category === "amistoso"
+                    ? `${row.swissWins} vit. • Amistoso`
+                    : `+${row.pointsEarned} pts`}
                 </div>
               </div>
             ))}
@@ -789,7 +797,11 @@ export function BroadcastBoardClient({
                     <th className="py-2 px-3">Pos</th>
                     <th className="py-2 px-3">Blader</th>
                     <th className="py-2 px-3 text-center">Vit. Suíço</th>
-                    <th className="py-2 px-3 text-right">Pontos OBA</th>
+                    <th className="py-2 px-3 text-right">
+                      {tournament.category === "amistoso"
+                        ? "Modalidade"
+                        : "Pontos OBA"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
@@ -810,7 +822,11 @@ export function BroadcastBoardClient({
                         {row.swissWins}
                       </td>
                       <td className="py-2 px-3 text-right font-black text-[#e47aff] tabular-nums">
-                        +{row.pointsEarned}
+                        {tournament.category === "amistoso" ? (
+                          <span className="text-sky-300 text-xs">Amistoso</span>
+                        ) : (
+                          `+${row.pointsEarned}`
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -921,7 +937,15 @@ export function BroadcastBoardClient({
               <h1 className="font-black text-base sm:text-xl tracking-tight text-white truncate">
                 {tournament.name}
               </h1>
-              <Badge className="bg-[#bd08f5]/20 text-[#e89eff] border-[#bd08f5]/40 text-[10px] font-bold">
+              <Badge
+                className={`text-[10px] font-bold ${
+                  tournament.category === "oficial"
+                    ? "bg-[#edbd03]/20 text-[#fde047] border-[#edbd03]/45"
+                    : tournament.category === "amistoso"
+                      ? "bg-sky-500/20 text-sky-300 border-sky-400/45"
+                      : "bg-[#bd08f5]/20 text-[#e89eff] border-[#bd08f5]/40"
+                }`}
+              >
                 {TOURNAMENT_CATEGORY_LABELS[tournament.category ?? "semanal"]}
               </Badge>
               <Badge

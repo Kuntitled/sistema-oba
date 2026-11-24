@@ -172,7 +172,7 @@ export type Database = {
           event_date: string;
           event_time: string | null;
           prize_info: string | null;
-          category: "semanal" | "oficial";
+          category: "semanal" | "oficial" | "amistoso";
           format:
             | "swiss_top_cut"
             | "swiss_only"
@@ -201,7 +201,7 @@ export type Database = {
           event_date: string;
           event_time?: string | null;
           prize_info?: string | null;
-          category?: "semanal" | "oficial";
+          category?: "semanal" | "oficial" | "amistoso";
           format?:
             | "swiss_top_cut"
             | "swiss_only"
@@ -230,7 +230,7 @@ export type Database = {
           event_date?: string;
           event_time?: string | null;
           prize_info?: string | null;
-          category?: "semanal" | "oficial";
+          category?: "semanal" | "oficial" | "amistoso";
           format?:
             | "swiss_top_cut"
             | "swiss_only"
@@ -1076,7 +1076,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: {
-      tournament_category: "semanal" | "oficial";
+      tournament_category: "semanal" | "oficial" | "amistoso";
       tournament_format:
         | "swiss_top_cut"
         | "swiss_only"

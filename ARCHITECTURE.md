@@ -154,6 +154,7 @@ Todas as regras estão centralizadas em [`src/lib/constants.ts`](file:///home/ku
 - **Categorias (Peso do Pódio):**
   - `semanal`: **1º** = `+100 pts` | **2º** = `+75 pts` | **3º** = `+50 pts`
   - `oficial`: **1º** = `+200 pts` | **2º** = `+150 pts` | **3º** = `+100 pts`
+  - `amistoso`: **0 pts** (usa inscrições, arenas, chaveamento e histórico do evento sem somar pontos, vitórias no Suíço nem pódios no Ranking Oficial)
 - **Formatos:**
   - `swiss_top_cut` (Suíço + Eliminatórias/Top Cut): em média 4 rodadas suíças seguidas de mata-mata. O **1º colocado da fase suíça** ganha **+15 pontos de bônus de liderança** uma única vez, independente da posição final no mata-mata.
   - `swiss_only` (Exclusivamente Suíço): sem eliminatórias e **sem bônus de +15 pontos** para o líder do Suíço.
@@ -166,6 +167,7 @@ Todas as regras estão centralizadas em [`src/lib/constants.ts`](file:///home/ku
 export const OBA_PODIUM_POINTS = {
   semanal: { 1: 100, 2: 75, 3: 50 },
   oficial: { 1: 200, 2: 150, 3: 100 },
+  amistoso: { 1: 0, 2: 0, 3: 0 },
 } as const;
 export const OBA_SWISS_WIN_POINTS = 10;
 export const OBA_SWISS_LEADER_BONUS = 15; // Apenas em torneios swiss_top_cut
@@ -223,7 +225,8 @@ Sistema OBA/
 │   │   ├── 007_phase3a_combo_systems_and_avatars.sql   ← Unificação max_players, 6 sistemas, combos e bucket avatars
 │   │   ├── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
 │   │   ├── 009_phase3b_registrations_and_receipts.sql  ← Bucket privado receipts, RLS de reenvio e proteção de inscrições
-│   │   └── 010_tournament_promo_fields.sql             ← Campos event_time, location_url (Google Maps) e prize_info em torneios
+│   │   ├── 010_tournament_promo_fields.sql             ← Campos event_time, location_url (Google Maps) e prize_info em torneios
+│   │   └── 011_tournament_friendly_category.sql        ← Modalidade amistoso em torneios (sem pontos/vitórias no ranking oficial)
 │   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)

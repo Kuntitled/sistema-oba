@@ -63,7 +63,8 @@ export async function recalculateSeasonRanking(
     supabase
       .from("tournaments")
       .select("id")
-      .eq("season_id", seasonId),
+      .eq("season_id", seasonId)
+      .neq("category", "amistoso"),
     supabase.from("bladers").select("id, is_active"),
     supabase
       .from("ranking")

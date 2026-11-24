@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   calculateOfficialTournamentPoints,
   DEFAULT_SWISS_ROUNDS,
+  normalizeTournamentCategory,
   type ObaTournamentCategory,
 } from "@/lib/constants";
 import { isValidUuid } from "@/lib/services/arena-queries";
@@ -358,8 +359,7 @@ export async function createTournamentAction(formData: FormData) {
     return { error: "Formato / Ban-list selecionado é inválido." };
   }
 
-  const category: TournamentCategory =
-    categoryRaw === "oficial" ? "oficial" : "semanal";
+  const category: TournamentCategory = normalizeTournamentCategory(categoryRaw);
   const format = formatRaw as TournamentFormat;
   const status = statusRaw as TournamentStatus;
   const registration_status = parseRegistrationStatus(
@@ -444,6 +444,12 @@ export async function createTournamentAction(formData: FormData) {
           "Os campos Horário, Link Google Maps e Premiação exigem a execução da migration supabase/migrations/010_tournament_promo_fields.sql no Supabase SQL Editor.",
       };
     }
+    if (error.code === "23514" && category === "amistoso") {
+      return {
+        error:
+          "A modalidade Amistoso exige a execução da migration supabase/migrations/011_tournament_friendly_category.sql no Supabase SQL Editor.",
+      };
+    }
     if (error.code === "23505") {
       return { error: "Já existe um torneio com esse nome na mesma data." };
     }
@@ -518,8 +524,7 @@ export async function updateTournamentAction(
     return { error: "Nome e Data do Torneio são obrigatórios." };
   }
 
-  const category: TournamentCategory =
-    categoryRaw === "oficial" ? "oficial" : "semanal";
+  const category: TournamentCategory = normalizeTournamentCategory(categoryRaw);
   const format = formatRaw as TournamentFormat;
   const status = statusRaw as TournamentStatus;
   const registration_status = parseRegistrationStatus(
@@ -632,6 +637,12 @@ export async function updateTournamentAction(
           "Os campos Horário, Link Google Maps e Premiação exigem a execução da migration supabase/migrations/010_tournament_promo_fields.sql no Supabase SQL Editor.",
       };
     }
+    if (updateError?.code === "23514" && category === "amistoso") {
+      return {
+        error:
+          "A modalidade Amistoso exige a execução da migration supabase/migrations/011_tournament_friendly_category.sql no Supabase SQL Editor.",
+      };
+    }
     return {
       error: `Erro ao atualizar torneio: ${updateError?.message ?? "falha desconhecida"}`,
     };
@@ -649,7 +660,9 @@ export async function updateTournamentAction(
 
     for (const row of resultRows ?? []) {
       const isSwissLeader =
-        format === "swiss_only" ? false : Boolean(row.is_swiss_leader);
+        format === "swiss_only" || category === "amistoso"
+          ? false
+          : Boolean(row.is_swiss_leader);
       const calc = calculateOfficialTournamentPoints({
         category,
         format,
@@ -806,12 +819,14 @@ export async function saveTournamentResultsAction(
     return { error: "Torneio não encontrado." };
   }
 
-  const category: ObaTournamentCategory =
-    tournament.category === "oficial" ? "oficial" : "semanal";
+  const category: ObaTournamentCategory = normalizeTournamentCategory(
+    tournament.category
+  );
 
   const formattedResults = results.map((r) => {
     const swissWins = Math.max(0, Math.floor(r.swiss_wins ?? 0));
-    const isSwissLeader = Boolean(r.is_swiss_leader);
+    const isSwissLeader =
+      category === "amistoso" ? false : Boolean(r.is_swiss_leader);
     const calc = calculateOfficialTournamentPoints({
       category,
       format: tournament.format,
@@ -821,9 +836,11 @@ export async function saveTournamentResultsAction(
     });
 
     const pointsEarned =
-      r.points_earned !== undefined && r.points_earned !== null
-        ? r.points_earned
-        : calc.totalPoints;
+      category === "amistoso"
+        ? 0
+        : r.points_earned !== undefined && r.points_earned !== null
+          ? r.points_earned
+          : calc.totalPoints;
 
     return {
       tournament_id: tournamentId,

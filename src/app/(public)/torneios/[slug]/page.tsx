@@ -142,8 +142,18 @@ export default async function TorneioDetalhePage({
             >
               {TOURNAMENT_STATUS_LABELS[tournament.status]}
             </Badge>
-            <Badge variant="outline" className="border-border/60">
+            <Badge
+              variant="outline"
+              className={
+                tournament.category === "oficial"
+                  ? "border-fire-yellow/50 text-fire-yellow bg-fire-yellow/10 font-bold"
+                  : tournament.category === "amistoso"
+                    ? "border-sky-500/50 text-sky-400 bg-sky-500/10 font-bold"
+                    : "border-border/60"
+              }
+            >
               {TOURNAMENT_CATEGORY_LABELS[tournament.category ?? "semanal"]}
+              {tournament.category === "amistoso" ? " • Sem Ranking" : ""}
             </Badge>
             <Badge variant="outline" className="border-border/60">
               {TOURNAMENT_FORMAT_LABELS[tournament.format]}

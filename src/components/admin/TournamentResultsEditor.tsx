@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { saveTournamentResultsAction } from "@/app/admin/actions";
 import {
   calculateOfficialTournamentPoints,
+  normalizeTournamentCategory,
   OBA_PODIUM_POINTS,
   OBA_SWISS_LEADER_BONUS,
   OBA_SWISS_WIN_POINTS,
@@ -59,9 +60,12 @@ export function TournamentResultsEditor({
   existingResults,
 }: TournamentResultsEditorProps) {
   const router = useRouter();
-  const category: ObaTournamentCategory =
-    tournament.category === "oficial" ? "oficial" : "semanal";
-  const supportsSwissLeaderBonus = tournament.format !== "swiss_only";
+  const category: ObaTournamentCategory = normalizeTournamentCategory(
+    tournament.category
+  );
+  const isFriendly = category === "amistoso";
+  const supportsSwissLeaderBonus =
+    !isFriendly && tournament.format !== "swiss_only";
 
   const computeSuggested = React.useCallback(
     (finalPosition: number, swissWins: number, isSwissLeader: boolean) => {
@@ -82,15 +86,15 @@ export function TournamentResultsEditor({
         blader_id: r.blader_id,
         final_position: r.final_position,
         swiss_wins: r.swiss_wins ?? 0,
-        is_swiss_leader: Boolean(r.is_swiss_leader),
-        points_earned: r.points_earned,
+        is_swiss_leader: !isFriendly && Boolean(r.is_swiss_leader),
+        points_earned: isFriendly ? 0 : r.points_earned,
       }));
     }
     return [1, 2, 3].map((pos) => ({
       blader_id: "",
       final_position: pos,
       swiss_wins: 0,
-      is_swiss_leader: pos === 1 && tournament.format !== "swiss_only",
+      is_swiss_leader: pos === 1 && supportsSwissLeaderBonus,
       points_earned: OBA_PODIUM_POINTS[category][pos] ?? 0,
     }));
   });
@@ -216,7 +220,9 @@ export function TournamentResultsEditor({
         <div className="p-3.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>
-            Resultados salvos com sucesso! O ranking da temporada foi recalculado.
+            {isFriendly
+              ? "Resultados do torneio amistoso salvos com sucesso (sem impacto no ranking oficial)."
+              : "Resultados salvos com sucesso! O ranking da temporada foi recalculado."}
           </span>
         </div>
       )}
@@ -225,21 +231,37 @@ export function TournamentResultsEditor({
       <div className="p-3.5 rounded-lg bg-muted/30 border border-border/40 text-xs text-muted-foreground flex items-start gap-2.5">
         <HelpCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
         <p>
-          Regra aplicada:{" "}
-          <strong className="text-foreground">
-            {TOURNAMENT_CATEGORY_LABELS[category]}
-          </strong>{" "}
-          (1º = {OBA_PODIUM_POINTS[category][1]} pts, 2º ={" "}
-          {OBA_PODIUM_POINTS[category][2]} pts, 3º ={" "}
-          {OBA_PODIUM_POINTS[category][3]} pts) •{" "}
-          <strong className="text-foreground">
-            {TOURNAMENT_FORMAT_LABELS[tournament.format]}
-          </strong>{" "}
-          • +{OBA_SWISS_WIN_POINTS} pts por vitória no Suíço
-          {supportsSwissLeaderBonus
-            ? ` • +${OBA_SWISS_LEADER_BONUS} pts para o Líder da fase Suíça`
-            : " (sem bônus de liderança)"}
-          .
+          {isFriendly ? (
+            <>
+              Modalidade aplicada:{" "}
+              <strong className="text-sky-400">
+                {TOURNAMENT_CATEGORY_LABELS.amistoso}
+              </strong>{" "}
+              •{" "}
+              <strong className="text-foreground">
+                {TOURNAMENT_FORMAT_LABELS[tournament.format]}
+              </strong>{" "}
+              • As colocações e vitórias no Suíço ficam registradas apenas para histórico do evento (0 pontos, 0 vitórias e 0 pódios no ranking oficial).
+            </>
+          ) : (
+            <>
+              Regra aplicada:{" "}
+              <strong className="text-foreground">
+                {TOURNAMENT_CATEGORY_LABELS[category]}
+              </strong>{" "}
+              (1º = {OBA_PODIUM_POINTS[category][1]} pts, 2º ={" "}
+              {OBA_PODIUM_POINTS[category][2]} pts, 3º ={" "}
+              {OBA_PODIUM_POINTS[category][3]} pts) •{" "}
+              <strong className="text-foreground">
+                {TOURNAMENT_FORMAT_LABELS[tournament.format]}
+              </strong>{" "}
+              • +{OBA_SWISS_WIN_POINTS} pts por vitória no Suíço
+              {supportsSwissLeaderBonus
+                ? ` • +${OBA_SWISS_LEADER_BONUS} pts para o Líder da fase Suíça`
+                : " (sem bônus de liderança)"}
+              .
+            </>
+          )}
         </p>
       </div>
 
@@ -328,24 +350,30 @@ export function TournamentResultsEditor({
                   </label>
                 )}
 
-                <div className="flex items-center gap-1.5">
-                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">
-                    Total Pts:
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={row.points_earned}
-                    onChange={(e) =>
-                      updateRowField(
-                        index,
-                        "points_earned",
-                        Math.max(0, parseInt(e.target.value, 10) || 0)
-                      )
-                    }
-                    className="w-20 h-8 text-xs text-center font-black text-primary"
-                  />
-                </div>
+                {isFriendly ? (
+                  <div className="px-2.5 h-8 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold flex items-center whitespace-nowrap">
+                    0 pts (Amistoso)
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[11px] text-muted-foreground whitespace-nowrap">
+                      Total Pts:
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.points_earned}
+                      onChange={(e) =>
+                        updateRowField(
+                          index,
+                          "points_earned",
+                          Math.max(0, parseInt(e.target.value, 10) || 0)
+                        )
+                      }
+                      className="w-20 h-8 text-xs text-center font-black text-primary"
+                    />
+                  </div>
+                )}
 
                 <Button
                   type="button"
@@ -388,7 +416,7 @@ export function TournamentResultsEditor({
           ) : (
             <>
               <Save className="h-3.5 w-3.5" />
-              Salvar Resultados e Atualizar Ranking
+              {isFriendly ? "Salvar Resultados (Sem Ranking)" : "Salvar Resultados e Atualizar Ranking"}
             </>
           )}
         </Button>

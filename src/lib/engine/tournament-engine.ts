@@ -1,5 +1,6 @@
 import {
   calculateOfficialTournamentPoints,
+  normalizeTournamentCategory,
   OBA_SWISS_WIN_POINTS,
   type ObaTournamentCategory,
 } from "@/lib/constants";
@@ -604,14 +605,18 @@ export function computeFinalTournamentResults(
     pushPlaced(s.bladerId);
   }
 
-  const category: ObaTournamentCategory =
-    tournament.category === "oficial" ? "oficial" : "semanal";
+  const category: ObaTournamentCategory = normalizeTournamentCategory(
+    tournament.category
+  );
 
   return placedIds.map((bladerId, idx) => {
     const finalPosition = idx + 1;
     const swissRow = swissByBlader.get(bladerId);
     const swissWins = swissRow?.wins ?? 0;
-    const isSwissLeader = swissLeaderId !== null && bladerId === swissLeaderId;
+    const isSwissLeader =
+      category !== "amistoso" &&
+      swissLeaderId !== null &&
+      bladerId === swissLeaderId;
 
     const breakdown = calculateOfficialTournamentPoints({
       category,

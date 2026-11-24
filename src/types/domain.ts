@@ -147,6 +147,7 @@ export const FINISH_POINTS: Record<FinishType, number> = {
 export const TOURNAMENT_CATEGORY_LABELS: Record<TournamentCategory, string> = {
   semanal: "Semanal",
   oficial: "Oficial",
+  amistoso: "Amistoso",
 } as const;
 
 export const TOURNAMENT_FORMAT_LABELS: Record<TournamentFormat, string> = {

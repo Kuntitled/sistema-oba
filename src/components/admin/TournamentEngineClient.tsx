@@ -430,9 +430,12 @@ export function TournamentEngineClient({
   };
 
   const handleFinalizeTournament = async () => {
+    const isFriendly = tournament.category === "amistoso";
     if (
       !confirm(
-        "Confirmar o encerramento oficial do torneio e publicação dos pontos no Ranking da Temporada?"
+        isFriendly
+          ? "Confirmar o encerramento do torneio amistoso? O pódio final será salvo sem contar pontos ou vitórias no Ranking Oficial."
+          : "Confirmar o encerramento oficial do torneio e publicação dos pontos no Ranking da Temporada?"
       )
     ) {
       return;
@@ -448,7 +451,9 @@ export function TournamentEngineClient({
       return;
     }
     setSuccessMsg(
-      "Torneio encerrado e pontuação oficial OBA publicada no Ranking!"
+      isFriendly
+        ? "Torneio amistoso encerrado! Resultados salvos para o histórico sem pontuar no ranking."
+        : "Torneio encerrado e pontuação oficial OBA publicada no Ranking!"
     );
     await refreshSnapshot();
     router.refresh();
@@ -762,7 +767,9 @@ export function TournamentEngineClient({
               className={`text-[10px] font-bold ${
                 tournament.category === "oficial"
                   ? "border-fire-yellow/50 text-fire-yellow bg-fire-yellow/10"
-                  : "border-primary/40 text-primary"
+                  : tournament.category === "amistoso"
+                    ? "border-sky-500/50 text-sky-400 bg-sky-500/10"
+                    : "border-primary/40 text-primary"
               }`}
             >
               {TOURNAMENT_CATEGORY_LABELS[tournament.category ?? "semanal"]}
@@ -780,10 +787,18 @@ export function TournamentEngineClient({
             {tournament.name}
           </h1>
           <p className="text-xs text-muted-foreground">
-            Suíço: +{OBA_SWISS_WIN_POINTS} pts/vitória • Desempate: Extreme &gt; Burst &gt; Over &gt; Spin
-            {supportsTopCut
-              ? ` • Líder Suíço: +${OBA_SWISS_LEADER_BONUS} pts`
-              : " • Sem bônus de liderança"}
+            {tournament.category === "amistoso" ? (
+              <>
+                Modalidade Amistoso (não pontua no Ranking Oficial) • Desempate: Extreme &gt; Burst &gt; Over &gt; Spin
+              </>
+            ) : (
+              <>
+                Suíço: +{OBA_SWISS_WIN_POINTS} pts/vitória • Desempate: Extreme &gt; Burst &gt; Over &gt; Spin
+                {supportsTopCut
+                  ? ` • Líder Suíço: +${OBA_SWISS_LEADER_BONUS} pts`
+                  : " • Sem bônus de liderança"}
+              </>
+            )}
           </p>
         </CardContent>
       </Card>
@@ -1299,10 +1314,14 @@ export function TournamentEngineClient({
             <CardHeader className="p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base font-black">
-                  Prévia Oficial de Pontuação OBA
+                  {tournament.category === "amistoso"
+                    ? "Prévia Final — Torneio Amistoso"
+                    : "Prévia Oficial de Pontuação OBA"}
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Confira o cálculo automático de vitórias no Suíço, bônus de liderança e pontos de pódio antes de publicar.
+                  {tournament.category === "amistoso"
+                    ? "Confira as colocações finais do evento. Por ser Amistoso, nenhuma vitória, pódio ou ponto será adicionado ao Ranking Oficial."
+                    : "Confira o cálculo automático de vitórias no Suíço, bônus de liderança e pontos de pódio antes de publicar."}
                 </p>
               </div>
 
@@ -1323,7 +1342,9 @@ export function TournamentEngineClient({
                 ) : (
                   <Trophy className="h-4 w-4" />
                 )}
-                Encerrar Torneio e Publicar no Ranking
+                {tournament.category === "amistoso"
+                  ? "Encerrar Torneio Amistoso"
+                  : "Encerrar Torneio e Publicar no Ranking"}
               </Button>
             </CardHeader>
 
@@ -1368,7 +1389,11 @@ export function TournamentEngineClient({
                         {item.podiumPoints > 0 ? `+${item.podiumPoints}` : "—"}
                       </td>
                       <td className="py-2.5 px-3 text-right font-black text-primary">
-                        +{item.pointsEarned} pts
+                        {tournament.category === "amistoso" ? (
+                          <span className="text-sky-400">Sem ranking</span>
+                        ) : (
+                          `+${item.pointsEarned} pts`
+                        )}
                       </td>
                     </tr>
                   ))}

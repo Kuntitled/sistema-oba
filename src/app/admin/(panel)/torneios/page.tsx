@@ -140,7 +140,9 @@ export default async function AdminTorneiosPage() {
                       className={`text-[10px] font-bold ${
                         tournament.category === "oficial"
                           ? "border-fire-yellow/50 text-fire-yellow bg-fire-yellow/10"
-                          : "border-primary/40 text-primary"
+                          : tournament.category === "amistoso"
+                            ? "border-sky-500/50 text-sky-400 bg-sky-500/10"
+                            : "border-primary/40 text-primary"
                       }`}
                     >
                       {

@@ -8,6 +8,7 @@
 export const OBA_PODIUM_POINTS = {
   semanal: { 1: 100, 2: 75, 3: 50 } as Record<number, number>,
   oficial: { 1: 200, 2: 150, 3: 100 } as Record<number, number>,
+  amistoso: { 1: 0, 2: 0, 3: 0 } as Record<number, number>,
 } as const;
 
 export const OBA_SWISS_WIN_POINTS = 10;
@@ -17,6 +18,20 @@ export const ALLOWED_TOP_CUT_SIZES = [4, 8, 16] as const;
 
 export type ObaTournamentCategory = keyof typeof OBA_PODIUM_POINTS;
 
+export function normalizeTournamentCategory(
+  raw: string | null | undefined
+): ObaTournamentCategory {
+  if (raw === "oficial") return "oficial";
+  if (raw === "amistoso") return "amistoso";
+  return "semanal";
+}
+
+export function isRankedTournamentCategory(
+  category: string | null | undefined
+): boolean {
+  return normalizeTournamentCategory(category) !== "amistoso";
+}
+
 export function calculateOfficialTournamentPoints(params: {
   category: ObaTournamentCategory;
   format: string;
@@ -24,6 +39,15 @@ export function calculateOfficialTournamentPoints(params: {
   swissWins: number;
   isSwissLeader: boolean;
 }) {
+  if (params.category === "amistoso") {
+    return {
+      swissPoints: 0,
+      swissLeaderBonus: 0,
+      podiumPoints: 0,
+      totalPoints: 0,
+    };
+  }
+
   const swissWins = Math.max(0, Math.floor(params.swissWins || 0));
   const swissPoints = swissWins * OBA_SWISS_WIN_POINTS;
   const qualifiesLeaderBonus =

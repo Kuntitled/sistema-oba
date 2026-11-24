@@ -274,6 +274,7 @@ export function EditTournamentButton({
                 >
                   <option value="semanal">Semanal (100 / 75 / 50)</option>
                   <option value="oficial">Oficial (200 / 150 / 100)</option>
+                  <option value="amistoso">Amistoso (Sem pontos no ranking)</option>
                 </select>
               </div>
 
@@ -308,6 +309,12 @@ export function EditTournamentButton({
                 </select>
               </div>
             </div>
+
+            {category === "amistoso" && (
+              <div className="rounded-lg border border-sky-500/35 bg-sky-500/10 p-2.5 text-[11px] text-sky-400">
+                Modalidade <strong>Amistoso</strong>: não soma pontos, vitórias no Suíço nem pódios no Ranking Oficial da temporada.
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">

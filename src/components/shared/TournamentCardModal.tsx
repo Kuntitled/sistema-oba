@@ -616,7 +616,9 @@ function TournamentCardModalBody({ tournament }: TournamentCardModalBodyProps) {
                 className="accent-primary"
               />
               <span className="font-semibold">
-                Exibir pontos de pódio do ranking
+                {tournament.category === "amistoso"
+                  ? 'Exibir aviso "Não vale pontos no ranking"'
+                  : "Exibir pontos de pódio do ranking"}
               </span>
             </label>
 
