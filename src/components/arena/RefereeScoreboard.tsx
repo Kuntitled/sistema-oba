@@ -47,6 +47,7 @@ import {
   FINISH_TYPE_LABELS,
   MATCH_STAGE_LABELS,
   type Arena,
+  type ArenaPlayerComboOption,
   type Blader,
   type BladerRow,
   type FinishType,
@@ -60,6 +61,8 @@ interface RefereeScoreboardProps {
   initialArena: Arena;
   initialMatch: Match | null;
   initialGames: MatchGame[];
+  initialPlayer1Combos?: ArenaPlayerComboOption[];
+  initialPlayer2Combos?: ArenaPlayerComboOption[];
   pendingMatches: Match[];
   bladers: Blader[];
   canQuickStart?: boolean;
@@ -83,10 +86,21 @@ function resolvePlayerById(
   return null;
 }
 
+function getSuggestedComboId(
+  combos: ArenaPlayerComboOption[],
+  roundIndex: number
+): string | null {
+  if (combos.length === 0) return null;
+  const cycleSize = Math.min(combos.length, 3);
+  return combos[roundIndex % cycleSize]?.id ?? combos[0].id;
+}
+
 export function RefereeScoreboard({
   initialArena,
   initialMatch,
   initialGames,
+  initialPlayer1Combos = [],
+  initialPlayer2Combos = [],
   pendingMatches: initialPendingMatches,
   bladers,
   canQuickStart = true,
@@ -96,6 +110,18 @@ export function RefereeScoreboard({
   const [arena, setArena] = React.useState<Arena>(initialArena);
   const [match, setMatch] = React.useState<Match | null>(initialMatch);
   const [games, setGames] = React.useState<MatchGame[]>(initialGames);
+  const [player1Combos, setPlayer1Combos] = React.useState<
+    ArenaPlayerComboOption[]
+  >(initialPlayer1Combos);
+  const [player2Combos, setPlayer2Combos] = React.useState<
+    ArenaPlayerComboOption[]
+  >(initialPlayer2Combos);
+  const [selectedP1ComboId, setSelectedP1ComboId] = React.useState<
+    string | null
+  >(() => getSuggestedComboId(initialPlayer1Combos, initialGames.length));
+  const [selectedP2ComboId, setSelectedP2ComboId] = React.useState<
+    string | null
+  >(() => getSuggestedComboId(initialPlayer2Combos, initialGames.length));
   const [pendingMatches, setPendingMatches] = React.useState<Match[]>(
     initialPendingMatches
   );
@@ -111,15 +137,34 @@ export function RefereeScoreboard({
 
   const submittingRef = React.useRef(false);
 
+  const syncComboSuggestions = React.useCallback(
+    (
+      p1List: ArenaPlayerComboOption[],
+      p2List: ArenaPlayerComboOption[],
+      roundCount: number
+    ) => {
+      setSelectedP1ComboId(getSuggestedComboId(p1List, roundCount));
+      setSelectedP2ComboId(getSuggestedComboId(p2List, roundCount));
+    },
+    []
+  );
+
   const refreshArenaData = React.useCallback(async () => {
     const snapshot = await fetchArenaLiveSnapshot(supabase, initialArena.id);
     if (!snapshot.schemaMissing && snapshot.arena) {
       setArena(snapshot.arena);
       setMatch(snapshot.arena.current_match ?? null);
       setGames(snapshot.games);
+      setPlayer1Combos(snapshot.player1Combos);
+      setPlayer2Combos(snapshot.player2Combos);
       setPendingMatches(snapshot.pendingMatches);
+      syncComboSuggestions(
+        snapshot.player1Combos,
+        snapshot.player2Combos,
+        snapshot.games.length
+      );
     }
-  }, [supabase, initialArena.id]);
+  }, [supabase, initialArena.id, syncComboSuggestions]);
 
   // Canal 1: mudanças na arena e nas partidas do torneio
   React.useEffect(() => {
@@ -230,7 +275,10 @@ export function RefereeScoreboard({
     setPendingAction(`${playerId}:${finishType}`);
     triggerHaptic();
 
-    const res = await recordMatchGameAction(match.id, playerId, finishType);
+    const res = await recordMatchGameAction(match.id, playerId, finishType, {
+      player1ComboId: selectedP1ComboId,
+      player2ComboId: selectedP2ComboId,
+    });
 
     submittingRef.current = false;
     setPendingAction(null);
@@ -242,6 +290,7 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
+      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -265,6 +314,7 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
+      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -288,6 +338,7 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
+      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -357,6 +408,9 @@ export function RefereeScoreboard({
       player: match.player1 ?? null,
       playerId: match.player1_id,
       score: match.player1_score,
+      combos: player1Combos,
+      selectedComboId: selectedP1ComboId,
+      onSelectCombo: (id: string | null) => setSelectedP1ComboId(id),
       accentText: "text-primary",
       accentBg: "bg-primary",
       accentSoftBg: "bg-primary/10",
@@ -370,6 +424,9 @@ export function RefereeScoreboard({
       player: match.player2 ?? null,
       playerId: match.player2_id,
       score: match.player2_score,
+      combos: player2Combos,
+      selectedComboId: selectedP2ComboId,
+      onSelectCombo: (id: string | null) => setSelectedP2ComboId(id),
       accentText: "text-fire-orange",
       accentBg: "bg-fire-orange",
       accentSoftBg: "bg-fire-orange/10",
@@ -379,7 +436,21 @@ export function RefereeScoreboard({
       glowClass: "border-glow-fire",
     };
     return swappedSides ? [p2Side, p1Side] : [p1Side, p2Side];
-  }, [match, swappedSides]);
+  }, [
+    match,
+    swappedSides,
+    player1Combos,
+    player2Combos,
+    selectedP1ComboId,
+    selectedP2ComboId,
+  ]);
+
+  const combosById = React.useMemo(() => {
+    const map = new Map<string, ArenaPlayerComboOption>();
+    for (const c of player1Combos) map.set(c.id, c);
+    for (const c of player2Combos) map.set(c.id, c);
+    return map;
+  }, [player1Combos, player2Combos]);
 
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const reversedGames = React.useMemo(() => [...games].reverse(), [games]);
@@ -724,6 +795,61 @@ export function RefereeScoreboard({
                       </CardContent>
                     </Card>
 
+                    {/* Seletor rápido 1-toque de Combo do Round (opcional) */}
+                    {side.combos.length > 0 && (
+                      <div className="rounded-xl border border-border/50 bg-card/65 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <span>Bey R#{games.length + 1}</span>
+                          {side.selectedComboId && (
+                            <button
+                              type="button"
+                              disabled={isBusy || match.status !== "in_progress"}
+                              onClick={() => side.onSelectCombo(null)}
+                              className="text-[10px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
+                            >
+                              Limpar
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                          {side.combos.map((combo) => {
+                            const isSelected = side.selectedComboId === combo.id;
+                            return (
+                              <button
+                                key={combo.id}
+                                type="button"
+                                title={combo.summaryText}
+                                disabled={
+                                  isBusy || match.status !== "in_progress"
+                                }
+                                onClick={() =>
+                                  side.onSelectCombo(
+                                    isSelected ? null : combo.id
+                                  )
+                                }
+                                className={`min-h-[36px] px-2 py-1 rounded-lg border text-left transition-all touch-manipulation flex items-center gap-1.5 min-w-0 disabled:opacity-45 ${
+                                  isSelected
+                                    ? `${side.accentBorder} ${side.accentSoftBg} text-foreground font-bold`
+                                    : "border-border/50 bg-background/60 text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                <span
+                                  className={`text-[10px] font-black shrink-0 ${
+                                    isSelected ? side.accentText : "text-muted-foreground"
+                                  }`}
+                                >
+                                  #{combo.slotNumber}
+                                </span>
+                                <span className="text-[11px] truncate">
+                                  {combo.shortLabel}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* 4 Botões Táteis Beyblade X */}
                     <div className="flex flex-col gap-2">
                       {BX_FINISH_OPTIONS.map((option) => {
@@ -812,40 +938,63 @@ export function RefereeScoreboard({
                   <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                     {reversedGames.map((game) => {
                       const isP1 = game.scoring_player_id === match.player1_id;
+                      const p1Combo = game.player1_combo_id
+                        ? (combosById.get(game.player1_combo_id) ?? null)
+                        : null;
+                      const p2Combo = game.player2_combo_id
+                        ? (combosById.get(game.player2_combo_id) ?? null)
+                        : null;
+
                       return (
                         <div
                           key={game.id}
-                          className="px-3 py-2 rounded-lg border border-border/50 bg-background/60 flex items-center justify-between gap-2 text-xs"
+                          className="px-3 py-2 rounded-lg border border-border/50 bg-background/60 space-y-1 text-xs"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-mono text-[11px] font-bold text-muted-foreground">
-                              #{game.round_number}
-                            </span>
-                            <span
-                              className={`h-2 w-2 rounded-full shrink-0 ${
-                                isP1 ? "bg-primary" : "bg-fire-orange"
-                              }`}
-                            />
-                            <span className="font-bold text-foreground truncate">
-                              {game.scoring_player?.nickname ?? "Blader"}
-                            </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-[11px] font-bold text-muted-foreground">
+                                #{game.round_number}
+                              </span>
+                              <span
+                                className={`h-2 w-2 rounded-full shrink-0 ${
+                                  isP1 ? "bg-primary" : "bg-fire-orange"
+                                }`}
+                              />
+                              <span className="font-bold text-foreground truncate">
+                                {game.scoring_player?.nickname ?? "Blader"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-muted-foreground text-[11px]">
+                                {FINISH_TYPE_LABELS[game.finish_type]}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className={`font-black text-[11px] ${
+                                  isP1
+                                    ? "border-primary/40 text-primary"
+                                    : "border-fire-orange/40 text-fire-orange"
+                                }`}
+                              >
+                                +{game.points_awarded}
+                              </Badge>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-muted-foreground text-[11px]">
-                              {FINISH_TYPE_LABELS[game.finish_type]}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={`font-black text-[11px] ${
-                                isP1
-                                  ? "border-primary/40 text-primary"
-                                  : "border-fire-orange/40 text-fire-orange"
-                              }`}
-                            >
-                              +{game.points_awarded}
-                            </Badge>
-                          </div>
+                          {(p1Combo || p2Combo) && (
+                            <div className="text-[10px] text-muted-foreground flex flex-wrap items-center gap-1.5 pl-6">
+                              <span className="text-primary font-semibold truncate max-w-[140px]">
+                                #{p1Combo?.slotNumber ?? "?"}{" "}
+                                {p1Combo?.shortLabel ?? "Sem combo"}
+                              </span>
+                              <span>vs</span>
+                              <span className="text-fire-orange font-semibold truncate max-w-[140px]">
+                                #{p2Combo?.slotNumber ?? "?"}{" "}
+                                {p2Combo?.shortLabel ?? "Sem combo"}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

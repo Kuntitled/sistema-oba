@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, Database } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAdminTournamentRegistrations } from "@/lib/services/registrations";
+import { getPartsCatalog } from "@/lib/services/parts";
+import { getBladers } from "@/lib/services/league";
 import { TournamentRegistrationsClient } from "@/components/admin/TournamentRegistrationsClient";
 
 export default async function AdminTournamentRegistrationsPage({
@@ -10,13 +12,19 @@ export default async function AdminTournamentRegistrationsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const [regData, partsRes, bladers] = await Promise.all([
+    getAdminTournamentRegistrations(id),
+    getPartsCatalog({ includeInactive: false }),
+    getBladers(),
+  ]);
+
   const {
     tournament,
     registrations,
     participantsCount,
     bannedParts,
     schemaMissing,
-  } = await getAdminTournamentRegistrations(id);
+  } = regData;
 
   if (schemaMissing) {
     return (
@@ -49,6 +57,8 @@ export default async function AdminTournamentRegistrationsPage({
       initialRegistrations={registrations}
       participantsCount={participantsCount}
       bannedParts={bannedParts}
+      parts={partsRes.parts}
+      bladers={bladers}
     />
   );
 }

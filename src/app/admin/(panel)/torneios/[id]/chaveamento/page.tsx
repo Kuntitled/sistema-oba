@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
 import { getTournamentEngineState } from "@/lib/services/tournament-live";
+import { getPartsCatalog } from "@/lib/services/parts";
+import {
+  getRulesetBannedParts,
+  getTournamentCombosByBladerId,
+} from "@/lib/services/registrations";
 import { TournamentEngineClient } from "@/components/admin/TournamentEngineClient";
 import { Phase2SchemaNotice } from "@/components/arena/Phase2SchemaNotice";
 
@@ -9,6 +14,12 @@ export default async function AdminTournamentEnginePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const [engineState, partsRes, combosByBlader] = await Promise.all([
+    getTournamentEngineState(id),
+    getPartsCatalog({ includeInactive: false }),
+    getTournamentCombosByBladerId(id),
+  ]);
+
   const {
     tournament,
     participants,
@@ -17,7 +28,7 @@ export default async function AdminTournamentEnginePage({
     arenas,
     allBladers,
     schemaMissing,
-  } = await getTournamentEngineState(id);
+  } = engineState;
 
   if (schemaMissing) {
     return <Phase2SchemaNotice backHref="/admin/torneios" />;
@@ -27,6 +38,10 @@ export default async function AdminTournamentEnginePage({
     notFound();
   }
 
+  const bansRes = tournament.ruleset_id
+    ? await getRulesetBannedParts(tournament.ruleset_id)
+    : { bannedPartIds: [], bannedParts: [] };
+
   return (
     <TournamentEngineClient
       initialTournament={tournament}
@@ -35,6 +50,9 @@ export default async function AdminTournamentEnginePage({
       initialGames={games}
       initialArenas={arenas}
       allBladers={allBladers}
+      parts={partsRes.parts}
+      bannedParts={bansRes.bannedParts}
+      initialCombosByBlader={combosByBlader}
     />
   );
 }

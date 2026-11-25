@@ -620,6 +620,8 @@ export type Database = {
           scoring_player_id: string | null;
           finish_type: "spin" | "over" | "burst" | "xtreme" | "draw";
           points_awarded: number;
+          player1_combo_id: string | null;
+          player2_combo_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -629,6 +631,8 @@ export type Database = {
           scoring_player_id?: string | null;
           finish_type: "spin" | "over" | "burst" | "xtreme" | "draw";
           points_awarded: number;
+          player1_combo_id?: string | null;
+          player2_combo_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -638,6 +642,8 @@ export type Database = {
           scoring_player_id?: string | null;
           finish_type?: "spin" | "over" | "burst" | "xtreme" | "draw";
           points_awarded?: number;
+          player1_combo_id?: string | null;
+          player2_combo_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -653,6 +659,20 @@ export type Database = {
             columns: ["scoring_player_id"];
             isOneToOne: false;
             referencedRelation: "bladers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "match_games_player1_combo_id_fkey";
+            columns: ["player1_combo_id"];
+            isOneToOne: false;
+            referencedRelation: "registration_combos";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "match_games_player2_combo_id_fkey";
+            columns: ["player2_combo_id"];
+            isOneToOne: false;
+            referencedRelation: "registration_combos";
             referencedColumns: ["id"];
           }
         ];
@@ -858,6 +878,7 @@ export type Database = {
           receipt_path: string | null;
           decks_verified: boolean;
           rejection_reason: string | null;
+          original_part_ids: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -872,6 +893,7 @@ export type Database = {
           receipt_path?: string | null;
           decks_verified?: boolean;
           rejection_reason?: string | null;
+          original_part_ids?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -886,6 +908,7 @@ export type Database = {
           receipt_path?: string | null;
           decks_verified?: boolean;
           rejection_reason?: string | null;
+          original_part_ids?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -925,6 +948,7 @@ export type Database = {
           bit_id: string | null;
           lock_chip_id: string | null;
           assist_blade_id: string | null;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
@@ -938,6 +962,7 @@ export type Database = {
           bit_id?: string | null;
           lock_chip_id?: string | null;
           assist_blade_id?: string | null;
+          is_active?: boolean;
           created_at?: string;
         };
         Update: {
@@ -951,6 +976,7 @@ export type Database = {
           bit_id?: string | null;
           lock_chip_id?: string | null;
           assist_blade_id?: string | null;
+          is_active?: boolean;
           created_at?: string;
         };
         Relationships: [

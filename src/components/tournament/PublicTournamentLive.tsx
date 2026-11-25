@@ -11,17 +11,20 @@ import {
   AlertTriangle,
   Flame,
   MapPin,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveArenaCard } from "@/components/tournament/LiveArenaCard";
+import { TournamentMetaSection } from "@/components/tournament/TournamentMetaSection";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { OBA_SWISS_LEADER_BONUS } from "@/lib/constants";
 import { computeSwissStandings } from "@/lib/engine/tournament-engine";
 import { createClient } from "@/lib/supabase/client";
 import { fetchTournamentEngineSnapshot } from "@/lib/services/tournament-queries";
+import type { TournamentMetaBreakdown } from "@/lib/services/stats";
 import {
   FINISH_TYPE_LABELS,
   MATCH_STATUS_LABELS,
@@ -40,9 +43,10 @@ interface PublicTournamentLiveProps {
   initialGames: MatchGame[];
   initialArenas: Arena[];
   results: TournamentResult[];
+  metaBreakdown?: TournamentMetaBreakdown | null;
 }
 
-type PublicTab = "top_cut" | "swiss" | "results";
+type PublicTab = "top_cut" | "swiss" | "results" | "meta";
 
 function inferBracketColumnTitle(roundNum: number, roundMatches: Match[]): string {
   const labels = roundMatches.map((m) => m.bracket_label ?? "").join(" ");
@@ -62,6 +66,7 @@ export function PublicTournamentLive({
   initialGames,
   initialArenas,
   results,
+  metaBreakdown = null,
 }: PublicTournamentLiveProps) {
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -229,6 +234,10 @@ export function PublicTournamentLive({
   const hasSwiss = swissMatches.length > 0 || participants.length > 0;
   const hasResults = results.length > 0;
 
+  const canShowMetaTab =
+    Boolean(metaBreakdown) &&
+    (tournament.status === "ongoing" || tournament.status === "finished");
+
   const availableTabs = React.useMemo(() => {
     const tabs: Array<{ id: PublicTab; label: string }> = [];
     if (hasTopCut) tabs.push({ id: "top_cut", label: "Chave Top Cut" });
@@ -236,8 +245,11 @@ export function PublicTournamentLive({
     if (hasResults || (!hasTopCut && !hasSwiss)) {
       tabs.push({ id: "results", label: "Classificação Final" });
     }
+    if (canShowMetaTab) {
+      tabs.push({ id: "meta", label: "Meta & Estatísticas" });
+    }
     return tabs;
-  }, [hasTopCut, hasSwiss, hasResults]);
+  }, [hasTopCut, hasSwiss, hasResults, canShowMetaTab]);
 
   const [activeTab, setActiveTab] = React.useState<PublicTab>(() => {
     if (initialTournament.status === "finished" && hasResults) return "results";
@@ -333,7 +345,9 @@ export function PublicTournamentLive({
                   ? GitBranch
                   : tab.id === "swiss"
                     ? Swords
-                    : Trophy;
+                    : tab.id === "meta"
+                      ? BarChart3
+                      : Trophy;
               return (
                 <Button
                   key={tab.id}
@@ -884,6 +898,11 @@ export function PublicTournamentLive({
               </div>
             )}
           </div>
+        )}
+
+        {/* ─── Aba 4: Meta & Estatísticas da Etapa ──────────────────── */}
+        {resolvedTab === "meta" && canShowMetaTab && metaBreakdown && (
+          <TournamentMetaSection data={metaBreakdown} />
         )}
       </section>
 

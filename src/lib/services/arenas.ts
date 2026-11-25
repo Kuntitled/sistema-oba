@@ -43,6 +43,8 @@ export async function getArenaLiveState(
       arena: null,
       games: [],
       pendingMatches: [],
+      player1Combos: [],
+      player2Combos: [],
       bladers: [],
       schemaMissing: false,
     };

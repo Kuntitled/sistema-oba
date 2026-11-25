@@ -24,6 +24,7 @@ import {
   Send,
   ClipboardCheck,
   Tv,
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,8 @@ import {
 } from "@/lib/engine/tournament-engine";
 import { createClient } from "@/lib/supabase/client";
 import { fetchTournamentEngineSnapshot } from "@/lib/services/tournament-queries";
+import { comboRowToSelection } from "@/lib/combo-rules";
+import { AdminDecklistDialog } from "@/components/admin/AdminDecklistDialog";
 import { assignExistingMatchToArenaAction } from "@/app/admin/arena/actions";
 import {
   createSwissLeaderTiebreakerAction,
@@ -66,6 +69,8 @@ import {
   type Blader,
   type Match,
   type MatchGame,
+  type PartRow,
+  type RegistrationComboRow,
   type Tournament,
   type TournamentParticipant,
 } from "@/types/domain";
@@ -77,6 +82,9 @@ interface TournamentEngineClientProps {
   initialGames: MatchGame[];
   initialArenas: Arena[];
   allBladers: Blader[];
+  parts?: PartRow[];
+  bannedParts?: PartRow[];
+  initialCombosByBlader?: Record<string, RegistrationComboRow[]>;
 }
 
 type EngineTab = "participants" | "swiss" | "top_cut" | "finalize";
@@ -88,6 +96,9 @@ export function TournamentEngineClient({
   initialGames,
   initialArenas,
   allBladers,
+  parts = [],
+  bannedParts = [],
+  initialCombosByBlader = {},
 }: TournamentEngineClientProps) {
   const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
@@ -119,6 +130,15 @@ export function TournamentEngineClient({
   const [selectedBladerIds, setSelectedBladerIds] = React.useState<string[]>(() =>
     initialParticipants.map((p) => p.blader_id)
   );
+  const [decklistBlader, setDecklistBlader] = React.useState<Blader | null>(
+    null
+  );
+
+  const partsById = React.useMemo(() => {
+    const map = new Map<string, PartRow>();
+    for (const p of parts) map.set(p.id, p);
+    return map;
+  }, [parts]);
   const [bladerSearch, setBladerSearch] = React.useState("");
 
   // Tiebreaker selection state
@@ -952,40 +972,67 @@ export function TournamentEngineClient({
                         </div>
                       </label>
 
-                      {participantRecord && matches.length > 0 && (
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant={
-                            participantRecord.is_dropped ? "default" : "ghost"
-                          }
-                          disabled={busyAction !== null}
-                          onClick={() =>
-                            void handleToggleDrop(
-                              b.id,
+                      <div className="flex items-center gap-1 shrink-0">
+                        {participantRecord && parts.length > 0 && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant={
+                              (initialCombosByBlader[b.id]?.length ?? 0) > 0
+                                ? "outline"
+                                : "ghost"
+                            }
+                            disabled={busyAction !== null}
+                            onClick={() => setDecklistBlader(b)}
+                            title="Cadastrar ou editar combos (decklist) deste participante"
+                            className={`text-[10px] gap-1 ${
+                              (initialCombosByBlader[b.id]?.length ?? 0) > 0
+                                ? "border-primary/40 text-primary hover:bg-primary/10 font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <Layers className="h-3 w-3" />
+                            {(initialCombosByBlader[b.id]?.length ?? 0) > 0
+                              ? `Deck (${initialCombosByBlader[b.id].length})`
+                              : "+ Deck"}
+                          </Button>
+                        )}
+
+                        {participantRecord && matches.length > 0 && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant={
+                              participantRecord.is_dropped ? "default" : "ghost"
+                            }
+                            disabled={busyAction !== null}
+                            onClick={() =>
+                              void handleToggleDrop(
+                                b.id,
+                                participantRecord.is_dropped
+                              )
+                            }
+                            title={
                               participantRecord.is_dropped
-                            )
-                          }
-                          title={
-                            participantRecord.is_dropped
-                              ? "Reativar no Suíço"
-                              : "Marcar desistência (Drop)"
-                          }
-                          className="shrink-0 text-[10px]"
-                        >
-                          {participantRecord.is_dropped ? (
-                            <>
-                              <UserCheck className="h-3 w-3" />
-                              Voltar
-                            </>
-                          ) : (
-                            <>
-                              <UserMinus className="h-3 w-3 text-destructive" />
-                              Drop
-                            </>
-                          )}
-                        </Button>
-                      )}
+                                ? "Reativar no Suíço"
+                                : "Marcar desistência (Drop)"
+                            }
+                            className="shrink-0 text-[10px]"
+                          >
+                            {participantRecord.is_dropped ? (
+                              <>
+                                <UserCheck className="h-3 w-3" />
+                                Voltar
+                              </>
+                            ) : (
+                              <>
+                                <UserMinus className="h-3 w-3 text-destructive" />
+                                Drop
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1581,6 +1628,40 @@ export function TournamentEngineClient({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Cadastro/Edição de Decklist do Participante */}
+      <AdminDecklistDialog
+        open={Boolean(decklistBlader)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDecklistBlader(null);
+        }}
+        tournamentId={tournament.id}
+        tournamentName={tournament.name}
+        blader={
+          decklistBlader
+            ? {
+                id: decklistBlader.id,
+                nickname: decklistBlader.nickname,
+                name: decklistBlader.name,
+              }
+            : null
+        }
+        initialCombos={
+          decklistBlader
+            ? (initialCombosByBlader[decklistBlader.id] ?? []).map((row) =>
+                comboRowToSelection(row, partsById)
+              )
+            : []
+        }
+        parts={parts}
+        bannedParts={bannedParts}
+        onSaved={() => {
+          setSuccessMsg(
+            `Decklist de ${decklistBlader?.nickname ?? "participante"} atualizada para o Placar do Juiz!`
+          );
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

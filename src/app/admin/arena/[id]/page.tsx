@@ -17,7 +17,15 @@ export default async function AdminArenaJudgePage({
     getArenaLiveState(id),
   ]);
 
-  const { arena, games, pendingMatches, bladers, schemaMissing } = liveState;
+  const {
+    arena,
+    games,
+    pendingMatches,
+    player1Combos,
+    player2Combos,
+    bladers,
+    schemaMissing,
+  } = liveState;
   const role = normalizeUserRole(authData.user?.user_metadata?.role);
   const canQuickStart = role === "admin";
 
@@ -40,6 +48,8 @@ export default async function AdminArenaJudgePage({
       initialArena={arena}
       initialMatch={arena.current_match ?? null}
       initialGames={games}
+      initialPlayer1Combos={player1Combos}
+      initialPlayer2Combos={player2Combos}
       pendingMatches={pendingMatches}
       bladers={bladers}
       canQuickStart={canQuickStart}

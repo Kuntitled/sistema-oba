@@ -98,6 +98,14 @@ export interface MatchGame extends MatchGameRow {
   scoring_player?: BladerRow | null;
 }
 
+export interface ArenaPlayerComboOption {
+  id: string;
+  slotNumber: number;
+  system: BeySystem | null;
+  shortLabel: string;
+  summaryText: string;
+}
+
 // ─── Motor de Chaveamento OBA ─────────────────────────────────────────────────
 
 export interface SwissStandingRow {

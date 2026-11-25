@@ -14,6 +14,7 @@ import {
   User,
   LogIn,
   Radio,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,11 @@ const navItems: NavItem[] = [
   { label: "Ranking", href: "/", icon: <Trophy className="h-4 w-4" /> },
   { label: "Torneios", href: "/torneios", icon: <Swords className="h-4 w-4" /> },
   { label: "Bladers", href: "/bladers", icon: <Users className="h-4 w-4" /> },
+  {
+    label: "Estatísticas",
+    href: "/estatisticas",
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
 ];
 
 export function Navbar({ user = null }: { user?: NavbarUserInfo | null }) {

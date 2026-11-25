@@ -20,6 +20,7 @@ import {
   Clock,
   Wrench,
   MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,22 +99,90 @@ export function BroadcastBoardClient({
   const [matches, setMatches] = React.useState<Match[]>(initialMatches);
   const [games, setGames] = React.useState<MatchGame[]>(initialGames);
   const [arenas, setArenas] = React.useState<Arena[]>(initialArenas);
+  const [liveResults, setLiveResults] =
+    React.useState<TournamentResult[]>(results);
 
   const [realtimeStatus, setRealtimeStatus] = React.useState<
     "connecting" | "live" | "error"
   >("connecting");
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [clock, setClock] = React.useState("");
   const [viewMode, setViewMode] = React.useState<BroadcastViewMode>("auto");
   const [autoPaused, setAutoPaused] = React.useState(false);
   const [rotationIndex, setRotationIndex] = React.useState(0);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
+  const refreshingRef = React.useRef(false);
   const matchIdsRef = React.useRef<Set<string>>(
     new Set(initialMatches.map((m) => m.id))
   );
   React.useEffect(() => {
     matchIdsRef.current = new Set(matches.map((m) => m.id));
   }, [matches]);
+
+  const refresh = React.useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setIsRefreshing(true);
+
+    try {
+      const snap = await fetchTournamentEngineSnapshot(
+        supabase,
+        initialTournament.id
+      );
+      if (!snap.schemaMissing && snap.tournament) {
+        setTournament(snap.tournament);
+        setParticipants(snap.participants);
+        setMatches(snap.matches);
+        setGames(snap.games);
+        setArenas(snap.arenas);
+
+        if (snap.tournament.status === "finished") {
+          const { data: resultRows } = await supabase
+            .from("tournament_results")
+            .select("*")
+            .eq("tournament_id", initialTournament.id)
+            .order("final_position", { ascending: true });
+
+          if (resultRows && resultRows.length > 0) {
+            const bladersById = new Map(
+              snap.participants
+                .filter((p) => p.blader)
+                .map((p) => [p.blader_id, p.blader!])
+            );
+            const missingIds = resultRows
+              .map((r) => r.blader_id)
+              .filter((id) => !bladersById.has(id));
+
+            if (missingIds.length > 0) {
+              const { data: extraBladers } = await supabase
+                .from("bladers")
+                .select("*")
+                .in("id", missingIds);
+              for (const b of extraBladers ?? []) {
+                bladersById.set(b.id, b);
+              }
+            }
+
+            setLiveResults(
+              resultRows.map((r) => ({
+                ...r,
+                swiss_wins: r.swiss_wins ?? 0,
+                swiss_points: r.swiss_points ?? 0,
+                is_swiss_leader: r.is_swiss_leader ?? false,
+                swiss_leader_bonus: r.swiss_leader_bonus ?? 0,
+                podium_points: r.podium_points ?? 0,
+                blader: bladersById.get(r.blader_id),
+              }))
+            );
+          }
+        }
+      }
+    } finally {
+      refreshingRef.current = false;
+      setIsRefreshing(false);
+    }
+  }, [supabase, initialTournament.id]);
 
   // Relógio local em formato HH:mm sem chamar setState sincronicamente no corpo do effect
   React.useEffect(() => {
@@ -143,22 +212,8 @@ export function BroadcastBoardClient({
     return () => document.removeEventListener("fullscreenchange", handleFsChange);
   }, []);
 
-  // Subscrição Realtime (arenas, partidas, participantes, torneio, lances)
+  // Subscrição Realtime (apenas tabelas presentes em supabase_realtime: arenas, matches, tournament_participants, match_games)
   React.useEffect(() => {
-    const refresh = async () => {
-      const snap = await fetchTournamentEngineSnapshot(
-        supabase,
-        initialTournament.id
-      );
-      if (!snap.schemaMissing && snap.tournament) {
-        setTournament(snap.tournament);
-        setParticipants(snap.participants);
-        setMatches(snap.matches);
-        setGames(snap.games);
-        setArenas(snap.arenas);
-      }
-    };
-
     const channel = supabase
       .channel(`broadcast-telao-${initialTournament.id}`)
       .on(
@@ -199,18 +254,6 @@ export function BroadcastBoardClient({
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tournaments",
-          filter: `id=eq.${initialTournament.id}`,
-        },
-        () => {
-          void refresh();
-        }
-      )
-      .on(
-        "postgres_changes",
         { event: "*", schema: "public", table: "match_games" },
         (payload) => {
           const newMatchId =
@@ -235,10 +278,33 @@ export function BroadcastBoardClient({
         }
       });
 
+    const handleVisibilityOrOnline = () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    };
+
+    window.addEventListener("online", handleVisibilityOrOnline);
+    document.addEventListener("visibilitychange", handleVisibilityOrOnline);
+
     return () => {
+      window.removeEventListener("online", handleVisibilityOrOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityOrOnline);
       void supabase.removeChannel(channel);
     };
-  }, [supabase, initialTournament.id]);
+  }, [supabase, initialTournament.id, refresh]);
+
+  // Fallback de polling resiliente (4s se WebSocket não estiver live; 6s como rede de segurança durante o torneio)
+  React.useEffect(() => {
+    if (realtimeStatus === "live" && tournament.status !== "ongoing") {
+      return;
+    }
+    const intervalMs = realtimeStatus !== "live" ? 4000 : 6000;
+    const poll = window.setInterval(() => {
+      void refresh();
+    }, intervalMs);
+    return () => window.clearInterval(poll);
+  }, [realtimeStatus, tournament.status, refresh]);
 
   const swissSummary = React.useMemo(
     () => computeSwissStandings(participants, matches, games),
@@ -285,12 +351,12 @@ export function BroadcastBoardClient({
   }, [swissMatches, latestSwissRound]);
 
   const computedFallbackResults = React.useMemo(() => {
-    if (tournament.status !== "finished" || results.length > 0) return [];
+    if (tournament.status !== "finished" || liveResults.length > 0) return [];
     return computeFinalTournamentResults(tournament, participants, matches, games);
-  }, [tournament, results.length, participants, matches, games]);
+  }, [tournament, liveResults.length, participants, matches, games]);
 
   const hasOfficialOrComputedResults =
-    results.length > 0 || computedFallbackResults.length > 0;
+    liveResults.length > 0 || computedFallbackResults.length > 0;
 
   const availableSidePanels = React.useMemo<SidePanelType[]>(() => {
     const panels: SidePanelType[] = [];
@@ -728,8 +794,8 @@ export function BroadcastBoardClient({
     // Painel de Classificação / Pódio Final
     if (tournament.status === "finished" && hasOfficialOrComputedResults) {
       const displayRows =
-        results.length > 0
-          ? results.slice(0, 12).map((r) => ({
+        liveResults.length > 0
+          ? liveResults.slice(0, 12).map((r) => ({
               id: r.id,
               position: r.final_position,
               nickname: r.blader?.nickname ?? "Blader",
@@ -1037,6 +1103,21 @@ export function BroadcastBoardClient({
               {autoPaused ? "Retomar" : "Pausar"}
             </Button>
           )}
+
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            disabled={isRefreshing}
+            onClick={() => void refresh()}
+            className="border-white/20 bg-white/[0.04] text-slate-200 hover:bg-white/10 text-[11px] gap-1"
+            title="Sincronizar agora"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            <span className="hidden xl:inline">Atualizar</span>
+          </Button>
 
           <Button
             type="button"

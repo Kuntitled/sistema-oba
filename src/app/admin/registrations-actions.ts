@@ -7,9 +7,17 @@ import {
   comboRowToSelection,
   validateTournamentDeckCombo,
 } from "@/lib/combo-rules";
+import {
+  extractMultisetPartIdsFromCombos,
+  extractMultisetPartIdsFromSelections,
+} from "@/lib/deck-reassembly";
 import { sanitizePixText } from "@/lib/pix";
 import { createReceiptSignedUrl } from "@/lib/services/registrations";
-import type { PartRow } from "@/types/domain";
+import type {
+  ComboSelection,
+  PartRow,
+  RegistrationComboRow,
+} from "@/types/domain";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -185,11 +193,12 @@ export async function approveRegistrationAction(registrationId: string) {
     return { error: "Torneio associado não encontrado." };
   }
 
-  // Carrega combos e valida se há peças banidas ou inválidas no formato atual
+  // Carrega combos ativos e valida se há peças banidas ou inválidas no formato atual
   const { data: comboRows, error: combosError } = await auth.supabase
     .from("registration_combos")
     .select("*")
     .eq("registration_id", reg.id)
+    .eq("is_active", true)
     .order("slot_number", { ascending: true });
 
   if (combosError) {
@@ -286,11 +295,17 @@ export async function approveRegistrationAction(registrationId: string) {
     };
   }
 
+  const originalPool =
+    reg.original_part_ids && reg.original_part_ids.length > 0
+      ? reg.original_part_ids
+      : extractMultisetPartIdsFromCombos(comboRows);
+
   const { error: approveError } = await auth.supabase
     .from("tournament_registrations")
     .update({
       status: "approved",
       rejection_reason: null,
+      original_part_ids: originalPool,
     })
     .eq("id", reg.id);
 
@@ -487,4 +502,243 @@ export async function refreshReceiptSignedUrlAction(registrationId: string) {
   }
 
   return { success: true, signedUrl };
+}
+
+/**
+ * Permite que um administrador cadastre ou edite a decklist (1 a 4 combos)
+ * de um participante presencial/manual ou de uma inscrição existente,
+ * aprovando-a e garantindo sua presença no torneio.
+ */
+export async function upsertAdminParticipantDecklistAction(input: {
+  tournamentId: string;
+  bladerId: string;
+  combos: ComboSelection[];
+}) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(input.tournamentId) || !isValidUuid(input.bladerId)) {
+    return { error: "Torneio ou Blader inválido." };
+  }
+
+  if (!Array.isArray(input.combos) || input.combos.length === 0 || input.combos.length > 4) {
+    return { error: "Informe entre 1 e 4 combos na decklist." };
+  }
+
+  const [{ data: tournament }, { data: blader }, { data: allParts }] =
+    await Promise.all([
+      auth.supabase
+        .from("tournaments")
+        .select("id, slug, ruleset_id, max_players, entry_fee")
+        .eq("id", input.tournamentId)
+        .maybeSingle(),
+      auth.supabase
+        .from("bladers")
+        .select("id")
+        .eq("id", input.bladerId)
+        .maybeSingle(),
+      auth.supabase
+        .from("parts_catalog")
+        .select("*")
+        .eq("is_active", true),
+    ]);
+
+  if (!tournament) {
+    return { error: "Torneio não encontrado." };
+  }
+  if (!blader) {
+    return { error: "Blader não encontrado." };
+  }
+
+  const banRes = tournament.ruleset_id
+    ? await auth.supabase
+        .from("ruleset_banned_parts")
+        .select("part_id")
+        .eq("ruleset_id", tournament.ruleset_id)
+    : { data: [] as Array<{ part_id: string }> };
+
+  const partsById = new Map<string, PartRow>();
+  for (const part of allParts ?? []) {
+    partsById.set(part.id, part);
+  }
+  const bannedPartIds = new Set((banRes.data ?? []).map((b) => b.part_id));
+
+  const validatedCombos: ComboSelection[] = [];
+  for (let i = 0; i < input.combos.length; i += 1) {
+    const check = validateTournamentDeckCombo(
+      input.combos[i],
+      partsById,
+      bannedPartIds,
+      i + 1
+    );
+    if (!check.valid) {
+      return { error: check.error };
+    }
+    validatedCombos.push(check.sanitized);
+  }
+
+  // Garante vaga caso o Blader ainda não esteja em tournament_participants
+  const { data: existingParticipants } = await auth.supabase
+    .from("tournament_participants")
+    .select("blader_id")
+    .eq("tournament_id", tournament.id);
+
+  const participantSet = new Set(
+    (existingParticipants ?? []).map((p) => p.blader_id)
+  );
+  const alreadyParticipant = participantSet.has(input.bladerId);
+
+  if (
+    !alreadyParticipant &&
+    tournament.max_players !== null &&
+    participantSet.size >= tournament.max_players
+  ) {
+    return {
+      error: `O torneio atingiu o limite máximo de ${tournament.max_players} vagas confirmadas.`,
+    };
+  }
+
+  if (!alreadyParticipant) {
+    const { error: partErr } = await auth.supabase
+      .from("tournament_participants")
+      .upsert(
+        {
+          tournament_id: tournament.id,
+          blader_id: input.bladerId,
+        },
+        { onConflict: "tournament_id,blader_id", ignoreDuplicates: true }
+      );
+
+    if (partErr) {
+      return { error: `Erro ao confirmar Blader no torneio: ${partErr.message}` };
+    }
+  }
+
+  const originalPartIds = extractMultisetPartIdsFromSelections(validatedCombos);
+
+  // Busca ou cria a inscrição aprovada vinculada
+  const { data: existingReg } = await auth.supabase
+    .from("tournament_registrations")
+    .select("id")
+    .eq("tournament_id", tournament.id)
+    .eq("blader_id", input.bladerId)
+    .maybeSingle();
+
+  let registrationId = existingReg?.id ?? "";
+  if (registrationId) {
+    const { error: updRegErr } = await auth.supabase
+      .from("tournament_registrations")
+      .update({
+        status: "approved",
+        decks_verified: true,
+        rejection_reason: null,
+        original_part_ids: originalPartIds,
+      })
+      .eq("id", registrationId);
+
+    if (updRegErr) {
+      return { error: `Erro ao atualizar inscrição: ${updRegErr.message}` };
+    }
+  } else {
+    const entryFee = Number(tournament.entry_fee ?? 0);
+    const { data: insertedReg, error: insRegErr } = await auth.supabase
+      .from("tournament_registrations")
+      .insert({
+        tournament_id: tournament.id,
+        blader_id: input.bladerId,
+        status: "approved",
+        decks_verified: true,
+        payment_verified: entryFee <= 0,
+        original_part_ids: originalPartIds,
+      })
+      .select("id")
+      .single();
+
+    if (insRegErr || !insertedReg) {
+      return {
+        error: `Erro ao criar registro de decklist: ${insRegErr?.message ?? "tente novamente"}`,
+      };
+    }
+    registrationId = insertedReg.id;
+  }
+
+  // Preserva UUIDs dos slots ativos existentes para manter match_games.player*_combo_id íntegros
+  const { data: existingComboRows } = await auth.supabase
+    .from("registration_combos")
+    .select("*")
+    .eq("registration_id", registrationId)
+    .eq("is_active", true)
+    .order("slot_number", { ascending: true });
+
+  const existingBySlot = new Map<number, RegistrationComboRow>();
+  for (const row of existingComboRows ?? []) {
+    existingBySlot.set(row.slot_number, row);
+  }
+
+  const savedCombos: RegistrationComboRow[] = [];
+
+  for (let idx = 0; idx < validatedCombos.length; idx += 1) {
+    const slotNumber = idx + 1;
+    const c = validatedCombos[idx];
+    const payload = {
+      system: c.system,
+      blade_id: c.bladeId || null,
+      lock_chip_id: c.lockChipId || null,
+      over_blade_id: c.overBladeId || null,
+      assist_blade_id: c.assistBladeId || null,
+      ratchet_id: c.ratchetId || null,
+      bit_id: c.bitId || null,
+    };
+
+    const existingRow = existingBySlot.get(slotNumber);
+    if (existingRow) {
+      const { data: updatedRow, error: updErr } = await auth.supabase
+        .from("registration_combos")
+        .update(payload)
+        .eq("id", existingRow.id)
+        .select("*")
+        .single();
+
+      if (updErr || !updatedRow) {
+        return {
+          error: `Erro ao atualizar Combo #${slotNumber}: ${updErr?.message ?? "tente novamente"}`,
+        };
+      }
+      savedCombos.push(updatedRow);
+    } else {
+      const { data: insertedRow, error: insErr } = await auth.supabase
+        .from("registration_combos")
+        .insert({
+          registration_id: registrationId,
+          slot_number: slotNumber,
+          is_active: true,
+          ...payload,
+        })
+        .select("*")
+        .single();
+
+      if (insErr || !insertedRow) {
+        return {
+          error: `Erro ao salvar Combo #${slotNumber}: ${insErr?.message ?? "tente novamente"}`,
+        };
+      }
+      savedCombos.push(insertedRow);
+    }
+  }
+
+  // Remove slots excedentes caso a decklist tenha sido reduzida (ex.: 4 -> 3 combos)
+  const extraIds = (existingComboRows ?? [])
+    .filter((row) => row.slot_number > validatedCombos.length)
+    .map((row) => row.id);
+
+  if (extraIds.length > 0) {
+    await auth.supabase.from("registration_combos").delete().in("id", extraIds);
+  }
+
+  revalidateRegistrationViews(tournament.id, tournament.slug);
+  revalidatePath("/admin/arenas");
+  revalidatePath("/admin/arena/[id]", "page");
+  revalidatePath("/estatisticas");
+
+  return { success: true, combos: savedCombos };
 }

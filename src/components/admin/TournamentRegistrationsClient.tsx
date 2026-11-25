@@ -24,6 +24,8 @@ import {
   RotateCcw,
   FileText,
   Sparkles,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +40,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
-import { formatComboDisplay, type ComboBadgeChip } from "@/lib/combo-rules";
+import {
+  comboRowToSelection,
+  formatComboDisplay,
+  type ComboBadgeChip,
+} from "@/lib/combo-rules";
+import {
+  AdminDecklistDialog,
+  type DecklistBladerOption,
+} from "@/components/admin/AdminDecklistDialog";
 import { formatCurrencyBRL } from "@/lib/pix";
 import { isReceiptPdfPath } from "@/lib/receipt-upload";
 import { updateTournamentRegistrationStatusAction } from "@/app/admin/actions";
@@ -52,6 +62,8 @@ import {
 import {
   REGISTRATION_STATUS_LABELS,
   TOURNAMENT_REGISTRATION_STATUS_LABELS,
+  type Blader,
+  type ComboSelection,
   type PartRow,
   type RegistrationStatus,
   type Tournament,
@@ -64,6 +76,8 @@ interface TournamentRegistrationsClientProps {
   initialRegistrations: TournamentRegistrationAdminItem[];
   participantsCount: number;
   bannedParts: PartRow[];
+  parts?: PartRow[];
+  bladers?: Blader[];
 }
 
 const CHIP_TONE_CLASSES: Record<ComboBadgeChip["tone"], string> = {
@@ -84,6 +98,8 @@ export function TournamentRegistrationsClient({
   initialRegistrations,
   participantsCount,
   bannedParts,
+  parts = [],
+  bladers = [],
 }: TournamentRegistrationsClientProps) {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = React.useState<
@@ -114,6 +130,60 @@ export function TournamentRegistrationsClient({
   const [rejectModalItem, setRejectModalItem] =
     React.useState<TournamentRegistrationAdminItem | null>(null);
   const [rejectReason, setRejectReason] = React.useState("");
+
+  // Modal de Decklist Manual / Edição
+  const [decklistModalOpen, setDecklistModalOpen] = React.useState(false);
+  const [decklistTargetBlader, setDecklistTargetBlader] =
+    React.useState<DecklistBladerOption | null>(null);
+  const [decklistInitialCombos, setDecklistInitialCombos] = React.useState<
+    ComboSelection[]
+  >([]);
+
+  const partsById = React.useMemo(() => {
+    const map = new Map<string, PartRow>();
+    for (const p of parts) map.set(p.id, p);
+    return map;
+  }, [parts]);
+
+  const availableBladersForManual = React.useMemo<DecklistBladerOption[]>(() => {
+    return bladers.map((b) => ({
+      id: b.id,
+      nickname: b.nickname,
+      name: b.name,
+    }));
+  }, [bladers]);
+
+  const openManualDecklistModal = () => {
+    setDecklistTargetBlader(null);
+    setDecklistInitialCombos([]);
+    setDecklistModalOpen(true);
+  };
+
+  const openEditDecklistModal = (item: TournamentRegistrationAdminItem) => {
+    if (!item.blader) return;
+    setDecklistTargetBlader({
+      id: item.blader.id,
+      nickname: item.blader.nickname,
+      name: item.blader.name,
+    });
+    setDecklistInitialCombos(
+      item.combos.map((c) =>
+        comboRowToSelection(
+          {
+            system: c.system,
+            blade_id: c.blade?.id ?? null,
+            lock_chip_id: c.lockChip?.id ?? null,
+            over_blade_id: c.overBlade?.id ?? null,
+            assist_blade_id: c.assistBlade?.id ?? null,
+            ratchet_id: c.ratchet?.id ?? null,
+            bit_id: c.bit?.id ?? null,
+          },
+          partsById
+        )
+      )
+    );
+    setDecklistModalOpen(true);
+  };
 
   const entryFee = Number(tournament.entry_fee ?? 0);
   const isPaidTournament = entryFee > 0;
@@ -378,7 +448,18 @@ export function TournamentRegistrationsClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {parts.length > 0 && bladers.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={openManualDecklistModal}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Decklist Manual
+              </Button>
+            )}
             <span className="text-xs font-semibold text-muted-foreground">
               Inscrições Online:
             </span>
@@ -590,6 +671,19 @@ export function TournamentRegistrationsClient({
                         >
                           <Receipt className="h-3.5 w-3.5" />
                           Ver Comprovante
+                        </Button>
+                      )}
+
+                      {parts.length > 0 && item.blader && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={() => openEditDecklistModal(item)}
+                          className="gap-1 font-bold border-border/80"
+                        >
+                          <Pencil className="h-3 w-3 text-primary" />
+                          Editar Decklist
                         </Button>
                       )}
 
@@ -1025,6 +1119,24 @@ export function TournamentRegistrationsClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      <AdminDecklistDialog
+        open={decklistModalOpen}
+        onOpenChange={setDecklistModalOpen}
+        tournamentId={tournament.id}
+        tournamentName={tournament.name}
+        blader={decklistTargetBlader}
+        availableBladers={availableBladersForManual}
+        initialCombos={decklistInitialCombos}
+        parts={parts}
+        bannedParts={bannedParts}
+        onSaved={() => {
+          setFeedbackMessage(
+            "Decklist salva e aprovada com sucesso! Combos já disponíveis no Placar do Juiz."
+          );
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

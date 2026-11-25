@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { POINTS_TO_WIN_MATCH } from "@/lib/constants";
 import { isValidUuid } from "@/lib/services/arena-queries";
 import { syncTopCutAdvancement } from "@/lib/services/bracket-advancement";
@@ -438,10 +439,68 @@ export async function assignExistingMatchToArenaAction(
   return { success: true };
 }
 
+async function validateApprovedMatchCombo(
+  supabase: SupabaseClient<Database>,
+  comboId: string | null | undefined,
+  tournamentId: string,
+  bladerId: string | null
+): Promise<{ valid: boolean; id: string | null; error?: string }> {
+  const normalized = typeof comboId === "string" ? comboId.trim() : "";
+  if (!normalized) {
+    return { valid: true, id: null };
+  }
+
+  if (!isValidUuid(normalized) || !bladerId) {
+    return {
+      valid: false,
+      id: null,
+      error: "Combo selecionado é inválido para este jogador.",
+    };
+  }
+
+  const client = createAdminClient() ?? supabase;
+  const { data: comboRow, error: comboErr } = await client
+    .from("registration_combos")
+    .select("id, registration_id")
+    .eq("id", normalized)
+    .maybeSingle();
+
+  if (comboErr || !comboRow) {
+    return {
+      valid: false,
+      id: null,
+      error: "Combo selecionado não foi encontrado na decklist.",
+    };
+  }
+
+  const { data: regRow, error: regErr } = await client
+    .from("tournament_registrations")
+    .select("id")
+    .eq("id", comboRow.registration_id)
+    .eq("tournament_id", tournamentId)
+    .eq("blader_id", bladerId)
+    .eq("status", "approved")
+    .maybeSingle();
+
+  if (regErr || !regRow) {
+    return {
+      valid: false,
+      id: null,
+      error: "O combo selecionado não pertence à inscrição aprovada deste Blader.",
+    };
+  }
+
+  return { valid: true, id: comboRow.id };
+}
+
 export async function recordMatchGameAction(
   matchId: string,
   scoringPlayerId: string,
-  finishType: Exclude<FinishType, "draw">
+  finishType: Exclude<FinishType, "draw">,
+  options?: {
+    player1ComboId?: string | null;
+    player2ComboId?: string | null;
+  }
 ) {
   const auth = await requireRole(["admin", "judge"]);
   if (auth.error) return { error: auth.error };
@@ -477,6 +536,28 @@ export async function recordMatchGameAction(
     return { error: "O Blader selecionado não faz parte desta partida." };
   }
 
+  const [p1ComboValidation, p2ComboValidation] = await Promise.all([
+    validateApprovedMatchCombo(
+      auth.supabase,
+      options?.player1ComboId,
+      match.tournament_id,
+      match.player1_id
+    ),
+    validateApprovedMatchCombo(
+      auth.supabase,
+      options?.player2ComboId,
+      match.tournament_id,
+      match.player2_id
+    ),
+  ]);
+
+  if (!p1ComboValidation.valid) {
+    return { error: p1ComboValidation.error ?? "Combo do Blader 1 inválido." };
+  }
+  if (!p2ComboValidation.valid) {
+    return { error: p2ComboValidation.error ?? "Combo do Blader 2 inválido." };
+  }
+
   const pointsAwarded = FINISH_POINTS[finishType];
 
   const { data: existingGames, error: gamesFetchError } = await auth.supabase
@@ -493,15 +574,24 @@ export async function recordMatchGameAction(
   const nextRound =
     games.length > 0 ? games[games.length - 1].round_number + 1 : 1;
 
+  const insertPayload: Database["public"]["Tables"]["match_games"]["Insert"] = {
+    match_id: matchId,
+    round_number: nextRound,
+    scoring_player_id: scoringPlayerId,
+    finish_type: finishType,
+    points_awarded: pointsAwarded,
+  };
+
+  if (p1ComboValidation.id) {
+    insertPayload.player1_combo_id = p1ComboValidation.id;
+  }
+  if (p2ComboValidation.id) {
+    insertPayload.player2_combo_id = p2ComboValidation.id;
+  }
+
   const { data: insertedGame, error: insertError } = await auth.supabase
     .from("match_games")
-    .insert({
-      match_id: matchId,
-      round_number: nextRound,
-      scoring_player_id: scoringPlayerId,
-      finish_type: finishType,
-      points_awarded: pointsAwarded,
-    })
+    .insert(insertPayload)
     .select("*")
     .single();
 
@@ -521,6 +611,9 @@ export async function recordMatchGameAction(
   await syncTopCutAdvancement(auth.supabase, syncResult.match);
 
   revalidateArenaPaths(match.arena_id, match.tournament_id);
+  if (syncResult.match.status === "finished") {
+    revalidatePath("/estatisticas");
+  }
   return {
     success: true,
     match: syncResult.match,

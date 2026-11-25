@@ -130,7 +130,8 @@ export async function getMostUsedCombosByBladerId(
     const { data: comboRows, error: combosError } = await adminClient
       .from("registration_combos")
       .select("*")
-      .in("registration_id", Array.from(bladerByRegId.keys()));
+      .in("registration_id", Array.from(bladerByRegId.keys()))
+      .eq("is_active", true);
 
     if (combosError || !comboRows || comboRows.length === 0) {
       return result;

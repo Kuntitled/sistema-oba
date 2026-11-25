@@ -23,6 +23,7 @@ import {
   XCircle,
   ExternalLink,
   Users,
+  Wrench,
 } from "lucide-react";
 import {
   Card,
@@ -992,28 +993,44 @@ export function BladerPanelClient({
                             </div>
                           </div>
 
-                          <Link
-                            href={`/torneios/${reg.tournament.slug}#inscricao`}
-                            className="shrink-0"
-                          >
-                            <Button
-                              size="sm"
-                              variant={
-                                reg.status === "rejected"
-                                  ? "destructive"
-                                  : "outline"
-                              }
-                              className="text-xs font-bold gap-1.5"
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {reg.status === "approved" &&
+                              reg.tournament.status === "ongoing" && (
+                                <Link
+                                  href={`/torneios/${reg.tournament.slug}#remontagem`}
+                                >
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-600/90 text-white text-xs font-black gap-1.5"
+                                  >
+                                    <Wrench className="h-3.5 w-3.5" />
+                                    Remontar Combos
+                                  </Button>
+                                </Link>
+                              )}
+                            <Link
+                              href={`/torneios/${reg.tournament.slug}#inscricao`}
                             >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              {reg.status === "rejected"
-                                ? "Corrigir / Reenviar"
-                                : reg.status === "pending" &&
-                                    reg.tournament.registration_status === "open"
-                                  ? "Editar / Ver Status"
-                                  : "Ver Inscrição"}
-                            </Button>
-                          </Link>
+                              <Button
+                                size="sm"
+                                variant={
+                                  reg.status === "rejected"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className="text-xs font-bold gap-1.5"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                {reg.status === "rejected"
+                                  ? "Corrigir / Reenviar"
+                                  : reg.status === "pending" &&
+                                      reg.tournament.registration_status ===
+                                        "open"
+                                    ? "Editar / Ver Status"
+                                    : "Ver Inscrição"}
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
 
                         {reg.status === "rejected" && reg.rejection_reason && (

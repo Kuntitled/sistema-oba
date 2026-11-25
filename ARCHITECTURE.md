@@ -41,6 +41,7 @@ Sistema web progressivo (PWA) e responsivo (Mobile-First) voltado para a gestão
 |--------|-----------|--------------------------|
 | **Framework** | Next.js 16 (App Router) + React 19 + TypeScript 5 | SSR dinâmico, Server Actions nativas, Turbopack |
 | **Estilização** | Tailwind CSS v4 + `@base-ui/react` (shadcn/ui v4) | Utility-first moderno, variáveis CSS oklch, componentes acessíveis |
+| **Gráficos** | Recharts v3 (`recharts`) | Gráficos responsivos e tooltips interativos para o painel de Meta & Estatísticas |
 | **Tema** | `next-themes` | Suporte Dark/Light mode com persistência sem flicker |
 | **Banco de Dados** | Supabase (PostgreSQL 15+) | Schema em `public`, RLS ativo, Grants explícitos |
 | **Autenticação** | Supabase Auth (`@supabase/ssr`) | Cookies HttpOnly gerenciados pelo servidor e checados no `proxy.ts` |
@@ -135,10 +136,11 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 ---
 
-### 📊 Fase 4 — Meta & Estatísticas Regionais
-- Registro de Decks/Combos (Blade, Ratchet, Bit).
-- Estatísticas de peças mais utilizadas e taxas de vitória (Win Rates) do meta amazonense.
-- Histórico de confrontos diretos (Head-to-Head) entre Bladers.
+### ✅ Fase 4 — Meta, Estatísticas Regionais & Performance de Peças (CONCLUÍDA)
+- [x] **Migration `012_match_games_combo_tracking.sql`:** colunas opcionais `player1_combo_id` e `player2_combo_id` em `match_games` com índices parciais e policies `SELECT` somente-leitura para `role = 'judge'` em inscrições aprovadas de torneios `ongoing`/`finished`.
+- [x] **Rastreamento de Combos por Round no Placar Touch (`/admin/arena/[id]`):** seletores táteis 1-toque dos combos aprovados de cada competidor com sugestão automática por ordem de round (`1 → 2 → 3`) e exibição no histórico de lances.
+- [x] **Página Pública `/estatisticas` (`src/lib/services/stats.ts` + Recharts v3):** agregações server-side via `createAdminClient()` com filtros globais (Temporada, Modalidade, Formato/Ruleset), Panorama Geral, Performance por Peça (Win Rate, Pts/Round e Finishes aplicados/sofridos por peça), Censo Anônimo da Coleção (`blader_inventory`) e Confrontos Diretos (Head-to-Head via `/api/stats/head-to-head`).
+- [x] **Meta & Breakdown de Combos por Etapa (`/torneios/[slug]`):** nova aba `Meta & Estatísticas` exibida exclusivamente para torneios `ongoing` ou `finished`, com ranking de combos, decklists do Pódio/Top Cut, peças mais usadas, distribuição de finishes/sistemas e performance na etapa.
 
 ---
 
@@ -226,7 +228,9 @@ Sistema OBA/
 │   │   ├── 008_update_parts_classification.sql         ← Reclassificação idempotente de tipos, linhas e flags de peças
 │   │   ├── 009_phase3b_registrations_and_receipts.sql  ← Bucket privado receipts, RLS de reenvio e proteção de inscrições
 │   │   ├── 010_tournament_promo_fields.sql             ← Campos event_time, location_url (Google Maps) e prize_info em torneios
-│   │   └── 011_tournament_friendly_category.sql        ← Modalidade amistoso em torneios (sem pontos/vitórias no ranking oficial)
+│   │   ├── 011_tournament_friendly_category.sql        ← Modalidade amistoso em torneios (sem pontos/vitórias no ranking oficial)
+│   │   ├── 012_match_games_combo_tracking.sql          ← Rastreamento opcional de combos por round em match_games e leitura de decklists para juiz
+│   │   └── 013_decklist_reassembly.sql                 ← Pool imutável original_part_ids e versionamento is_active para remontagem entre rodadas
 │   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
@@ -244,6 +248,7 @@ Sistema OBA/
     │   │   │   ├── page.tsx            ← Lista pública de torneios
     │   │   │   └── [slug]/page.tsx     ← Detalhes, cards de divulgação/ban-list (PNG), inscrição online, arenas e resultados
     │   │   ├── bladers/page.tsx        ← Lista pública de competidores (abre Card Público)
+    │   │   ├── estatisticas/page.tsx   ← Meta regional, performance por peça, censo anônimo de coleções e H2H
     │   │   ├── meu-painel/page.tsx     ← Painel pessoal do Blader (perfil, coleção e minhas inscrições)
     │   │   └── privacidade/page.tsx    ← Política de Privacidade pública (OAuth / LGPD)
     │   ├── torneios/
@@ -278,7 +283,8 @@ Sistema OBA/
     │   │               └── resultados/page.tsx  ← Lançamento manual/retroativo de colocações e pontos
     │   ├── api/
     │   │   ├── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
-    │   │   └── bladers/[id]/card/route.ts ← Endpoint público do Card do Blader
+    │   │   ├── bladers/[id]/card/route.ts ← Endpoint público do Card do Blader
+    │   │   └── stats/head-to-head/route.ts ← Endpoint JSON de confrontos diretos (H2H) entre Bladers
     │   └── auth/
     │       ├── actions.ts              ← Server Actions de logout
     │       ├── callback/route.ts       ← Callback SSR para OAuth Google, PKCE (?code=) e OTP (?token_hash=)
@@ -324,13 +330,22 @@ Sistema OBA/
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
     │   │   ├── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
     │   │   └── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
+    │   ├── stats/                      ← Dashboard público de estatísticas regionais (Recharts v3)
+    │   │   ├── CollectionCensusSection.tsx
+    │   │   ├── HeadToHeadSection.tsx
+    │   │   ├── OverviewSection.tsx
+    │   │   ├── PartPerformanceSection.tsx
+    │   │   ├── StatsChartTooltip.tsx
+    │   │   └── StatsDashboardClient.tsx
     │   ├── tournament/                 ← Componentes públicos de torneio, telão, arenas, PIX e inscrição
     │   │   ├── BroadcastBoardClient.tsx
+    │   │   ├── ComboReassemblyClient.tsx
     │   │   ├── HomeLiveTournamentBanner.tsx
     │   │   ├── LiveArenaCard.tsx
     │   │   ├── PixPaymentBox.tsx
     │   │   ├── PublicTournamentLive.tsx
     │   │   ├── TournamentBanlistButton.tsx
+    │   │   ├── TournamentMetaSection.tsx
     │   │   ├── TournamentPromoCardButton.tsx
     │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
@@ -340,6 +355,7 @@ Sistema OBA/
     │   ├── banlist-card-canvas.ts      ← Renderizador Canvas 2D de cards de ban-list OBA para divulgação PNG
     │   ├── combo-rules.ts              ← Regras dos 6 sistemas, compatibilidade e validação de decklist
     │   ├── constants.ts                ← Regras de pontuação, finishes BX e constantes da liga
+    │   ├── deck-reassembly.ts          ← Validação de pool original (multiset) e elegibilidade entre rodadas
     │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro
     │   ├── pix.ts                      ← Gerador PIX estático EMVCo/BACEN (BR Code + CRC16) e formatador BRL
     │   ├── receipt-upload.ts           ← Compressão client-side e upload privado no bucket receipts
@@ -358,6 +374,7 @@ Sistema OBA/
     │   │   ├── parts.ts
     │   │   ├── ranking-recalc.ts
     │   │   ├── registrations.ts
+    │   │   ├── stats.ts
     │   │   ├── tournament-live.ts
     │   │   └── tournament-queries.ts
     │   └── supabase/
@@ -384,7 +401,7 @@ Sistema OBA/
 - `ranking`: Id, season_id, blader_id (unique por season + blader), total_points, tournaments_played, swiss_wins, podiums_count, first_places, second_places, third_places, best_podium, best_position, created_at, updated_at.
 - `arenas`: Id, tournament_id, name, display_order, status (`available`, `in_match`, `maintenance`), current_match_id, timestamps.
 - `matches`: Id, tournament_id, arena_id, round, match_number, stage (`swiss`, `top_cut`), bracket_label, player1_id, player2_id, player1_score, player2_score, target_score, winner_id, status (`pending`, `in_progress`, `finished`, `cancelled`), is_bye, is_tiebreaker, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, timestamps.
-- `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, timestamp.
+- `match_games` (lance a lance): Id, match_id, round_number, scoring_player_id, finish_type (`spin`, `over`, `burst`, `xtreme`, `draw`), points_awarded, player1_combo_id, player2_combo_id, timestamp.
 
 ### Tabelas & Storage da Fase 3 (`005`–`009`)
 - `parts_catalog`: Id, name, aliases (`TEXT[]`), part_type (`blade`, `main_blade`, `metal_blade`, `over_blade`, `lock_chip`, `assist_blade`, `ratchet`, `bit`), line (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE` ou `NULL` universal para `ratchet`/`bit`), `is_simple_ratchet`, `requires_simple_ratchet`, `blocks_bit`, is_active, timestamps (unique por `name + part_type`).
@@ -427,15 +444,9 @@ NEXT_PUBLIC_APP_URL=https://sistema-oba-alpha.vercel.app
 
 ---
 
-## 🎯 Diretrizes para a Próxima Sessão (Fase 4)
+## 🎯 Status Atual & Próximos Passos
 
-Com toda a **Fase 3** concluída (Etapas 3A, 3A.5, 3B e 3C — papel `judge` em `/admin/arenas` e `/admin/arena/[id]`), o próximo passo é a **Fase 4 — Meta & Estatísticas Regionais**:
-
-1. **Combo Mais Usado no Card Público & Estatísticas do Meta:**
-   - Ativar `mostUsedCombo` em `src/lib/services/blader-card.ts` a partir das `registration_combos` aprovadas.
-   - Ranking de peças e combos mais utilizados em torneios, sistemas (`BX`/`UX`/`CX`) e taxas de vitória / Top Cut.
-2. **Confrontos Diretos (Head-to-Head):**
-   - Histórico de duelos entre Bladers com placar e distribuição de finishes (`xtreme`, `burst`, `over`, `spin`).
+Com as **Fases 1, 2, 3 e 4** implementadas, o Sistema OBA cobre integralmente o ciclo competitivo da **Organização de Beyblade do Amazonas (OBA)**: ranking anual, motor Suíço + Top Cut ao vivo, gestão de catálogo/formatos, inscrições online com PIX e decklists, arbitragem por juízes com rastreamento de combos por round e inteligência de meta/estatísticas regionais.
 
 ---
 

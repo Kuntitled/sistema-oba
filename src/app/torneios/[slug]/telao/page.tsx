@@ -4,6 +4,8 @@ import { getTournamentBySlug } from "@/lib/services/league";
 import { getPublicTournamentLiveData } from "@/lib/services/tournament-live";
 import { BroadcastBoardClient } from "@/components/tournament/BroadcastBoardClient";
 
+export const dynamic = "force-dynamic";
+
 interface TelaoPageProps {
   params: Promise<{ slug: string }>;
 }

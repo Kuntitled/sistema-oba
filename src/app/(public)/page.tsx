@@ -8,6 +8,7 @@ import {
   Zap,
   ChevronRight,
   ExternalLink,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -110,6 +111,15 @@ export default async function HomePage({
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/25 gap-2 px-6 h-11">
                   <Swords className="h-4 w-4" />
                   Ver Torneios
+                </Button>
+              </Link>
+              <Link href="/estatisticas">
+                <Button
+                  variant="outline"
+                  className="border-primary/45 hover:border-primary hover:bg-primary/10 font-bold gap-2 px-6 h-11"
+                >
+                  <BarChart3 className="h-4 w-4 text-fire-orange" />
+                  Estatísticas &amp; Meta
                 </Button>
               </Link>
               <Link href="/bladers">

@@ -2,8 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidUuid } from "@/lib/services/arena-queries";
 import { validateTournamentDeckCombo } from "@/lib/combo-rules";
+import {
+  computeBladerReassemblyState,
+  extractMultisetPartIdsFromCombos,
+  validateReassemblyAgainstOriginalPool,
+} from "@/lib/deck-reassembly";
 import { RECEIPTS_BUCKET } from "@/lib/receipt-upload";
 import type { ComboSelection, PartRow } from "@/types/domain";
 
@@ -384,4 +390,241 @@ export async function cancelOwnRegistrationAction(tournamentId: string) {
   revalidatePath(`/admin/torneios/${tournamentId}/inscricoes`);
 
   return { success: true };
+}
+
+/**
+ * Permite que o Blader autenticado com inscrição aprovada remonte seus combos
+ * entre rodadas (quando o torneio está em andamento e o Blader não tem partida
+ * pendente/em andamento na rodada atual), usando EXCLUSIVAMENTE o pool de peças
+ * originalmente cadastrado neste torneio e respeitando a quantidade de cópias.
+ */
+export async function reassembleTournamentCombosAction(payload: {
+  tournamentId: string;
+  combos: ComboSelection[];
+}) {
+  const auth = await requireAuthenticatedUser();
+  if (auth.error || !auth.user) {
+    return { error: auth.error ?? "Faça login para remontar seus combos." };
+  }
+
+  if (!isValidUuid(payload.tournamentId)) {
+    return { error: "Torneio inválido." };
+  }
+
+  if (
+    !Array.isArray(payload.combos) ||
+    payload.combos.length < 1 ||
+    payload.combos.length > MAX_REGISTRATION_COMBOS
+  ) {
+    return {
+      error: `Monte entre 1 e ${MAX_REGISTRATION_COMBOS} combos na sua decklist.`,
+    };
+  }
+
+  const { data: blader, error: bladerError } = await auth.supabase
+    .from("bladers")
+    .select("id, nickname, is_active")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  if (bladerError || !blader || !blader.is_active) {
+    return { error: "Perfil de Blader ativo não encontrado para esta conta." };
+  }
+
+  const adminClient = createAdminClient();
+  if (!adminClient) {
+    return {
+      error:
+        "Serviço administrativo indisponível no servidor para validar a remontagem.",
+    };
+  }
+
+  const [{ data: tournament }, { data: reg }, { data: matchRows }] =
+    await Promise.all([
+      adminClient
+        .from("tournaments")
+        .select("id, slug, status, ruleset_id")
+        .eq("id", payload.tournamentId)
+        .maybeSingle(),
+      adminClient
+        .from("tournament_registrations")
+        .select("*")
+        .eq("tournament_id", payload.tournamentId)
+        .eq("blader_id", blader.id)
+        .eq("status", "approved")
+        .maybeSingle(),
+      adminClient
+        .from("matches")
+        .select("player1_id, player2_id, status, is_bye, round, stage")
+        .eq("tournament_id", payload.tournamentId)
+        .or(`player1_id.eq.${blader.id},player2_id.eq.${blader.id}`),
+    ]);
+
+  if (!tournament) {
+    return { error: "Torneio não encontrado." };
+  }
+
+  if (tournament.status !== "ongoing") {
+    return {
+      error: "A remontagem entre rodadas só é permitida com o torneio em andamento.",
+    };
+  }
+
+  if (!reg) {
+    return {
+      error: "Apenas Bladers com inscrição aprovada neste torneio podem remontar combos.",
+    };
+  }
+
+  const reassemblyState = computeBladerReassemblyState({
+    tournamentStatus: tournament.status,
+    bladerId: blader.id,
+    matches: matchRows ?? [],
+  });
+
+  if (reassemblyState.status !== "open") {
+    if (reassemblyState.status === "waiting_match") {
+      return {
+        error:
+          "Você ainda possui uma partida pendente ou em andamento na rodada atual. Conclua sua batalha para liberar a remontagem.",
+      };
+    }
+    return {
+      error:
+        "A remontagem entre rodadas só libera após você concluir sua primeira partida no torneio.",
+    };
+  }
+
+  const { data: currentActiveCombos, error: activeCombosErr } = await adminClient
+    .from("registration_combos")
+    .select("*")
+    .eq("registration_id", reg.id)
+    .eq("is_active", true)
+    .order("slot_number", { ascending: true });
+
+  if (activeCombosErr) {
+    return { error: `Erro ao consultar combos atuais: ${activeCombosErr.message}` };
+  }
+
+  const originalPartIds =
+    reg.original_part_ids && reg.original_part_ids.length > 0
+      ? reg.original_part_ids
+      : extractMultisetPartIdsFromCombos(currentActiveCombos ?? []);
+
+  if (originalPartIds.length === 0) {
+    return {
+      error: "Nenhuma peça original foi encontrada na sua inscrição neste torneio.",
+    };
+  }
+
+  const uniquePoolIds = Array.from(new Set(originalPartIds));
+  const [{ data: poolPartRows, error: partsErr }, banRes] = await Promise.all([
+    adminClient.from("parts_catalog").select("*").in("id", uniquePoolIds),
+    tournament.ruleset_id
+      ? adminClient
+          .from("ruleset_banned_parts")
+          .select("part_id")
+          .eq("ruleset_id", tournament.ruleset_id)
+      : Promise.resolve({ data: [] as Array<{ part_id: string }> }),
+  ]);
+
+  if (partsErr) {
+    return { error: `Erro ao consultar catálogo de peças: ${partsErr.message}` };
+  }
+
+  const partsById = new Map<string, PartRow>();
+  for (const part of poolPartRows ?? []) {
+    partsById.set(part.id, part);
+  }
+  const bannedPartIds = new Set((banRes.data ?? []).map((b) => b.part_id));
+
+  // Valida integridade de cada combo (sistemas, flags, ban-list) e pool original
+  const sanitizedCombos: ComboSelection[] = [];
+  for (let i = 0; i < payload.combos.length; i += 1) {
+    const check = validateTournamentDeckCombo(
+      payload.combos[i],
+      partsById,
+      bannedPartIds,
+      i + 1
+    );
+    if (!check.valid) {
+      return { error: check.error };
+    }
+    sanitizedCombos.push(check.sanitized);
+  }
+
+  const poolValidation = validateReassemblyAgainstOriginalPool(
+    sanitizedCombos,
+    originalPartIds,
+    partsById
+  );
+  if (!poolValidation.valid) {
+    return { error: poolValidation.error };
+  }
+
+  // Garante original_part_ids persistido antes de versionar os combos
+  if (!reg.original_part_ids || reg.original_part_ids.length === 0) {
+    await adminClient
+      .from("tournament_registrations")
+      .update({ original_part_ids: originalPartIds })
+      .eq("id", reg.id);
+  }
+
+  // Preserva histórico dos rounds anteriores desativando os combos atuais
+  const { error: deactivateErr } = await adminClient
+    .from("registration_combos")
+    .update({ is_active: false })
+    .eq("registration_id", reg.id)
+    .eq("is_active", true);
+
+  if (deactivateErr) {
+    return {
+      error: `Erro ao versionar combos anteriores: ${deactivateErr.message}`,
+    };
+  }
+
+  const newRowsPayload = sanitizedCombos.map((combo, index) => ({
+    registration_id: reg.id,
+    slot_number: index + 1,
+    system: combo.system,
+    blade_id: combo.bladeId || null,
+    lock_chip_id: combo.lockChipId || null,
+    over_blade_id: combo.overBladeId || null,
+    assist_blade_id: combo.assistBladeId || null,
+    ratchet_id: combo.ratchetId || null,
+    bit_id: combo.bitId || null,
+    is_active: true,
+  }));
+
+  const { data: insertedCombos, error: insertErr } = await adminClient
+    .from("registration_combos")
+    .insert(newRowsPayload)
+    .select("*")
+    .order("slot_number", { ascending: true });
+
+  if (insertErr || !insertedCombos) {
+    // Rollback defensivo reativando os combos anteriores caso o insert falhe
+    if ((currentActiveCombos ?? []).length > 0) {
+      await adminClient
+        .from("registration_combos")
+        .update({ is_active: true })
+        .in(
+          "id",
+          (currentActiveCombos ?? []).map((c) => c.id)
+        );
+    }
+    return {
+      error: `Erro ao salvar remontagem de combos: ${insertErr?.message ?? "tente novamente"}`,
+    };
+  }
+
+  revalidatePath(`/torneios/${tournament.slug}`);
+  revalidatePath("/meu-painel");
+  revalidatePath("/admin/arenas");
+  revalidatePath("/admin/arena/[id]", "page");
+  revalidatePath(`/admin/torneios/${tournament.id}/inscricoes`);
+  revalidatePath(`/admin/torneios/${tournament.id}/chaveamento`);
+  revalidatePath("/estatisticas");
+
+  return { success: true, combos: insertedCombos };
 }

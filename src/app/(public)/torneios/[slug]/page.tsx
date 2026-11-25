@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { getTournamentBySlug } from "@/lib/services/league";
 import { getPublicTournamentLiveData } from "@/lib/services/tournament-live";
+import { getTournamentMetaBreakdown } from "@/lib/services/stats";
 import { getPartsCatalog } from "@/lib/services/parts";
 import {
   getBladerTournamentRegistration,
@@ -30,6 +31,7 @@ import { PublicTournamentLive } from "@/components/tournament/PublicTournamentLi
 import { TournamentBanlistButton } from "@/components/tournament/TournamentBanlistButton";
 import { TournamentPromoCardButton } from "@/components/tournament/TournamentPromoCardButton";
 import { TournamentRegistrationClient } from "@/components/tournament/TournamentRegistrationClient";
+import { ComboReassemblyClient } from "@/components/tournament/ComboReassemblyClient";
 import {
   TOURNAMENT_CATEGORY_LABELS,
   TOURNAMENT_FORMAT_LABELS,
@@ -52,9 +54,15 @@ export default async function TorneioDetalhePage({
   const { tournament, results } = data;
   const supabase = await createClient();
 
-  const [liveData, userRes] = await Promise.all([
+  const isPublicMetaVisible =
+    tournament.status === "ongoing" || tournament.status === "finished";
+
+  const [liveData, userRes, metaBreakdown] = await Promise.all([
     getPublicTournamentLiveData(tournament.id),
     supabase.auth.getUser(),
+    isPublicMetaVisible
+      ? getTournamentMetaBreakdown(tournament.id)
+      : Promise.resolve(null),
   ]);
 
   const user = userRes.data.user ?? null;
@@ -84,7 +92,21 @@ export default async function TorneioDetalhePage({
 
   const existingRegData = blader
     ? await getBladerTournamentRegistration(tournament.id, blader.id)
-    : { registration: null, combos: [], receiptSignedUrl: null };
+    : {
+        registration: null,
+        combos: [],
+        receiptSignedUrl: null,
+        originalPartIds: [],
+        originalParts: [],
+      };
+
+  const canShowBladerReassembly = Boolean(
+    user &&
+      blader &&
+      tournament.status === "ongoing" &&
+      existingRegData.registration?.status === "approved" &&
+      existingRegData.originalPartIds.length > 0
+  );
 
   const shouldLoadRegistrationCatalog =
     tournament.registration_status === "open" ||
@@ -290,6 +312,18 @@ export default async function TorneioDetalhePage({
         </CardContent>
       </Card>
 
+      {canShowBladerReassembly && blader && (
+        <ComboReassemblyClient
+          tournament={liveData.tournament ?? tournament}
+          blader={blader}
+          initialMatches={liveData.matches}
+          initialCombos={existingRegData.combos}
+          originalPartIds={existingRegData.originalPartIds}
+          originalParts={existingRegData.originalParts}
+          bannedParts={bansRes.bannedParts}
+        />
+      )}
+
       {showRegistrationPriority && (
         <TournamentRegistrationClient
           tournament={tournament}
@@ -314,6 +348,7 @@ export default async function TorneioDetalhePage({
         initialGames={liveData.games}
         initialArenas={liveData.arenas}
         results={results}
+        metaBreakdown={metaBreakdown}
       />
 
       {!showRegistrationPriority && (

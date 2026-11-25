@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { inferComboSystem } from "@/lib/combo-rules";
+import { extractMultisetPartIdsFromCombos } from "@/lib/deck-reassembly";
 import { isMissingTableError, isValidUuid } from "@/lib/services/arena-queries";
 import { RECEIPTS_BUCKET } from "@/lib/receipt-upload";
 import type { Database } from "@/types/database";
@@ -206,9 +207,19 @@ export async function getBladerTournamentRegistration(
   registration: TournamentRegistrationRow | null;
   combos: RegistrationComboRow[];
   receiptSignedUrl: string | null;
+  originalPartIds: string[];
+  originalParts: PartRow[];
 }> {
+  const emptyResult = {
+    registration: null,
+    combos: [] as RegistrationComboRow[],
+    receiptSignedUrl: null,
+    originalPartIds: [] as string[],
+    originalParts: [] as PartRow[],
+  };
+
   if (!isValidUuid(tournamentId) || !isValidUuid(bladerId)) {
-    return { registration: null, combos: [], receiptSignedUrl: null };
+    return emptyResult;
   }
 
   try {
@@ -221,7 +232,7 @@ export async function getBladerTournamentRegistration(
       .maybeSingle();
 
     if (error || !reg) {
-      return { registration: null, combos: [], receiptSignedUrl: null };
+      return emptyResult;
     }
 
     const [{ data: comboRows }, receiptSignedUrl] = await Promise.all([
@@ -229,18 +240,38 @@ export async function getBladerTournamentRegistration(
         .from("registration_combos")
         .select("*")
         .eq("registration_id", reg.id)
+        .eq("is_active", true)
         .order("slot_number", { ascending: true }),
       createReceiptSignedUrl(supabase, reg.receipt_path),
     ]);
 
+    const activeCombos = comboRows ?? [];
+    const originalPartIds =
+      reg.original_part_ids && reg.original_part_ids.length > 0
+        ? reg.original_part_ids
+        : extractMultisetPartIdsFromCombos(activeCombos);
+
+    const uniqueOriginalIds = Array.from(new Set(originalPartIds));
+    let originalParts: PartRow[] = [];
+    if (uniqueOriginalIds.length > 0) {
+      const { data: partRows } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .in("id", uniqueOriginalIds)
+        .order("name", { ascending: true });
+      originalParts = partRows ?? [];
+    }
+
     return {
       registration: reg,
-      combos: comboRows ?? [],
+      combos: activeCombos,
       receiptSignedUrl,
+      originalPartIds,
+      originalParts,
     };
   } catch (err) {
     console.error("Exceção ao buscar inscrição do Blader:", err);
-    return { registration: null, combos: [], receiptSignedUrl: null };
+    return emptyResult;
   }
 }
 
@@ -292,6 +323,7 @@ export async function getBladerRegistrationsOverview(bladerId: string): Promise<
               .from("registration_combos")
               .select("*")
               .in("registration_id", regIds)
+              .eq("is_active", true)
               .order("slot_number", { ascending: true })
           : Promise.resolve({ data: [] as RegistrationComboRow[], error: null }),
         allTourIds.length > 0
@@ -553,6 +585,7 @@ export async function getAdminTournamentRegistrations(
             .from("registration_combos")
             .select("*")
             .in("registration_id", regIds)
+            .eq("is_active", true)
             .order("slot_number", { ascending: true })
         : Promise.resolve({ data: [] as RegistrationComboRow[], error: null }),
     ]);
@@ -630,5 +663,51 @@ export async function getAdminTournamentRegistrations(
       bannedParts: [],
       schemaMissing: false,
     };
+  }
+}
+
+export async function getTournamentCombosByBladerId(
+  tournamentId: string
+): Promise<Record<string, RegistrationComboRow[]>> {
+  if (!isValidUuid(tournamentId)) return {};
+
+  try {
+    const supabase = await createClient();
+    const { data: regRows, error: regError } = await supabase
+      .from("tournament_registrations")
+      .select("id, blader_id")
+      .eq("tournament_id", tournamentId);
+
+    if (regError || !regRows || regRows.length === 0) {
+      return {};
+    }
+
+    const bladerByRegId = new Map<string, string>();
+    for (const reg of regRows) {
+      bladerByRegId.set(reg.id, reg.blader_id);
+    }
+
+    const { data: comboRows, error: comboError } = await supabase
+      .from("registration_combos")
+      .select("*")
+      .in("registration_id", Array.from(bladerByRegId.keys()))
+      .eq("is_active", true)
+      .order("slot_number", { ascending: true });
+
+    if (comboError || !comboRows) {
+      return {};
+    }
+
+    const result: Record<string, RegistrationComboRow[]> = {};
+    for (const row of comboRows) {
+      const bladerId = bladerByRegId.get(row.registration_id);
+      if (!bladerId) continue;
+      if (!result[bladerId]) result[bladerId] = [];
+      result[bladerId].push(row);
+    }
+
+    return result;
+  } catch {
+    return {};
   }
 }

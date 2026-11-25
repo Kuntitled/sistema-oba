@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatComboDisplay } from "@/lib/combo-rules";
 import type { Database } from "@/types/database";
 import type {
   Arena,
+  ArenaPlayerComboOption,
   BladerRow,
   Match,
   MatchGame,
   MatchRow,
+  PartRow,
   TournamentRow,
 } from "@/types/domain";
 
@@ -140,7 +143,157 @@ export interface ArenaLiveSnapshot {
   arena: Arena | null;
   games: MatchGame[];
   pendingMatches: Match[];
+  player1Combos: ArenaPlayerComboOption[];
+  player2Combos: ArenaPlayerComboOption[];
   schemaMissing: boolean;
+}
+
+function buildCompactComboLabel(parts: {
+  blade?: PartRow | null;
+  lockChip?: PartRow | null;
+  overBlade?: PartRow | null;
+  assistBlade?: PartRow | null;
+  ratchet?: PartRow | null;
+  bit?: PartRow | null;
+  summaryText: string;
+}): string {
+  const mainName =
+    parts.blade?.name ??
+    parts.overBlade?.name ??
+    parts.lockChip?.name ??
+    "Combo";
+  const tail = [parts.ratchet?.name, parts.bit?.name].filter(Boolean).join(" ");
+  if (tail) return `${mainName} ${tail}`;
+  return parts.summaryText || mainName;
+}
+
+async function fetchMatchApprovedCombos(
+  supabase: SupabaseClient<Database>,
+  tournamentId: string,
+  player1Id: string | null,
+  player2Id: string | null
+): Promise<{
+  player1Combos: ArenaPlayerComboOption[];
+  player2Combos: ArenaPlayerComboOption[];
+}> {
+  const empty = { player1Combos: [], player2Combos: [] };
+  const playerIds = [player1Id, player2Id].filter((id): id is string =>
+    Boolean(id)
+  );
+  if (playerIds.length === 0) return empty;
+
+  try {
+    const { data: regRows, error: regError } = await supabase
+      .from("tournament_registrations")
+      .select("id, blader_id")
+      .eq("tournament_id", tournamentId)
+      .eq("status", "approved")
+      .in("blader_id", playerIds);
+
+    if (regError || !regRows || regRows.length === 0) {
+      return empty;
+    }
+
+    const bladerByRegId = new Map<string, string>();
+    for (const reg of regRows) {
+      bladerByRegId.set(reg.id, reg.blader_id);
+    }
+
+    const { data: comboRows, error: comboError } = await supabase
+      .from("registration_combos")
+      .select("*")
+      .in("registration_id", Array.from(bladerByRegId.keys()))
+      .eq("is_active", true)
+      .order("slot_number", { ascending: true });
+
+    if (comboError || !comboRows || comboRows.length === 0) {
+      return empty;
+    }
+
+    const partIds = new Set<string>();
+    for (const row of comboRows) {
+      if (row.blade_id) partIds.add(row.blade_id);
+      if (row.lock_chip_id) partIds.add(row.lock_chip_id);
+      if (row.over_blade_id) partIds.add(row.over_blade_id);
+      if (row.assist_blade_id) partIds.add(row.assist_blade_id);
+      if (row.ratchet_id) partIds.add(row.ratchet_id);
+      if (row.bit_id) partIds.add(row.bit_id);
+    }
+
+    const partsById = new Map<string, PartRow>();
+    if (partIds.size > 0) {
+      const { data: partRows } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .in("id", Array.from(partIds));
+
+      for (const part of partRows ?? []) {
+        partsById.set(part.id, part);
+      }
+    }
+
+    const player1Combos: ArenaPlayerComboOption[] = [];
+    const player2Combos: ArenaPlayerComboOption[] = [];
+
+    for (const row of comboRows) {
+      const ownerId = bladerByRegId.get(row.registration_id);
+      if (!ownerId) continue;
+
+      const blade = row.blade_id ? (partsById.get(row.blade_id) ?? null) : null;
+      const lockChip = row.lock_chip_id
+        ? (partsById.get(row.lock_chip_id) ?? null)
+        : null;
+      const overBlade = row.over_blade_id
+        ? (partsById.get(row.over_blade_id) ?? null)
+        : null;
+      const assistBlade = row.assist_blade_id
+        ? (partsById.get(row.assist_blade_id) ?? null)
+        : null;
+      const ratchet = row.ratchet_id
+        ? (partsById.get(row.ratchet_id) ?? null)
+        : null;
+      const bit = row.bit_id ? (partsById.get(row.bit_id) ?? null) : null;
+
+      const display = formatComboDisplay({
+        system: row.system,
+        blade,
+        lockChip,
+        overBlade,
+        assistBlade,
+        ratchet,
+        bit,
+      });
+
+      const option: ArenaPlayerComboOption = {
+        id: row.id,
+        slotNumber: row.slot_number,
+        system: display.system,
+        shortLabel: buildCompactComboLabel({
+          blade,
+          lockChip,
+          overBlade,
+          assistBlade,
+          ratchet,
+          bit,
+          summaryText: display.summaryText,
+        }),
+        summaryText: display.summaryText || `Combo #${row.slot_number}`,
+      };
+
+      if (ownerId === player1Id) {
+        player1Combos.push(option);
+      } else if (ownerId === player2Id) {
+        player2Combos.push(option);
+      }
+    }
+
+    player1Combos.sort((a, b) => a.slotNumber - b.slotNumber);
+    player2Combos.sort((a, b) => a.slotNumber - b.slotNumber);
+
+    return { player1Combos, player2Combos };
+  } catch {
+    return empty;
+  }
 }
 
 export async function fetchArenaLiveSnapshot(
@@ -148,7 +301,14 @@ export async function fetchArenaLiveSnapshot(
   arenaId: string
 ): Promise<ArenaLiveSnapshot> {
   if (!isValidUuid(arenaId)) {
-    return { arena: null, games: [], pendingMatches: [], schemaMissing: false };
+    return {
+      arena: null,
+      games: [],
+      pendingMatches: [],
+      player1Combos: [],
+      player2Combos: [],
+      schemaMissing: false,
+    };
   }
 
   const { data: arenaRow, error: arenaError } = await supabase
@@ -159,14 +319,35 @@ export async function fetchArenaLiveSnapshot(
 
   if (arenaError) {
     if (isMissingTableError(arenaError)) {
-      return { arena: null, games: [], pendingMatches: [], schemaMissing: true };
+      return {
+        arena: null,
+        games: [],
+        pendingMatches: [],
+        player1Combos: [],
+        player2Combos: [],
+        schemaMissing: true,
+      };
     }
     console.error("Erro ao buscar arena:", arenaError);
-    return { arena: null, games: [], pendingMatches: [], schemaMissing: false };
+    return {
+      arena: null,
+      games: [],
+      pendingMatches: [],
+      player1Combos: [],
+      player2Combos: [],
+      schemaMissing: false,
+    };
   }
 
   if (!arenaRow) {
-    return { arena: null, games: [], pendingMatches: [], schemaMissing: false };
+    return {
+      arena: null,
+      games: [],
+      pendingMatches: [],
+      player1Combos: [],
+      player2Combos: [],
+      schemaMissing: false,
+    };
   }
 
   const [tournamentRes, currentMatchRes, gamesRes, pendingMatchesRes] =
@@ -206,7 +387,17 @@ export async function fetchArenaLiveSnapshot(
     allMatchesToHydrate.push(...pendingMatchesRes.data);
   }
 
-  const bladersById = await fetchBladersMap(supabase, allMatchesToHydrate);
+  const [bladersById, combosRes] = await Promise.all([
+    fetchBladersMap(supabase, allMatchesToHydrate),
+    currentMatchRes.data
+      ? fetchMatchApprovedCombos(
+          supabase,
+          arenaRow.tournament_id,
+          currentMatchRes.data.player1_id,
+          currentMatchRes.data.player2_id
+        )
+      : Promise.resolve({ player1Combos: [], player2Combos: [] }),
+  ]);
 
   const games: MatchGame[] = (gamesRes.data ?? []).map((game) => ({
     ...game,
@@ -236,6 +427,8 @@ export async function fetchArenaLiveSnapshot(
     arena,
     games,
     pendingMatches,
+    player1Combos: combosRes.player1Combos,
+    player2Combos: combosRes.player2Combos,
     schemaMissing: false,
   };
 }
