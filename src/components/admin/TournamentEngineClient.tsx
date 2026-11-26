@@ -40,6 +40,7 @@ import {
 import {
   ALLOWED_TOP_CUT_SIZES,
   OBA_SWISS_LEADER_BONUS,
+  OBA_SWISS_TIEBREAK_LABEL,
   OBA_SWISS_WIN_POINTS,
 } from "@/lib/constants";
 import {
@@ -178,6 +179,11 @@ export function TournamentEngineClient({
   const [manualP2Score, setManualP2Score] = React.useState("0");
   const [manualError, setManualError] = React.useState<string | null>(null);
 
+  // Modal de aviso/confirmação de empate em posições decisivas
+  const [tieWarningAction, setTieWarningAction] = React.useState<
+    "top_cut" | "finalize" | null
+  >(null);
+
   const matchIdsRef = React.useRef<Set<string>>(
     new Set(initialMatches.map((m) => m.id))
   );
@@ -269,10 +275,32 @@ export function TournamentEngineClient({
     };
   }, [supabase, initialTournament.id, refreshSnapshot]);
 
+  const supportsTopCut = tournament.format !== "swiss_only";
   const swissSummary = React.useMemo(
-    () => computeSwissStandings(participants, matches, games),
-    [participants, matches, games]
+    () =>
+      computeSwissStandings(participants, matches, games, {
+        format: tournament.format,
+        topCutSize: supportsTopCut ? topCutSize : null,
+      }),
+    [participants, matches, games, tournament.format, supportsTopCut, topCutSize]
   );
+
+  const tiedPlayersPool = React.useMemo(() => {
+    if (swissSummary.decisiveTies.length > 0) {
+      const seen = new Set<string>();
+      const list: typeof swissSummary.standings = [];
+      for (const group of swissSummary.decisiveTies) {
+        for (const p of group.players) {
+          if (!seen.has(p.bladerId)) {
+            seen.add(p.bladerId);
+            list.push(p);
+          }
+        }
+      }
+      return list;
+    }
+    return swissSummary.tiedLeaders;
+  }, [swissSummary]);
 
   const swissMatchesByRound = React.useMemo(() => {
     const swiss = matches.filter(
@@ -321,7 +349,6 @@ export function TournamentEngineClient({
     );
   }, [allBladers, bladerSearch]);
 
-  const supportsTopCut = tournament.format !== "swiss_only";
   const hasTopCutMatches = topCutMatchesByRound.length > 0;
   const openMatchesCount = matches.filter(
     (m) => m.status === "pending" || m.status === "in_progress"
@@ -390,9 +417,10 @@ export function TournamentEngineClient({
     await refreshSnapshot();
   };
 
-  const handleCreateTiebreaker = async () => {
-    const p1 = tiePlayer1Id || swissSummary.tiedLeaders[0]?.bladerId || "";
-    const p2 = tiePlayer2Id || swissSummary.tiedLeaders[1]?.bladerId || "";
+  const handleCreateTiebreaker = async (overrideP1?: string, overrideP2?: string, label?: string) => {
+    const firstGroup = swissSummary.decisiveTies[0]?.players ?? tiedPlayersPool;
+    const p1 = overrideP1 || tiePlayer1Id || firstGroup[0]?.bladerId || "";
+    const p2 = overrideP2 || tiePlayer2Id || firstGroup[1]?.bladerId || "";
 
     if (!p1 || !p2 || p1 === p2) {
       setErrorMsg("Selecione dois Bladers empatados diferentes para o desempate.");
@@ -402,31 +430,49 @@ export function TournamentEngineClient({
     setErrorMsg(null);
     setSuccessMsg(null);
     setBusyAction("tiebreaker");
-    const res = await createSwissLeaderTiebreakerAction(tournament.id, p1, p2);
+    const res = await createSwissLeaderTiebreakerAction(
+      tournament.id,
+      p1,
+      p2,
+      label
+    );
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
       return;
     }
+    setTieWarningAction(null);
+    setActiveTab("swiss");
     setSuccessMsg(
-      "Partida extra de desempate pela liderança criada! Envie para uma arena livre."
+      "Partida extra de desempate criada! Despache para uma arena livre na Fase Suíça."
     );
     await refreshSnapshot();
   };
 
-  const handleGenerateTopCut = async () => {
+  const executeGenerateTopCut = async (allowUnresolvedTie = false) => {
     setErrorMsg(null);
     setSuccessMsg(null);
     setBusyAction("top_cut");
-    const res = await generateTopCutBracketAction(tournament.id, topCutSize);
+    const res = await generateTopCutBracketAction(tournament.id, topCutSize, {
+      allowUnresolvedTie,
+    });
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
       return;
     }
+    setTieWarningAction(null);
     setSuccessMsg(`Chave Top ${topCutSize} gerada com sucesso!`);
     setActiveTab("top_cut");
     await refreshSnapshot();
+  };
+
+  const handleGenerateTopCut = async () => {
+    if (swissSummary.hasUnresolvedDecisiveTie || swissSummary.hasAbsoluteLeaderTie) {
+      setTieWarningAction("top_cut");
+      return;
+    }
+    await executeGenerateTopCut(false);
   };
 
   const handleDispatchMatch = async (matchId: string) => {
@@ -449,7 +495,35 @@ export function TournamentEngineClient({
     await refreshSnapshot();
   };
 
+  const executeFinalizeTournament = async (allowUnresolvedTie = false) => {
+    const isFriendly = tournament.category === "amistoso";
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setBusyAction("finalize");
+    const res = await finalizeAndPublishTournamentAction(tournament.id, {
+      allowUnresolvedTie,
+    });
+    setBusyAction(null);
+    if (res.error) {
+      setErrorMsg(res.error);
+      return;
+    }
+    setTieWarningAction(null);
+    setSuccessMsg(
+      isFriendly
+        ? "Torneio amistoso encerrado! Resultados salvos para o histórico sem pontuar no ranking."
+        : "Torneio encerrado e pontuação oficial OBA publicada no Ranking!"
+    );
+    await refreshSnapshot();
+    router.refresh();
+  };
+
   const handleFinalizeTournament = async () => {
+    if (swissSummary.hasUnresolvedDecisiveTie || swissSummary.hasAbsoluteLeaderTie) {
+      setTieWarningAction("finalize");
+      return;
+    }
+
     const isFriendly = tournament.category === "amistoso";
     if (
       !confirm(
@@ -461,22 +535,7 @@ export function TournamentEngineClient({
       return;
     }
 
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    setBusyAction("finalize");
-    const res = await finalizeAndPublishTournamentAction(tournament.id);
-    setBusyAction(null);
-    if (res.error) {
-      setErrorMsg(res.error);
-      return;
-    }
-    setSuccessMsg(
-      isFriendly
-        ? "Torneio amistoso encerrado! Resultados salvos para o histórico sem pontuar no ranking."
-        : "Torneio encerrado e pontuação oficial OBA publicada no Ranking!"
-    );
-    await refreshSnapshot();
-    router.refresh();
+    await executeFinalizeTournament(false);
   };
 
   const openManualResultDialog = (m: Match) => {
@@ -809,11 +868,11 @@ export function TournamentEngineClient({
           <p className="text-xs text-muted-foreground">
             {tournament.category === "amistoso" ? (
               <>
-                Modalidade Amistoso (não pontua no Ranking Oficial) • Desempate: Extreme &gt; Burst &gt; Over &gt; Spin
+                Modalidade Amistoso (não pontua no Ranking Oficial) • Desempate: {OBA_SWISS_TIEBREAK_LABEL}
               </>
             ) : (
               <>
-                Suíço: +{OBA_SWISS_WIN_POINTS} pts/vitória • Desempate: Extreme &gt; Burst &gt; Over &gt; Spin
+                Suíço: +{OBA_SWISS_WIN_POINTS} pts/vitória • Desempate: {OBA_SWISS_TIEBREAK_LABEL}
                 {supportsTopCut
                   ? ` • Líder Suíço: +${OBA_SWISS_LEADER_BONUS} pts`
                   : " • Sem bônus de liderança"}
@@ -1082,42 +1141,54 @@ export function TournamentEngineClient({
             </CardContent>
           </Card>
 
-          {/* Alerta de Empate Absoluto na Liderança */}
-          {swissSummary.hasAbsoluteLeaderTie && (
+          {/* Alerta de Empate em Vitórias/Derrotas + Saldo de Pontos */}
+          {swissSummary.hasUnresolvedDecisiveTie && (
             <Card className="border-amber-500/60 bg-amber-500/10">
               <CardContent className="p-4 sm:p-5 space-y-3">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <h3 className="font-black text-sm text-foreground">
-                      Empate Absoluto pela Liderança do Suíço!
+                      Empate em Vitórias/Derrotas e Saldo de Pontos!
                     </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Os seguintes Bladers empataram em vitórias e em todos os Finishes (Extreme, Burst, Over e Spin):{" "}
-                      <strong className="text-foreground">
-                        {swissSummary.tiedLeaders
-                          .map((l) => l.blader?.nickname ?? l.bladerId)
-                          .join(", ")}
-                      </strong>
-                      . Gere uma partida extra de desempate (não concede +10 pts no ranking).
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {swissSummary.decisiveTies.map((group) => (
+                        <div key={`${group.positionStart}-${group.positionEnd}`}>
+                          <strong className="text-amber-500">
+                            {group.reason} ({group.positionStart}º–{group.positionEnd}º):
+                          </strong>{" "}
+                          <strong className="text-foreground">
+                            {group.players
+                              .map(
+                                (l) =>
+                                  `${l.blader?.nickname ?? l.bladerId} (${l.wins}V-${l.losses}D, Saldo ${l.pointDiff >= 0 ? `+${l.pointDiff}` : l.pointDiff})`
+                              )
+                              .join(" • ")}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Gere diretamente uma partida extra de desempate (não concede +10 pts no ranking).
                     </p>
                   </div>
                 </div>
 
-                {!swissSummary.hasPendingTiebreaker && (
+                {!swissSummary.hasPendingTiebreaker && tiedPlayersPool.length >= 2 && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <select
                       value={
                         tiePlayer1Id ||
-                        swissSummary.tiedLeaders[0]?.bladerId ||
+                        swissSummary.decisiveTies[0]?.players[0]?.bladerId ||
+                        tiedPlayersPool[0]?.bladerId ||
                         ""
                       }
                       onChange={(e) => setTiePlayer1Id(e.target.value)}
                       className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
                     >
-                      {swissSummary.tiedLeaders.map((l) => (
+                      {tiedPlayersPool.map((l) => (
                         <option key={l.bladerId} value={l.bladerId}>
-                          {l.blader?.nickname}
+                          {l.blader?.nickname} ({l.wins}V-{l.losses}D • Saldo {l.pointDiff >= 0 ? `+${l.pointDiff}` : l.pointDiff})
                         </option>
                       ))}
                     </select>
@@ -1129,15 +1200,16 @@ export function TournamentEngineClient({
                     <select
                       value={
                         tiePlayer2Id ||
-                        swissSummary.tiedLeaders[1]?.bladerId ||
+                        swissSummary.decisiveTies[0]?.players[1]?.bladerId ||
+                        tiedPlayersPool[1]?.bladerId ||
                         ""
                       }
                       onChange={(e) => setTiePlayer2Id(e.target.value)}
                       className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
                     >
-                      {swissSummary.tiedLeaders.map((l) => (
+                      {tiedPlayersPool.map((l) => (
                         <option key={l.bladerId} value={l.bladerId}>
-                          {l.blader?.nickname}
+                          {l.blader?.nickname} ({l.wins}V-{l.losses}D • Saldo {l.pointDiff >= 0 ? `+${l.pointDiff}` : l.pointDiff})
                         </option>
                       ))}
                     </select>
@@ -1160,11 +1232,11 @@ export function TournamentEngineClient({
             </Card>
           )}
 
-          {/* Tabela de Classificação do Suíço (Finishes) */}
+          {/* Tabela de Classificação do Suíço (Saldo de Pontos) */}
           <Card className="border-border/60 bg-card/60 overflow-hidden">
             <CardHeader className="p-4 sm:p-5 pb-2">
               <CardTitle className="text-sm sm:text-base font-black flex items-center justify-between">
-                <span>Classificação da Fase Suíça (Critérios OBA)</span>
+                <span>Classificação da Fase Suíça (Saldo de Pontos OBA)</span>
                 {supportsTopCut && (
                   <span className="text-[11px] font-semibold text-muted-foreground">
                     1º lugar recebe +{OBA_SWISS_LEADER_BONUS} pts de bônus
@@ -1178,18 +1250,13 @@ export function TournamentEngineClient({
                   <tr>
                     <th className="py-2.5 px-3">Pos</th>
                     <th className="py-2.5 px-3">Blader</th>
-                    <th className="py-2.5 px-2 text-center">Vit</th>
-                    <th className="py-2.5 px-2 text-center" title="Extreme Finish">
-                      Xtr
-                    </th>
-                    <th className="py-2.5 px-2 text-center" title="Burst Finish">
-                      Brs
-                    </th>
-                    <th className="py-2.5 px-2 text-center" title="Over Finish">
-                      Ovr
-                    </th>
-                    <th className="py-2.5 px-2 text-center" title="Spin Finish">
-                      Spn
+                    <th className="py-2.5 px-2 text-center" title="Vitórias">V</th>
+                    <th className="py-2.5 px-2 text-center" title="Derrotas">D</th>
+                    <th
+                      className="py-2.5 px-2 text-center"
+                      title="Saldo de Pontos (Feitos - Sofridos)"
+                    >
+                      Saldo
                     </th>
                     <th className="py-2.5 px-3 text-right">Pts Suíço</th>
                   </tr>
@@ -1199,6 +1266,8 @@ export function TournamentEngineClient({
                     const isLeader = row.position === 1 && swissSummary.currentSwissRound > 0;
                     const inCutZone =
                       supportsTopCut && row.position <= topCutSize;
+                    const diffLabel =
+                      row.pointDiff > 0 ? `+${row.pointDiff}` : String(row.pointDiff);
 
                     return (
                       <tr
@@ -1231,22 +1300,25 @@ export function TournamentEngineClient({
                             </Badge>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 text-center font-black text-foreground">
+                        <td className="py-2.5 px-2 text-center font-black text-foreground tabular-nums">
                           {row.wins}
                         </td>
-                        <td className="py-2.5 px-2 text-center font-bold text-fire-orange">
-                          {row.xtremeFinishes}
+                        <td className="py-2.5 px-2 text-center text-muted-foreground tabular-nums">
+                          {row.losses}
                         </td>
-                        <td className="py-2.5 px-2 text-center font-semibold">
-                          {row.burstFinishes}
+                        <td
+                          className={`py-2.5 px-2 text-center font-black tabular-nums ${
+                            row.pointDiff > 0
+                              ? "text-emerald-500"
+                              : row.pointDiff < 0
+                                ? "text-rose-500"
+                                : "text-muted-foreground"
+                          }`}
+                          title={`${row.pointsScored} feitos / ${row.pointsConceded} sofridos`}
+                        >
+                          {diffLabel}
                         </td>
-                        <td className="py-2.5 px-2 text-center font-semibold">
-                          {row.overFinishes}
-                        </td>
-                        <td className="py-2.5 px-2 text-center text-muted-foreground">
-                          {row.spinFinishes}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-black text-primary">
+                        <td className="py-2.5 px-3 text-right font-black text-primary tabular-nums">
                           +{row.swissPoints}
                         </td>
                       </tr>
@@ -1321,7 +1393,6 @@ export function TournamentEngineClient({
                       swissSummary.currentSwissRound === 0 ||
                       swissSummary.unfinishedSwissMatchesCount > 0 ||
                       swissSummary.hasPendingTiebreaker ||
-                      swissSummary.hasAbsoluteLeaderTie ||
                       swissSummary.standings.length < topCutSize
                     }
                     onClick={() => void handleGenerateTopCut()}
@@ -1378,7 +1449,6 @@ export function TournamentEngineClient({
                   busyAction !== null ||
                   openMatchesCount > 0 ||
                   swissSummary.currentSwissRound === 0 ||
-                  swissSummary.hasAbsoluteLeaderTie ||
                   (tournament.format === "swiss_top_cut" && !hasTopCutMatches)
                 }
                 onClick={() => void handleFinalizeTournament()}
@@ -1626,6 +1696,124 @@ export function TournamentEngineClient({
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Aviso/Confirmação de Empate em Posição Decisiva */}
+      <Dialog
+        open={Boolean(tieWarningAction)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setTieWarningAction(null);
+        }}
+      >
+        <DialogContent className="max-w-md bg-card border-amber-500/50">
+          <DialogHeader>
+            <DialogTitle className="text-base font-black text-foreground flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+              Empate Decisivo Detectado no Suíço
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs text-muted-foreground leading-relaxed">
+            <p>
+              Existem Bladers empatados em{" "}
+              <strong className="text-foreground">
+                Vitórias/Derrotas e Saldo de Pontos
+              </strong>{" "}
+              em posições decisivas antes de{" "}
+              <strong className="text-foreground">
+                {tieWarningAction === "top_cut"
+                  ? `gerar o Top ${topCutSize}`
+                  : "encerrar o torneio"}
+              </strong>
+              :
+            </p>
+
+            <div className="space-y-2 rounded-lg border border-amber-500/35 bg-amber-500/10 p-3">
+              {swissSummary.decisiveTies.map((group) => (
+                <div
+                  key={`${group.positionStart}-${group.positionEnd}`}
+                  className="space-y-0.5"
+                >
+                  <div className="font-black text-amber-500">
+                    {group.reason} ({group.positionStart}º–{group.positionEnd}º)
+                  </div>
+                  <div className="text-foreground font-semibold">
+                    {group.players
+                      .map(
+                        (p) =>
+                          `${p.blader?.nickname ?? p.bladerId} (${p.wins}V-${p.losses}D, Saldo ${p.pointDiff >= 0 ? `+${p.pointDiff}` : p.pointDiff})`
+                      )
+                      .join(" × ")}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p>
+              Você pode gerar uma{" "}
+              <strong className="text-foreground">
+                partida extra de desempate
+              </strong>{" "}
+              agora ou prosseguir mantendo o desempate técnico por ordem de cadastro.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busyAction !== null}
+              onClick={() => setTieWarningAction(null)}
+              className="text-xs"
+            >
+              Cancelar
+            </Button>
+
+            {swissSummary.decisiveTies[0]?.players.length >= 2 &&
+              !swissSummary.hasPendingTiebreaker && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busyAction !== null}
+                  onClick={() => {
+                    const g = swissSummary.decisiveTies[0];
+                    void handleCreateTiebreaker(
+                      g.players[0].bladerId,
+                      g.players[1].bladerId,
+                      `Desempate (${g.reason})`
+                    );
+                  }}
+                  className="bg-amber-500 hover:bg-amber-500/90 text-slate-950 font-black text-xs gap-1.5"
+                >
+                  {busyAction === "tiebreaker" && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  Gerar Partida Extra
+                </Button>
+              )}
+
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={busyAction !== null}
+              onClick={() => {
+                if (tieWarningAction === "top_cut") {
+                  void executeGenerateTopCut(true);
+                } else {
+                  void executeFinalizeTournament(true);
+                }
+              }}
+              className="text-xs font-bold gap-1.5"
+            >
+              {(busyAction === "top_cut" || busyAction === "finalize") && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              Prosseguir Mesmo Assim
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

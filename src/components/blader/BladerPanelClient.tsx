@@ -41,7 +41,12 @@ import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
 import { uploadBladerAvatar } from "@/lib/avatar-upload";
-import { formatComboDisplay, inferComboSystem } from "@/lib/combo-rules";
+import {
+  formatComboDisplay,
+  getMissingComboPartLabels,
+  inferComboSystem,
+  isComboEmpty,
+} from "@/lib/combo-rules";
 import { formatCurrencyBRL } from "@/lib/pix";
 import { partMatchesQuery } from "@/lib/parts-search";
 import {
@@ -293,8 +298,20 @@ export function BladerPanelClient({
     }
   };
 
+  const favoriteComboMissing = React.useMemo(() => {
+    if (isComboEmpty(favoriteCombo)) return [];
+    return getMissingComboPartLabels(favoriteCombo, partsById);
+  }, [favoriteCombo, partsById]);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (favoriteComboMissing.length > 0) {
+      setProfileError(
+        `Complete todas as peças obrigatórias do seu Combo Favorito (faltando: ${favoriteComboMissing.join(", ")}) ou clique em "Limpar combo".`
+      );
+      return;
+    }
+
     setSavingProfile(true);
     setProfileError(null);
     setProfileSuccess(false);
@@ -673,9 +690,18 @@ export function BladerPanelClient({
                 parts={parts}
                 value={favoriteCombo}
                 onChange={setFavoriteCombo}
+                allowEmpty
                 title="Combo Favorito (Busca por nome Takara Tomy ou Hasbro)"
-                subtitle="Selecione o sistema do Beyblade e monte suas peças seguindo as regras oficiais de compatibilidade."
+                subtitle="Selecione o sistema do Beyblade e monte todas as peças obrigatórias (ou deixe vazio caso não queira exibir combo favorito)."
               />
+
+              {favoriteComboMissing.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500">
+                  Para salvar seu Combo Favorito, preencha:{" "}
+                  <strong>{favoriteComboMissing.join(", ")}</strong> (ou clique em{" "}
+                  <strong>Limpar combo</strong>).
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                 <Button
@@ -692,7 +718,7 @@ export function BladerPanelClient({
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={savingProfile}
+                  disabled={savingProfile || favoriteComboMissing.length > 0}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5"
                 >
                   {savingProfile ? (

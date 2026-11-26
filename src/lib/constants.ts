@@ -13,6 +13,8 @@ export const OBA_PODIUM_POINTS = {
 
 export const OBA_SWISS_WIN_POINTS = 10;
 export const OBA_SWISS_LEADER_BONUS = 15; // Exclusivo de torneios swiss_top_cut (não concedido em swiss_only)
+export const OBA_SWISS_TIEBREAK_LABEL =
+  "Vitórias/Derrotas > Saldo de Pontos > Partida Extra";
 export const DEFAULT_SWISS_ROUNDS = 4;
 export const ALLOWED_TOP_CUT_SIZES = [4, 8, 16] as const;
 

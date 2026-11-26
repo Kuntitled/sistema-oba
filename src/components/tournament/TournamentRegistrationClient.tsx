@@ -34,6 +34,7 @@ import {
   comboRowToSelection,
   createEmptyComboSelection,
   formatComboDisplay,
+  getMissingComboPartLabels,
   inferComboSystem,
   validateTournamentDeckCombo,
   type ComboBadgeChip,
@@ -184,6 +185,15 @@ export function TournamentRegistrationClient({
       }
     }
     return names;
+  }, [combos, partsById]);
+
+  const incompleteCombos = React.useMemo(() => {
+    return combos
+      .map((combo, index) => ({
+        slot: index + 1,
+        missing: getMissingComboPartLabels(combo, partsById),
+      }))
+      .filter((item) => item.missing.length > 0);
   }, [combos, partsById]);
 
   const favoriteComboSelection = React.useMemo<ComboSelection | null>(() => {
@@ -995,6 +1005,19 @@ export function TournamentRegistrationClient({
               )}
 
               {/* Ações finais */}
+              {incompleteCombos.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500 space-y-1">
+                  <div className="font-bold">
+                    Complete todos os combos da decklist antes de enviar:
+                  </div>
+                  {incompleteCombos.map((item) => (
+                    <div key={item.slot} className="text-[11px]">
+                      • Combo #{item.slot}: falta {item.missing.join(", ")}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/40">
                 <div>
                   {initialRegistration &&
@@ -1020,7 +1043,12 @@ export function TournamentRegistrationClient({
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={submitting || uploadingReceipt || cancelling}
+                  disabled={
+                    submitting ||
+                    uploadingReceipt ||
+                    cancelling ||
+                    incompleteCombos.length > 0
+                  }
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs gap-1.5 px-5"
                 >
                   {submitting ? (

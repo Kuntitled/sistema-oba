@@ -117,6 +117,9 @@ export interface SwissStandingRow {
   losses: number;
   matchesPlayed: number;
   swissPoints: number;
+  pointsScored: number;
+  pointsConceded: number;
+  pointDiff: number;
   xtremeFinishes: number;
   burstFinishes: number;
   overFinishes: number;
@@ -124,6 +127,13 @@ export interface SwissStandingRow {
   tiebreakerWins: number;
   hadBye: boolean;
   opponents: string[];
+}
+
+export interface SwissDecisiveTieGroup {
+  reason: string;
+  positionStart: number;
+  positionEnd: number;
+  players: SwissStandingRow[];
 }
 
 export interface FinalTournamentResultPreview {

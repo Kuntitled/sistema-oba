@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isValidUuid } from "@/lib/services/arena-queries";
 import {
   isValidBeySystem,
-  validateComboCompatibility,
+  validateCompleteCombo,
 } from "@/lib/combo-rules";
 import type { ComboSelection, PartRow } from "@/types/domain";
 
@@ -333,7 +333,9 @@ export async function updateOwnBladerProfileAction(formData: FormData) {
     bitId: bitParsed.value ?? "",
   };
 
-  const validation = validateComboCompatibility(rawCombo, partsById);
+  const validation = validateCompleteCombo(rawCombo, partsById, {
+    allowEmpty: true,
+  });
   if (!validation.valid) {
     return { error: validation.error };
   }

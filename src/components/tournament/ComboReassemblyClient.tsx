@@ -24,6 +24,7 @@ import {
   comboRowToSelection,
   createEmptyComboSelection,
   formatComboDisplay,
+  getMissingComboPartLabels,
   validateTournamentDeckCombo,
   type ComboBadgeChip,
 } from "@/lib/combo-rules";
@@ -174,6 +175,15 @@ export function ComboReassemblyClient({
     () => buildPartCountsMap(extractMultisetPartIdsFromSelections(combos)),
     [combos]
   );
+
+  const incompleteCombos = React.useMemo(() => {
+    return combos
+      .map((combo, index) => ({
+        slot: index + 1,
+        missing: getMissingComboPartLabels(combo, partsById),
+      }))
+      .filter((item) => item.missing.length > 0);
+  }, [combos, partsById]);
 
   // Pool de peças únicas ordenadas para exibição dos chips de peças disponíveis
   const poolSummaryItems = React.useMemo(() => {
@@ -626,6 +636,19 @@ export function ComboReassemblyClient({
               ))}
             </div>
 
+            {incompleteCombos.length > 0 && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500 space-y-1">
+                <div className="font-bold">
+                  Complete todos os combos antes de confirmar a remontagem:
+                </div>
+                {incompleteCombos.map((item) => (
+                  <div key={item.slot} className="text-[11px]">
+                    • Combo #{item.slot}: falta {item.missing.join(", ")}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/50">
               <div>
                 {combos.length < 4 && (
@@ -660,7 +683,7 @@ export function ComboReassemblyClient({
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={saving}
+                  disabled={saving || incompleteCombos.length > 0}
                   className="bg-emerald-600 hover:bg-emerald-600/90 text-white font-black text-xs gap-1.5"
                 >
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

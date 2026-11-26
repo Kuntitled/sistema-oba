@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTournamentBySlug } from "@/lib/services/league";
-import { getPublicTournamentLiveData } from "@/lib/services/tournament-live";
+import {
+  getPublicTournamentLiveData,
+  getTournamentLiveComboLabels,
+} from "@/lib/services/tournament-live";
 import { BroadcastBoardClient } from "@/components/tournament/BroadcastBoardClient";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +40,10 @@ export default async function TorneioTelaoPage({ params }: TelaoPageProps) {
   }
 
   const { tournament, results } = data;
-  const liveData = await getPublicTournamentLiveData(tournament.id);
+  const [liveData, initialComboLabels] = await Promise.all([
+    getPublicTournamentLiveData(tournament.id),
+    getTournamentLiveComboLabels(tournament.id),
+  ]);
 
   return (
     <BroadcastBoardClient
@@ -46,6 +52,7 @@ export default async function TorneioTelaoPage({ params }: TelaoPageProps) {
       initialMatches={liveData.matches}
       initialGames={liveData.games}
       initialArenas={liveData.arenas}
+      initialComboLabels={initialComboLabels}
       results={results}
     />
   );

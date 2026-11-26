@@ -5,15 +5,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { POINTS_TO_WIN_MATCH } from "@/lib/constants";
+import { validateTournamentDeckCombo } from "@/lib/combo-rules";
+import {
+  extractMultisetPartIdsFromCombos,
+  extractMultisetPartIdsFromSelections,
+  validateReassemblyAgainstOriginalPool,
+} from "@/lib/deck-reassembly";
 import { isValidUuid } from "@/lib/services/arena-queries";
 import { syncTopCutAdvancement } from "@/lib/services/bracket-advancement";
 import type { Database } from "@/types/database";
 import {
   FINISH_POINTS,
+  type ComboSelection,
   type FinishType,
   type MatchGameRow,
   type MatchRow,
   type MatchStage,
+  type PartRow,
+  type RegistrationComboRow,
 } from "@/types/domain";
 
 type AllowedRole = "admin" | "judge";
@@ -28,6 +37,7 @@ async function requireRole(allowedRoles: AllowedRole[]) {
   if (error || !user) {
     return {
       supabase,
+      role: null,
       error: "Sessão expirada. Faça login novamente.",
     } as const;
   }
@@ -36,11 +46,12 @@ async function requireRole(allowedRoles: AllowedRole[]) {
   if (!role || !allowedRoles.includes(role as AllowedRole)) {
     return {
       supabase,
+      role: null,
       error: "Você não tem permissão para executar esta operação.",
     } as const;
   }
 
-  return { supabase, error: null } as const;
+  return { supabase, role: role as AllowedRole, error: null } as const;
 }
 
 function revalidateArenaPaths(
@@ -811,4 +822,317 @@ export async function releaseArenaAction(
 
   revalidateArenaPaths(arenaId, arena.tournament_id);
   return { success: true };
+}
+
+export async function getArenaPlayerDecklistForEditAction(
+  tournamentId: string,
+  bladerId: string
+): Promise<{
+  error?: string;
+  registrationId: string | null;
+  originalPartIds: string[];
+  combos: RegistrationComboRow[];
+  role?: AllowedRole;
+}> {
+  const auth = await requireRole(["admin", "judge"]);
+  if (auth.error || !auth.role) {
+    return {
+      error: auth.error ?? "Sem permissão.",
+      registrationId: null,
+      originalPartIds: [],
+      combos: [],
+    };
+  }
+
+  if (!isValidUuid(tournamentId) || !isValidUuid(bladerId)) {
+    return {
+      error: "Torneio ou Blader inválido.",
+      registrationId: null,
+      originalPartIds: [],
+      combos: [],
+    };
+  }
+
+  const client = createAdminClient() ?? auth.supabase;
+
+  const { data: reg, error: regError } = await client
+    .from("tournament_registrations")
+    .select("id, original_part_ids")
+    .eq("tournament_id", tournamentId)
+    .eq("blader_id", bladerId)
+    .eq("status", "approved")
+    .maybeSingle();
+
+  if (regError) {
+    return {
+      error: `Erro ao carregar inscrição do competidor: ${regError.message}`,
+      registrationId: null,
+      originalPartIds: [],
+      combos: [],
+    };
+  }
+
+  if (!reg) {
+    return {
+      registrationId: null,
+      originalPartIds: [],
+      combos: [],
+      role: auth.role,
+    };
+  }
+
+  const { data: comboRows, error: combosError } = await client
+    .from("registration_combos")
+    .select("*")
+    .eq("registration_id", reg.id)
+    .eq("is_active", true)
+    .order("slot_number", { ascending: true });
+
+  if (combosError) {
+    return {
+      error: `Erro ao carregar combos ativos: ${combosError.message}`,
+      registrationId: reg.id,
+      originalPartIds: [],
+      combos: [],
+    };
+  }
+
+  const combos = comboRows ?? [];
+  const originalPartIds =
+    reg.original_part_ids && reg.original_part_ids.length > 0
+      ? reg.original_part_ids
+      : extractMultisetPartIdsFromCombos(combos);
+
+  return {
+    registrationId: reg.id,
+    originalPartIds,
+    combos,
+    role: auth.role,
+  };
+}
+
+export async function updateArenaPlayerCombosAction(input: {
+  tournamentId: string;
+  bladerId: string;
+  arenaId: string;
+  combos: ComboSelection[];
+  allowFullCatalog?: boolean;
+}) {
+  const auth = await requireRole(["admin", "judge"]);
+  if (auth.error || !auth.role) {
+    return { error: auth.error ?? "Sem permissão." };
+  }
+
+  if (
+    !isValidUuid(input.tournamentId) ||
+    !isValidUuid(input.bladerId) ||
+    !isValidUuid(input.arenaId)
+  ) {
+    return { error: "Identificadores da arena, torneio ou Blader inválidos." };
+  }
+
+  if (
+    !Array.isArray(input.combos) ||
+    input.combos.length < 1 ||
+    input.combos.length > 4
+  ) {
+    return { error: "Informe entre 1 e 4 combos válidos." };
+  }
+
+  const adminClient = createAdminClient();
+  if (!adminClient) {
+    return {
+      error:
+        "Serviço administrativo indisponível no servidor para salvar a decklist.",
+    };
+  }
+
+  const [{ data: tournament }, { data: blader }, { data: allParts }] =
+    await Promise.all([
+      adminClient
+        .from("tournaments")
+        .select("id, slug, ruleset_id, entry_fee")
+        .eq("id", input.tournamentId)
+        .maybeSingle(),
+      adminClient
+        .from("bladers")
+        .select("id")
+        .eq("id", input.bladerId)
+        .maybeSingle(),
+      adminClient
+        .from("parts_catalog")
+        .select("*")
+        .eq("is_active", true),
+    ]);
+
+  if (!tournament) {
+    return { error: "Torneio não encontrado." };
+  }
+  if (!blader) {
+    return { error: "Blader não encontrado." };
+  }
+
+  const banRes = tournament.ruleset_id
+    ? await adminClient
+        .from("ruleset_banned_parts")
+        .select("part_id")
+        .eq("ruleset_id", tournament.ruleset_id)
+    : { data: [] as Array<{ part_id: string }> };
+
+  const partsById = new Map<string, PartRow>();
+  for (const part of allParts ?? []) {
+    partsById.set(part.id, part);
+  }
+  const bannedPartIds = new Set((banRes.data ?? []).map((b) => b.part_id));
+
+  const validatedCombos: ComboSelection[] = [];
+  for (let i = 0; i < input.combos.length; i += 1) {
+    const check = validateTournamentDeckCombo(
+      input.combos[i],
+      partsById,
+      bannedPartIds,
+      i + 1
+    );
+    if (!check.valid) {
+      return { error: check.error };
+    }
+    validatedCombos.push(check.sanitized);
+  }
+
+  const { data: existingReg } = await adminClient
+    .from("tournament_registrations")
+    .select("id, status, original_part_ids")
+    .eq("tournament_id", input.tournamentId)
+    .eq("blader_id", input.bladerId)
+    .maybeSingle();
+
+  let currentActiveCombos: RegistrationComboRow[] = [];
+  if (existingReg) {
+    const { data: rows } = await adminClient
+      .from("registration_combos")
+      .select("*")
+      .eq("registration_id", existingReg.id)
+      .eq("is_active", true)
+      .order("slot_number", { ascending: true });
+    currentActiveCombos = rows ?? [];
+  }
+
+  const existingPool =
+    existingReg?.original_part_ids && existingReg.original_part_ids.length > 0
+      ? existingReg.original_part_ids
+      : extractMultisetPartIdsFromCombos(currentActiveCombos);
+
+  const canBypassPool = auth.role === "admin" && Boolean(input.allowFullCatalog);
+  if (existingPool.length > 0 && !canBypassPool) {
+    const poolCheck = validateReassemblyAgainstOriginalPool(
+      validatedCombos,
+      existingPool,
+      partsById
+    );
+    if (!poolCheck.valid) {
+      return { error: poolCheck.error };
+    }
+  }
+
+  const nextOriginalPartIds =
+    existingPool.length > 0 && !canBypassPool
+      ? existingPool
+      : extractMultisetPartIdsFromSelections(validatedCombos);
+
+  let registrationId = existingReg?.id ?? "";
+  if (registrationId) {
+    const { error: updRegErr } = await adminClient
+      .from("tournament_registrations")
+      .update({
+        status: "approved",
+        decks_verified: true,
+        rejection_reason: null,
+        original_part_ids: nextOriginalPartIds,
+      })
+      .eq("id", registrationId);
+
+    if (updRegErr) {
+      return {
+        error: `Erro ao atualizar inscrição do competidor: ${updRegErr.message}`,
+      };
+    }
+  } else {
+    const entryFee = Number(tournament.entry_fee ?? 0);
+    const { data: insReg, error: insRegErr } = await adminClient
+      .from("tournament_registrations")
+      .insert({
+        tournament_id: input.tournamentId,
+        blader_id: input.bladerId,
+        status: "approved",
+        decks_verified: true,
+        payment_verified: entryFee <= 0,
+        original_part_ids: nextOriginalPartIds,
+      })
+      .select("id")
+      .single();
+
+    if (insRegErr || !insReg) {
+      return {
+        error: `Erro ao registrar decklist na arena: ${insRegErr?.message ?? "tente novamente"}`,
+      };
+    }
+    registrationId = insReg.id;
+  }
+
+  if (currentActiveCombos.length > 0) {
+    const { error: deactErr } = await adminClient
+      .from("registration_combos")
+      .update({ is_active: false })
+      .eq("registration_id", registrationId)
+      .eq("is_active", true);
+
+    if (deactErr) {
+      return {
+        error: `Erro ao versionar combos anteriores: ${deactErr.message}`,
+      };
+    }
+  }
+
+  const { data: insertedCombos, error: insErr } = await adminClient
+    .from("registration_combos")
+    .insert(
+      validatedCombos.map((c, idx) => ({
+        registration_id: registrationId,
+        slot_number: idx + 1,
+        system: c.system,
+        blade_id: c.bladeId || null,
+        lock_chip_id: c.lockChipId || null,
+        over_blade_id: c.overBladeId || null,
+        assist_blade_id: c.assistBladeId || null,
+        ratchet_id: c.ratchetId || null,
+        bit_id: c.bitId || null,
+        is_active: true,
+      }))
+    )
+    .select("*")
+    .order("slot_number", { ascending: true });
+
+  if (insErr || !insertedCombos) {
+    if (currentActiveCombos.length > 0) {
+      await adminClient
+        .from("registration_combos")
+        .update({ is_active: true })
+        .in(
+          "id",
+          currentActiveCombos.map((c) => c.id)
+        );
+    }
+    return {
+      error: `Erro ao salvar novos combos na arena: ${insErr?.message ?? "tente novamente"}`,
+    };
+  }
+
+  revalidateArenaPaths(input.arenaId, input.tournamentId);
+  if (tournament.slug) {
+    revalidatePath(`/torneios/${tournament.slug}`);
+  }
+  revalidatePath(`/admin/torneios/${input.tournamentId}/inscricoes`);
+  revalidatePath("/estatisticas");
+
+  return { success: true, combos: insertedCombos };
 }

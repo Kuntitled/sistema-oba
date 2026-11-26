@@ -1,7 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, RotateCcw, Info, Lock } from "lucide-react";
+import {
+  Sparkles,
+  RotateCcw,
+  Info,
+  Lock,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PartSearchSelect } from "@/components/blader/PartSearchSelect";
@@ -9,7 +16,9 @@ import {
   BEY_SYSTEM_CONFIG,
   createEmptyComboSelection,
   formatComboDisplay,
+  getMissingComboPartLabels,
   isBladeCompatibleWithSystem,
+  isComboEmpty,
   sanitizeComboForSystem,
 } from "@/lib/combo-rules";
 import {
@@ -25,6 +34,7 @@ interface ComboBuilderProps {
   onChange: (next: ComboSelection) => void;
   bannedPartIds?: Set<string>;
   disabled?: boolean;
+  allowEmpty?: boolean;
   title?: string;
   subtitle?: string;
 }
@@ -35,6 +45,7 @@ export function ComboBuilder({
   onChange,
   bannedPartIds,
   disabled = false,
+  allowEmpty = false,
   title = "Montar Combo (Busca por nome Takara Tomy ou Hasbro)",
   subtitle,
 }: ComboBuilderProps) {
@@ -160,6 +171,13 @@ export function ComboBuilder({
       selectedBit,
     ]
   );
+
+  const isEmptyCombo = React.useMemo(() => isComboEmpty(value), [value]);
+  const missingPartLabels = React.useMemo(
+    () => getMissingComboPartLabels(value, partsById),
+    [value, partsById]
+  );
+  const isCompleteCombo = !isEmptyCombo && missingPartLabels.length === 0;
 
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4 space-y-4">
@@ -358,8 +376,36 @@ export function ComboBuilder({
               <span className="font-bold text-foreground">
                 {comboDisplay.summaryText}
               </span>
+              {isCompleteCombo && (
+                <Badge
+                  variant="outline"
+                  className="ml-auto text-[10px] px-1.5 py-0 border-emerald-500/45 text-emerald-500 bg-emerald-500/10 gap-1 font-bold"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  Combo completo
+                </Badge>
+              )}
             </div>
           )}
+
+          {missingPartLabels.length > 0 && (!allowEmpty || !isEmptyCombo) && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                <strong>Peças obrigatórias faltando:</strong>{" "}
+                {missingPartLabels.join(", ")}.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!activeConfig && !allowEmpty && (
+        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500 flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Selecione o <strong>Sistema do Beyblade</strong> e preencha todas as peças obrigatórias para liberar o salvamento.
+          </span>
         </div>
       )}
     </div>

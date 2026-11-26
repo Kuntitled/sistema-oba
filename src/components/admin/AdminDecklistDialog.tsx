@@ -26,7 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
-import { createEmptyComboSelection } from "@/lib/combo-rules";
+import {
+  createEmptyComboSelection,
+  getMissingComboPartLabels,
+} from "@/lib/combo-rules";
 import { upsertAdminParticipantDecklistAction } from "@/app/admin/registrations-actions";
 import type { ComboSelection, PartRow } from "@/types/domain";
 
@@ -80,10 +83,25 @@ function AdminDecklistDialogBody({
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
 
+  const partsById = React.useMemo(() => {
+    const map = new Map<string, PartRow>();
+    for (const p of parts) map.set(p.id, p);
+    return map;
+  }, [parts]);
+
   const bannedPartIds = React.useMemo(
     () => new Set(bannedParts.map((p) => p.id)),
     [bannedParts]
   );
+
+  const incompleteCombos = React.useMemo(() => {
+    return combos
+      .map((combo, index) => ({
+        slot: index + 1,
+        missing: getMissingComboPartLabels(combo, partsById),
+      }))
+      .filter((item) => item.missing.length > 0);
+  }, [combos, partsById]);
 
   const activeBlader = React.useMemo(() => {
     if (blader) return blader;
@@ -106,6 +124,14 @@ function AdminDecklistDialogBody({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (incompleteCombos.length > 0) {
+      const first = incompleteCombos[0];
+      setErrorMsg(
+        `Combo #${first.slot} incompleto (faltando: ${first.missing.join(", ")}).`
+      );
+      return;
+    }
+
     const targetBladerId = blader?.id ?? selectedBladerId;
     if (!targetBladerId) {
       setErrorMsg("Selecione o Blader para vincular esta decklist.");
@@ -240,6 +266,19 @@ function AdminDecklistDialogBody({
           ))}
         </div>
 
+        {incompleteCombos.length > 0 && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500 space-y-1">
+            <div className="font-bold">
+              Complete todos os combos antes de salvar a decklist:
+            </div>
+            {incompleteCombos.map((item) => (
+              <div key={item.slot} className="text-[11px]">
+                • Combo #{item.slot}: falta {item.missing.join(", ")}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/50">
           <div>
             {combos.length < 4 && (
@@ -271,7 +310,9 @@ function AdminDecklistDialogBody({
             <Button
               type="submit"
               size="sm"
-              disabled={saving || parts.length === 0}
+              disabled={
+                saving || parts.length === 0 || incompleteCombos.length > 0
+              }
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

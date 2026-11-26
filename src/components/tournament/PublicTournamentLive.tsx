@@ -175,9 +175,19 @@ export function PublicTournamentLive({
     };
   }, [supabase, initialTournament.id]);
 
+
+  const supportsLeaderBonus = tournament.format !== "swiss_only";
+  const topCutCutoff =
+    tournament.top_cut_size ??
+    (tournament.format === "swiss_top_cut" ? 8 : 0);
+
   const swissSummary = React.useMemo(
-    () => computeSwissStandings(participants, matches, games),
-    [participants, matches, games]
+    () =>
+      computeSwissStandings(participants, matches, games, {
+        format: tournament.format,
+        topCutSize: topCutCutoff || null,
+      }),
+    [participants, matches, games, tournament.format, topCutCutoff]
   );
 
   const topCutMatches = React.useMemo(
@@ -262,10 +272,6 @@ export function PublicTournamentLive({
     ? activeTab
     : availableTabs[0]?.id ?? "results";
 
-  const supportsLeaderBonus = tournament.format !== "swiss_only";
-  const topCutCutoff =
-    tournament.top_cut_size ??
-    (tournament.format === "swiss_top_cut" ? 8 : 0);
 
   const getPositionBadge = (pos: number) => {
     switch (pos) {
@@ -663,19 +669,19 @@ export function PublicTournamentLive({
               </div>
             )}
 
-            {/* Aviso de empate absoluto pela liderança */}
+            {/* Aviso de empate pela liderança ou posição decisiva */}
             {swissSummary.hasAbsoluteLeaderTie && (
               <div className="p-3.5 rounded-xl border border-amber-500/50 bg-amber-500/10 text-xs flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-foreground">
-                    Empate absoluto pela liderança do Suíço:
+                    Empate pela liderança do Suíço:
                   </span>{" "}
                   <span className="text-muted-foreground">
                     {swissSummary.tiedLeaders
                       .map((l) => l.blader?.nickname ?? l.bladerId)
                       .join(", ")}{" "}
-                    empataram em vitórias e em todos os Finishes (aguardando partida extra de desempate).
+                    empataram em vitórias, derrotas e saldo de pontos (aguardando partida extra de desempate).
                   </span>
                 </div>
               </div>
@@ -686,7 +692,7 @@ export function PublicTournamentLive({
               <Card className="border-border/60 bg-card/60 overflow-hidden">
                 <CardHeader className="p-4 sm:p-5 pb-2">
                   <CardTitle className="text-sm sm:text-base font-black flex flex-wrap items-center justify-between gap-2">
-                    <span>Classificação da Fase Suíça (Critérios OBA)</span>
+                    <span>Classificação da Fase Suíça (Saldo de Pontos OBA)</span>
                     {supportsLeaderBonus && (
                       <span className="text-[11px] font-semibold text-muted-foreground">
                         Líder ganha +{OBA_SWISS_LEADER_BONUS} pts de bônus
@@ -700,11 +706,11 @@ export function PublicTournamentLive({
                       <tr>
                         <th className="py-2.5 px-3">Pos</th>
                         <th className="py-2.5 px-3">Blader</th>
-                        <th className="py-2.5 px-2 text-center">Vit</th>
-                        <th className="py-2.5 px-2 text-center">Xtr</th>
-                        <th className="py-2.5 px-2 text-center">Brs</th>
-                        <th className="py-2.5 px-2 text-center">Ovr</th>
-                        <th className="py-2.5 px-2 text-center">Spn</th>
+                        <th className="py-2.5 px-2 text-center" title="Vitórias">V</th>
+                        <th className="py-2.5 px-2 text-center" title="Derrotas">D</th>
+                        <th className="py-2.5 px-2 text-center" title="Saldo de Pontos (Feitos - Sofridos)">
+                          Saldo
+                        </th>
                         <th className="py-2.5 px-3 text-right">Pts Suíço</th>
                       </tr>
                     </thead>
@@ -714,6 +720,10 @@ export function PublicTournamentLive({
                           row.position === 1 && swissSummary.currentSwissRound > 0;
                         const inCut =
                           topCutCutoff > 0 && row.position <= topCutCutoff;
+                        const diffLabel =
+                          row.pointDiff > 0
+                            ? `+${row.pointDiff}`
+                            : String(row.pointDiff);
 
                         return (
                           <tr
@@ -753,22 +763,25 @@ export function PublicTournamentLive({
                                 </Badge>
                               )}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-black">
+                            <td className="py-2.5 px-2 text-center font-black tabular-nums">
                               {row.wins}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-bold text-fire-orange">
-                              {row.xtremeFinishes}
+                            <td className="py-2.5 px-2 text-center text-muted-foreground tabular-nums">
+                              {row.losses}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-semibold">
-                              {row.burstFinishes}
+                            <td
+                              className={`py-2.5 px-2 text-center font-black tabular-nums ${
+                                row.pointDiff > 0
+                                  ? "text-emerald-500"
+                                  : row.pointDiff < 0
+                                    ? "text-rose-500"
+                                    : "text-muted-foreground"
+                              }`}
+                              title={`${row.pointsScored} feitos / ${row.pointsConceded} sofridos`}
+                            >
+                              {diffLabel}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-semibold">
-                              {row.overFinishes}
-                            </td>
-                            <td className="py-2.5 px-2 text-center text-muted-foreground">
-                              {row.spinFinishes}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-black text-primary">
+                            <td className="py-2.5 px-3 text-right font-black text-primary tabular-nums">
                               +{row.swissPoints}
                             </td>
                           </tr>

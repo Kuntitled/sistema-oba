@@ -4,21 +4,26 @@ import {
   OBA_SWISS_WIN_POINTS,
   type ObaTournamentCategory,
 } from "@/lib/constants";
-import type {
-  BladerRow,
-  FinalTournamentResultPreview,
-  Match,
-  MatchGame,
-  RankingEntry,
-  SwissStandingRow,
-  Tournament,
-  TournamentParticipant,
+import {
+  FINISH_POINTS,
+  type BladerRow,
+  type FinalTournamentResultPreview,
+  type Match,
+  type MatchGame,
+  type RankingEntry,
+  type SwissDecisiveTieGroup,
+  type SwissStandingRow,
+  type Tournament,
+  type TournamentFormat,
+  type TournamentParticipant,
 } from "@/types/domain";
 
 export interface SwissStandingsSummary {
   standings: SwissStandingRow[];
   hasAbsoluteLeaderTie: boolean;
   tiedLeaders: SwissStandingRow[];
+  decisiveTies: SwissDecisiveTieGroup[];
+  hasUnresolvedDecisiveTie: boolean;
   currentSwissRound: number;
   unfinishedSwissMatchesCount: number;
   hasPendingTiebreaker: boolean;
@@ -43,14 +48,24 @@ function compareCreatedAndName(
   return aId.localeCompare(bId);
 }
 
+function isSameSwissTieRank(a: SwissStandingRow, b: SwissStandingRow): boolean {
+  return (
+    a.wins === b.wins &&
+    a.losses === b.losses &&
+    a.pointDiff === b.pointDiff &&
+    a.tiebreakerWins === b.tiebreakerWins
+  );
+}
+
 /**
  * Calcula a classificação oficial da Fase Suíça (OBA — sem Buchholz).
- * Desempates: Vitórias > Xtreme > Burst > Over > Spin > Tiebreaker > created_at.
+ * Desempates: Vitórias/Derrotas > Saldo de Pontos > Partida Extra de Desempate > created_at.
  */
 export function computeSwissStandings(
   participants: TournamentParticipant[],
   matches: Match[],
-  games: MatchGame[]
+  games: MatchGame[],
+  options?: { format?: TournamentFormat; topCutSize?: number | null }
 ): SwissStandingsSummary {
   const statsMap = new Map<
     string,
@@ -60,6 +75,8 @@ export function computeSwissStandings(
       wins: number;
       losses: number;
       matchesPlayed: number;
+      pointsScored: number;
+      pointsConceded: number;
       xtremeFinishes: number;
       burstFinishes: number;
       overFinishes: number;
@@ -86,6 +103,8 @@ export function computeSwissStandings(
       wins: 0,
       losses: 0,
       matchesPlayed: 0,
+      pointsScored: 0,
+      pointsConceded: 0,
       xtremeFinishes: 0,
       burstFinishes: 0,
       overFinishes: 0,
@@ -109,6 +128,13 @@ export function computeSwissStandings(
   const tiebreakerMatches = swissMatches.filter((m) => m.is_tiebreaker);
 
   const regularSwissMatchIds = new Set(regularSwissMatches.map((m) => m.id));
+  const gamesByMatchId = new Map<string, MatchGame[]>();
+  for (const g of games) {
+    if (!regularSwissMatchIds.has(g.match_id)) continue;
+    const list = gamesByMatchId.get(g.match_id) ?? [];
+    list.push(g);
+    gamesByMatchId.set(g.match_id, list);
+  }
 
   let currentSwissRound = 0;
   let unfinishedSwissMatchesCount = 0;
@@ -149,6 +175,30 @@ export function computeSwissStandings(
         p2.wins += 1;
         p1.losses += 1;
       }
+
+      // Saldo de Pontos oficial pelos pesos (Xtreme=3, Burst=2, Over=2, Spin=1)
+      // com fallback para player1_score/player2_score em resultados manuais sem lances.
+      const matchGames = gamesByMatchId.get(m.id);
+      let p1Pts = 0;
+      let p2Pts = 0;
+      if (matchGames && matchGames.length > 0) {
+        for (const g of matchGames) {
+          const pts = FINISH_POINTS[g.finish_type] ?? g.points_awarded ?? 0;
+          if (g.scoring_player_id === m.player1_id) {
+            p1Pts += pts;
+          } else if (g.scoring_player_id === m.player2_id) {
+            p2Pts += pts;
+          }
+        }
+      } else {
+        p1Pts = Math.max(0, m.player1_score ?? 0);
+        p2Pts = Math.max(0, m.player2_score ?? 0);
+      }
+
+      p1.pointsScored += p1Pts;
+      p1.pointsConceded += p2Pts;
+      p2.pointsScored += p2Pts;
+      p2.pointsConceded += p1Pts;
     }
   }
 
@@ -201,6 +251,9 @@ export function computeSwissStandings(
       losses: s.losses,
       matchesPlayed: s.matchesPlayed,
       swissPoints: s.wins * OBA_SWISS_WIN_POINTS,
+      pointsScored: s.pointsScored,
+      pointsConceded: s.pointsConceded,
+      pointDiff: s.pointsScored - s.pointsConceded,
       xtremeFinishes: s.xtremeFinishes,
       burstFinishes: s.burstFinishes,
       overFinishes: s.overFinishes,
@@ -213,18 +266,8 @@ export function computeSwissStandings(
 
   rows.sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.xtremeFinishes !== a.xtremeFinishes) {
-      return b.xtremeFinishes - a.xtremeFinishes;
-    }
-    if (b.burstFinishes !== a.burstFinishes) {
-      return b.burstFinishes - a.burstFinishes;
-    }
-    if (b.overFinishes !== a.overFinishes) {
-      return b.overFinishes - a.overFinishes;
-    }
-    if (b.spinFinishes !== a.spinFinishes) {
-      return b.spinFinishes - a.spinFinishes;
-    }
+    if (a.losses !== b.losses) return a.losses - b.losses;
+    if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
     if (b.tiebreakerWins !== a.tiebreakerWins) {
       return b.tiebreakerWins - a.tiebreakerWins;
     }
@@ -239,24 +282,78 @@ export function computeSwissStandings(
   let tiedLeaders: SwissStandingRow[] = [];
   if (standings.length >= 2) {
     const first = standings[0];
-    tiedLeaders = standings.filter(
-      (r) =>
-        r.wins === first.wins &&
-        r.xtremeFinishes === first.xtremeFinishes &&
-        r.burstFinishes === first.burstFinishes &&
-        r.overFinishes === first.overFinishes &&
-        r.spinFinishes === first.spinFinishes &&
-        r.tiebreakerWins === first.tiebreakerWins
-    );
+    tiedLeaders = standings.filter((r) => isSameSwissTieRank(r, first));
   }
 
   const hasAbsoluteLeaderTie =
     currentSwissRound > 0 && tiedLeaders.length >= 2;
 
+  const decisiveTies: SwissDecisiveTieGroup[] = [];
+  if (currentSwissRound > 0 && standings.length >= 2) {
+    const topCutSize = options?.topCutSize ?? null;
+    const isSwissOnly = options?.format === "swiss_only";
+    let idx = 0;
+
+    while (idx < standings.length) {
+      let endIdx = idx;
+      while (
+        endIdx + 1 < standings.length &&
+        isSameSwissTieRank(standings[idx], standings[endIdx + 1])
+      ) {
+        endIdx += 1;
+      }
+
+      if (endIdx > idx) {
+        const players = standings.slice(idx, endIdx + 1);
+        const positionStart = players[0].position;
+        const positionEnd = players[players.length - 1].position;
+        const reasons: string[] = [];
+
+        if (positionStart === 1) {
+          reasons.push("Liderança do Suíço (1º lugar)");
+        }
+
+        if (
+          topCutSize &&
+          topCutSize > 0 &&
+          positionStart <= topCutSize &&
+          positionEnd > topCutSize
+        ) {
+          reasons.push(`Corte do Top ${topCutSize}`);
+        }
+
+        if (isSwissOnly && positionStart <= 3) {
+          if (!(positionStart === 1 && positionEnd === 2)) {
+            reasons.push("Pódio (Top 3)");
+          } else {
+            reasons.push("Pódio (Top 3)");
+          }
+        } else if (!topCutSize && positionStart <= 3 && positionEnd > 3) {
+          reasons.push("Pódio (Top 3)");
+        }
+
+        if (reasons.length > 0) {
+          decisiveTies.push({
+            reason: Array.from(new Set(reasons)).join(" / "),
+            positionStart,
+            positionEnd,
+            players,
+          });
+        }
+      }
+
+      idx = endIdx + 1;
+    }
+  }
+
+  const hasUnresolvedDecisiveTie = decisiveTies.length > 0;
+
   return {
     standings,
     hasAbsoluteLeaderTie,
     tiedLeaders,
+    decisiveTies,
+    hasUnresolvedDecisiveTie,
     currentSwissRound,
     unfinishedSwissMatchesCount,
     hasPendingTiebreaker,

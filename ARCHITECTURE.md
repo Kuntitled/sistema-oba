@@ -100,12 +100,12 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 **Status de Implementação:**
 - [x] **Migrations SQL aplicadas em produção (`003` e `004`):** tabelas `arenas`, `matches`, `match_games`, `seasons`, `tournament_participants`, colunas oficiais OBA em `tournaments`, `tournament_results` e `ranking`, além de RLS e Supabase Realtime.
-- [x] **Motor de Chaveamento Híbrido (`/admin/torneios/[id]/chaveamento` e `src/lib/engine/tournament-engine.ts`):** gestão de participantes e Drop, pareamento Suíço sem rematches com BYE automático, suporte a `swiss_top_cut` e `swiss_only`, desempate oficial por Finishes (`xtreme > burst > over > spin`, sem Buchholz), detecção de empate absoluto pela liderança + partida extra (`is_tiebreaker = true` sem `+10 pts`), geração de Top Cut (4 / 8 / 16 + disputa de 3º lugar + avanço automático) e publicação oficial com recálculo anual do ranking (`recalculateSeasonRanking`).
+- [x] **Motor de Chaveamento Híbrido (`/admin/torneios/[id]/chaveamento` e `src/lib/engine/tournament-engine.ts`):** gestão de participantes e Drop, pareamento Suíço sem rematches com BYE automático, suporte a `swiss_top_cut` e `swiss_only`, desempate oficial por **Saldo de Pontos** (`Vitórias/Derrotas > Saldo de Pontos > Partida Extra`, sem Buchholz), detecção de empate decisivo (liderança, pódio e corte Top Cut) com alerta de confirmação + partida extra (`is_tiebreaker = true` sem `+10 pts`), geração de Top Cut (4 / 8 / 16 + disputa de 3º lugar + avanço automático) e publicação oficial com recálculo anual do ranking (`recalculateSeasonRanking`).
 - [x] **Gestor de Arenas Físicas (`/admin/arenas`):** criação de múltiplos Beystadiums, status (`available`, `in_match`, `maintenance`), liberação e despacho de partidas da fila em tempo real.
-- [x] **Placar Touch do Juiz (`/admin/arena/[id]`):** layout mobile full-screen fora da sidebar admin, botões oficiais BX (`+1 Spin`, `+2 Over`, `+2 Burst`, `+3 Xtreme`), inversão de lados, `Desfazer (Undo)`, `Zerar placar`, alerta de Match Point, encerramento automático aos 4 pontos, avanço automático no Top Cut e fila de próximas partidas.
-- [x] **Vitrine Pública ao Vivo (`/` e `/torneios/[slug]`):** banner de arenas ao vivo na Home (`HomeLiveTournamentBanner`) e acompanhamento em tempo real de arenas, placares, classificação/rodadas do Suíço e chaveamento Top Cut (`PublicTournamentLive`, `LiveArenaCard`) via Supabase Realtime.
+- [x] **Placar Touch do Juiz (`/admin/arena/[id]`):** layout mobile full-screen fora da sidebar admin, botões oficiais BX (`+1 Spin`, `+2 Over`, `+2 Burst`, `+3 Xtreme`), inversão visual de lados (`Esq ↔ Dir` sempre visível), seleção manual dos combos principais `#1–#3` (sem avanço automático; `#4` oculto como reserva), modal rápida de edição/troca de combos direto na arena para juiz/admin (`ArenaComboEditDialog.tsx`), `Desfazer (Undo)`, `Zerar placar`, alerta de Match Point, encerramento automático aos 4 pontos, avanço automático no Top Cut e fila de próximas partidas.
+- [x] **Vitrine Pública ao Vivo (`/` e `/torneios/[slug]`):** banner de arenas ao vivo na Home (`HomeLiveTournamentBanner`) e acompanhamento em tempo real de arenas, placares, classificação (com V, D e Saldo de Pontos)/rodadas do Suíço e chaveamento Top Cut (`PublicTournamentLive`, `LiveArenaCard`) via Supabase Realtime.
 - [x] **Autenticação e Onboarding de Admins:** login same-origin (`POST /api/auth/login` + `route-cookies.ts`), suporte a acesso LAN em dev (`allowedDevOrigins` em `next.config.ts`), convite de usuários e recuperação de senha (`/auth/callback`, `/auth/definir-senha`, `AuthHashListener`, opção "Esqueceu a senha?" em `/auth/login`).
-- [x] **Modo Telão / TV dedicado (`/torneios/[slug]/telao`):** rota pública full-screen (`BroadcastBoardClient.tsx`) sem Navbar/Footer, com tipografia ampliada, modos `Auto` (rotação 15s), `Arenas`, `Chaveamento` e `Classificação`, tela cheia e Realtime.
+- [x] **Modo Telão / TV dedicado (`/torneios/[slug]/telao`):** rota pública full-screen (`BroadcastBoardClient.tsx`) sem Navbar/Footer, exibindo o combo utilizado no último lance (`/api/torneios/[id]/live-combo-labels` travado para `ongoing`/`finished`), classificação com V, D e Saldo de Pontos e paginação automática suave (~8,5s) para exibir 100% dos participantes sem limite fixo, modos `Auto` (rotação 15s), `Arenas`, `Chaveamento` e `Classificação`, tela cheia, Realtime + fallback de polling.
 - [x] **Fallback da Mesa Diretora:** botão `Resultado / W.O.` na tela de chaveamento + action `recordManualMatchResultAction` para registrar placar manual ou W.O. sem passar por arena, mantendo avanço automático no Top Cut.
 - [x] **Interface de Temporadas no Admin (`/admin/temporadas`):** componente `SeasonManagerClient.tsx` consumindo `createSeasonAction` e `activateSeasonAction` para gerenciar ciclos anuais e preservar histórico no ranking público.
 - [x] **Polimentos de Cadastro:** seleção automática de `swiss_only` para categoria `semanal` e `swiss_top_cut` para `oficial` em `TournamentForm.tsx` e `EditTournamentButton.tsx`, além de modais de edição completa para Bladers (`EditBladerButton.tsx` + `updateBladerAction`) e Torneios (`EditTournamentButton.tsx` + `updateTournamentAction`).
@@ -136,9 +136,11 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
 
 ---
 
-### ✅ Fase 4 — Meta, Estatísticas Regionais & Performance de Peças (CONCLUÍDA)
+### ✅ Fase 4 — Meta, Estatísticas Regionais, Performance de Peças & Ajustes de Operação (CONCLUÍDA)
 - [x] **Migration `012_match_games_combo_tracking.sql`:** colunas opcionais `player1_combo_id` e `player2_combo_id` em `match_games` com índices parciais e policies `SELECT` somente-leitura para `role = 'judge'` em inscrições aprovadas de torneios `ongoing`/`finished`.
-- [x] **Rastreamento de Combos por Round no Placar Touch (`/admin/arena/[id]`):** seletores táteis 1-toque dos combos aprovados de cada competidor com sugestão automática por ordem de round (`1 → 2 → 3`) e exibição no histórico de lances.
+- [x] **Migration `013_decklist_reassembly.sql` & `014_security_rls_hardening.sql`:** remontagem controlada entre rodadas com pool imutável (`original_part_ids`) + versionamento (`is_active`), e hardening completo de RLS usando exclusivamente `app_metadata.role` (`is_admin()`, `is_judge()`).
+- [x] **Rastreamento Manual de Combos & Edição na Arena (`/admin/arena/[id]`):** seleção manual nos chips `#1–#3` (sem avanço cíclico automático; `#4` oculto como reserva), inversão visual clara (`Esq ↔ Dir`) e edição/troca rápida direto na arena para juízes e admins (`ArenaComboEditDialog.tsx`) preservando o pool original e versionando `is_active`.
+- [x] **Validação Rigorosa de Combos (`combo-rules.ts` & `ComboBuilder.tsx`):** bloqueio no cliente e servidor para qualquer combo incompleto conforme o sistema (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE`) com feedback visual exato das peças faltantes em inscrição, decklist admin, remontagem, edição na arena e Combo Favorito (respeitando `UXE` sem Ratchet e Ratchets `blocks_bit`).
 - [x] **Página Pública `/estatisticas` (`src/lib/services/stats.ts` + Recharts v3):** agregações server-side via `createAdminClient()` com filtros globais (Temporada, Modalidade, Formato/Ruleset), Panorama Geral, Performance por Peça (Win Rate, Pts/Round e Finishes aplicados/sofridos por peça), Censo Anônimo da Coleção (`blader_inventory`) e Confrontos Diretos (Head-to-Head via `/api/stats/head-to-head`).
 - [x] **Meta & Breakdown de Combos por Etapa (`/torneios/[slug]`):** nova aba `Meta & Estatísticas` exibida exclusivamente para torneios `ongoing` ou `finished`, com ranking de combos, decklists do Pódio/Top Cut, peças mais usadas, distribuição de finishes/sistemas e performance na etapa.
 
@@ -175,13 +177,12 @@ export const OBA_SWISS_WIN_POINTS = 10;
 export const OBA_SWISS_LEADER_BONUS = 15; // Apenas em torneios swiss_top_cut
 ```
 
-### Desempate na Fase Suíça (Não usa Buchholz)
-Em caso de empate em número de vitórias no Suíço, a ordem de desempate é apurada diretamente nos registros `match_games` das partidas regulares (`stage = 'swiss'` e `is_tiebreaker = false`):
-1. Maior quantidade de **Extreme Finishes** (`xtreme`)
-2. Maior quantidade de **Burst Finishes** (`burst`)
-3. Maior quantidade de **Over Finishes** (`over`)
-4. Maior quantidade de **Spin Finishes** (`spin`)
-- **Empate absoluto pela liderança do Suíço:** o sistema sinaliza o empate e permite gerar partida extra de desempate (`is_tiebreaker = true`), que define o líder sem somar `+10 pts` extras no ranking.
+### Desempate na Fase Suíça (Saldo de Pontos — Sem Buchholz)
+Em caso de empate em **Vitórias / Derrotas** no Suíço, a ordem de desempate é apurada diretamente pelo **Saldo de Pontos** das partidas regulares (`stage = 'swiss'` e `is_tiebreaker = false`, usando os pesos oficiais: `Xtreme = 3`, `Burst = 2`, `Over = 2`, `Spin = 1`, ou o placar manual quando sem lances):
+1. **Vitórias (`wins DESC`) / Derrotas (`losses ASC`)**
+2. **Saldo de Pontos (`point_diff DESC`)**: soma dos pontos feitos menos os pontos sofridos
+3. **Vitórias em partida extra de desempate (`tiebreakerWins DESC`)**
+- **Empate em posição decisiva (Liderança, Pódio ou Corte do Top Cut):** quando há empate em Vitórias/Derrotas + Saldo de Pontos, o sistema sinaliza o empate diretamente na Fase Suíça (sugerindo a geração da **partida extra de desempate** `is_tiebreaker = true`, que não soma `+10 pts` extras no ranking) e exibe um modal de alerta/confirmação caso o admin tente gerar o Top Cut ou finalizar o torneio com empate decisivo em aberto.
 
 ### Desempate do Ranking Geral da Temporada
 Em caso de empate na pontuação total acumulada na temporada:
@@ -285,7 +286,8 @@ Sistema OBA/
     │   ├── api/
     │   │   ├── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
     │   │   ├── bladers/[id]/card/route.ts ← Endpoint público do Card do Blader
-    │   │   └── stats/head-to-head/route.ts ← Endpoint JSON de confrontos diretos (H2H) entre Bladers
+    │   │   ├── stats/head-to-head/route.ts ← Endpoint JSON de confrontos diretos (H2H) entre Bladers
+    │   │   └── torneios/[id]/live-combo-labels/route.ts ← Labels compactos dos combos já usados no Telão TV (restrito a ongoing/finished)
     │   └── auth/
     │       ├── actions.ts              ← Server Actions de logout
     │       ├── callback/route.ts       ← Callback SSR para OAuth Google, PKCE (?code=) e OTP (?token_hash=)
@@ -311,6 +313,7 @@ Sistema OBA/
     │   │   ├── TournamentResultsEditor.tsx
     │   │   └── TournamentStatusSelect.tsx
     │   ├── arena/                      ← Placar touch mobile e suporte operacional
+    │   │   ├── ArenaComboEditDialog.tsx ← Edição/troca rápida de combos na arena (Juiz e Admin)
     │   │   ├── Phase2SchemaNotice.tsx
     │   │   ├── QuickStartMatchDialog.tsx
     │   │   └── RefereeScoreboard.tsx

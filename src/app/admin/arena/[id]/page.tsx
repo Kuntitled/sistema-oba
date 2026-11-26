@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRoleFromUser } from "@/lib/auth-roles";
 import { getArenaLiveState } from "@/lib/services/arenas";
+import { getPartsCatalog } from "@/lib/services/parts";
 import { RefereeScoreboard } from "@/components/arena/RefereeScoreboard";
 import { Phase2SchemaNotice } from "@/components/arena/Phase2SchemaNotice";
+import type { PartRow } from "@/types/domain";
 
 export default async function AdminArenaJudgePage({
   params,
@@ -12,9 +14,10 @@ export default async function AdminArenaJudgePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: authData }, liveState] = await Promise.all([
+  const [{ data: authData }, liveState, catalogRes] = await Promise.all([
     supabase.auth.getUser(),
     getArenaLiveState(id),
+    getPartsCatalog(),
   ]);
 
   const {
@@ -28,6 +31,17 @@ export default async function AdminArenaJudgePage({
   } = liveState;
   const role = getUserRoleFromUser(authData.user);
   const canQuickStart = role === "admin";
+  const parts = catalogRes.parts;
+
+  let bannedParts: PartRow[] = [];
+  if (arena?.tournament?.ruleset_id && parts.length > 0) {
+    const { data: banRows } = await supabase
+      .from("ruleset_banned_parts")
+      .select("part_id")
+      .eq("ruleset_id", arena.tournament.ruleset_id);
+    const bannedSet = new Set((banRows ?? []).map((b) => b.part_id));
+    bannedParts = parts.filter((p) => bannedSet.has(p.id));
+  }
 
   if (schemaMissing) {
     return (
@@ -52,6 +66,9 @@ export default async function AdminArenaJudgePage({
       initialPlayer2Combos={player2Combos}
       pendingMatches={pendingMatches}
       bladers={bladers}
+      parts={parts}
+      bannedParts={bannedParts}
+      userRole={role}
       canQuickStart={canQuickStart}
     />
   );

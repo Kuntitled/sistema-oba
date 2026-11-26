@@ -21,6 +21,8 @@ import {
   Wrench,
   MapPin,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,11 +57,16 @@ interface BroadcastBoardClientProps {
   initialMatches: Match[];
   initialGames: MatchGame[];
   initialArenas: Arena[];
+  initialComboLabels?: Record<string, string>;
   results: TournamentResult[];
 }
 
 type BroadcastViewMode = "auto" | "arenas" | "bracket" | "standings";
 type SidePanelType = "top_cut" | "round" | "standings";
+
+const STANDINGS_PAGE_SIZE = 10;
+const FINAL_REST_PAGE_SIZE = 9;
+const EMPTY_COMBO_LABELS: Record<string, string> = {};
 
 const SIDE_PANEL_LABELS: Record<SidePanelType, string> = {
   top_cut: "Chaveamento Top Cut",
@@ -87,6 +94,7 @@ export function BroadcastBoardClient({
   initialMatches,
   initialGames,
   initialArenas,
+  initialComboLabels = EMPTY_COMBO_LABELS,
   results,
 }: BroadcastBoardClientProps) {
   const supabase = React.useMemo(() => createClient(), []);
@@ -99,6 +107,8 @@ export function BroadcastBoardClient({
   const [matches, setMatches] = React.useState<Match[]>(initialMatches);
   const [games, setGames] = React.useState<MatchGame[]>(initialGames);
   const [arenas, setArenas] = React.useState<Arena[]>(initialArenas);
+  const [comboLabels, setComboLabels] =
+    React.useState<Record<string, string>>(initialComboLabels);
   const [liveResults, setLiveResults] =
     React.useState<TournamentResult[]>(results);
 
@@ -110,6 +120,7 @@ export function BroadcastBoardClient({
   const [viewMode, setViewMode] = React.useState<BroadcastViewMode>("auto");
   const [autoPaused, setAutoPaused] = React.useState(false);
   const [rotationIndex, setRotationIndex] = React.useState(0);
+  const [standingsPage, setStandingsPage] = React.useState(0);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
   const refreshingRef = React.useRef(false);
@@ -136,6 +147,28 @@ export function BroadcastBoardClient({
         setMatches(snap.matches);
         setGames(snap.games);
         setArenas(snap.arenas);
+
+        if (
+          snap.tournament.status === "ongoing" ||
+          snap.tournament.status === "finished"
+        ) {
+          try {
+            const labelsRes = await fetch(
+              `/api/torneios/${initialTournament.id}/live-combo-labels`,
+              { cache: "no-store" }
+            );
+            if (labelsRes.ok) {
+              const payload = (await labelsRes.json()) as {
+                comboLabels?: Record<string, string>;
+              };
+              if (payload.comboLabels) {
+                setComboLabels(payload.comboLabels);
+              }
+            }
+          } catch {
+            // Melhor esforço — mantém labels atuais
+          }
+        }
 
         if (snap.tournament.status === "finished") {
           const { data: resultRows } = await supabase
@@ -306,9 +339,18 @@ export function BroadcastBoardClient({
     return () => window.clearInterval(poll);
   }, [realtimeStatus, tournament.status, refresh]);
 
+  const topCutCutoff =
+    tournament.top_cut_size ??
+    (tournament.format === "swiss_top_cut" ? 8 : 0);
+  const supportsLeaderBonus = tournament.format !== "swiss_only";
+
   const swissSummary = React.useMemo(
-    () => computeSwissStandings(participants, matches, games),
-    [participants, matches, games]
+    () =>
+      computeSwissStandings(participants, matches, games, {
+        format: tournament.format,
+        topCutSize: topCutCutoff || null,
+      }),
+    [participants, matches, games, tournament.format, topCutCutoff]
   );
 
   const sortedArenas = React.useMemo(() => {
@@ -373,6 +415,27 @@ export function BroadcastBoardClient({
     hasOfficialOrComputedResults,
   ]);
 
+  const standingsTotalPages = React.useMemo(() => {
+    if (tournament.status === "finished" && hasOfficialOrComputedResults) {
+      const totalCount =
+        liveResults.length > 0
+          ? liveResults.length
+          : computedFallbackResults.length;
+      const restCount = Math.max(0, totalCount - 3);
+      return Math.max(1, Math.ceil(restCount / FINAL_REST_PAGE_SIZE));
+    }
+    return Math.max(
+      1,
+      Math.ceil(swissSummary.standings.length / STANDINGS_PAGE_SIZE)
+    );
+  }, [
+    tournament.status,
+    hasOfficialOrComputedResults,
+    liveResults.length,
+    computedFallbackResults.length,
+    swissSummary.standings.length,
+  ]);
+
   // Rotação automática a cada 15s quando em modo "auto"
   React.useEffect(() => {
     if (
@@ -408,6 +471,21 @@ export function BroadcastBoardClient({
     rotationIndex,
   ]);
 
+  // Paginação automática suave (~8.5s) para mostrar 100% dos participantes na TV
+  React.useEffect(() => {
+    if (
+      activeSidePanel !== "standings" ||
+      standingsTotalPages <= 1 ||
+      autoPaused
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setStandingsPage((prev) => (prev + 1) % standingsTotalPages);
+    }, 8_500);
+    return () => window.clearInterval(timer);
+  }, [activeSidePanel, standingsTotalPages, autoPaused]);
+
   const handleToggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
@@ -423,11 +501,6 @@ export function BroadcastBoardClient({
   const liveArenasCount = sortedArenas.filter(
     (a) => a.status === "in_match" || a.current_match?.status === "in_progress"
   ).length;
-
-  const topCutCutoff =
-    tournament.top_cut_size ??
-    (tournament.format === "swiss_top_cut" ? 8 : 0);
-  const supportsLeaderBonus = tournament.format !== "swiss_only";
 
   const showArenasColumn =
     viewMode === "arenas" ||
@@ -451,6 +524,18 @@ export function BroadcastBoardClient({
       match?.games && match.games.length > 0
         ? match.games[match.games.length - 1]
         : null;
+
+    const lastGameScoringComboId =
+      lastGame && match
+        ? lastGame.scoring_player_id === match.player1_id
+          ? lastGame.player1_combo_id
+          : lastGame.scoring_player_id === match.player2_id
+            ? lastGame.player2_combo_id
+            : null
+        : null;
+    const lastGameComboLabel = lastGameScoringComboId
+      ? (comboLabels[lastGameScoringComboId] ?? null)
+      : null;
 
     const matchStageLabel = match
       ? match.is_tiebreaker
@@ -581,9 +666,26 @@ export function BroadcastBoardClient({
             </div>
 
             {match.status === "finished" && match.winner && (
-              <div className="pt-2 border-t border-white/10 flex items-center justify-center gap-2 text-sm font-black text-[#edbd03]">
-                <Trophy className="h-4 w-4" />
-                <span>Vitória de {match.winner.nickname}</span>
+              <div className="pt-2 border-t border-white/10 space-y-1 text-center">
+                <div className="flex items-center justify-center gap-2 text-sm font-black text-[#edbd03]">
+                  <Trophy className="h-4 w-4" />
+                  <span>Vitória de {match.winner.nickname}</span>
+                </div>
+                {lastGame && (
+                  <div className="text-[11px] text-slate-300 truncate">
+                    Último lance: {FINISH_TYPE_LABELS[lastGame.finish_type]} (+
+                    {lastGame.points_awarded})
+                    {lastGameComboLabel && (
+                      <>
+                        {" "}
+                        —{" "}
+                        <strong className="text-[#e89eff]">
+                          {lastGameComboLabel}
+                        </strong>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -597,6 +699,15 @@ export function BroadcastBoardClient({
                   </strong>{" "}
                   +{lastGame.points_awarded}{" "}
                   {FINISH_TYPE_LABELS[lastGame.finish_type]}
+                  {lastGameComboLabel && (
+                    <>
+                      {" "}
+                      —{" "}
+                      <strong className="text-[#e89eff]">
+                        {lastGameComboLabel}
+                      </strong>
+                    </>
+                  )}
                 </span>
               </div>
             )}
@@ -791,11 +902,14 @@ export function BroadcastBoardClient({
       );
     }
 
-    // Painel de Classificação / Pódio Final
+    const safeStandingsPage =
+      standingsTotalPages > 0 ? standingsPage % standingsTotalPages : 0;
+
+    // Painel de Classificação / Pódio Final (100% dos participantes via paginação)
     if (tournament.status === "finished" && hasOfficialOrComputedResults) {
       const displayRows =
         liveResults.length > 0
-          ? liveResults.slice(0, 12).map((r) => ({
+          ? liveResults.map((r) => ({
               id: r.id,
               position: r.final_position,
               nickname: r.blader?.nickname ?? "Blader",
@@ -803,7 +917,7 @@ export function BroadcastBoardClient({
               isSwissLeader: r.is_swiss_leader,
               pointsEarned: r.points_earned,
             }))
-          : computedFallbackResults.slice(0, 12).map((r) => ({
+          : computedFallbackResults.map((r) => ({
               id: r.bladerId,
               position: r.finalPosition,
               nickname: r.blader?.nickname ?? r.bladerId,
@@ -813,7 +927,12 @@ export function BroadcastBoardClient({
             }));
 
       const podiumRows = displayRows.slice(0, 3);
-      const restRows = displayRows.slice(3, 12);
+      const restAllRows = displayRows.slice(3);
+      const restStart = safeStandingsPage * FINAL_REST_PAGE_SIZE;
+      const restRows = restAllRows.slice(
+        restStart,
+        restStart + FINAL_REST_PAGE_SIZE
+      );
 
       return (
         <div className="space-y-4">
@@ -855,122 +974,208 @@ export function BroadcastBoardClient({
             ))}
           </div>
 
-          {restRows.length > 0 && (
-            <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-white/[0.06] text-slate-400 uppercase text-[11px]">
-                  <tr>
-                    <th className="py-2 px-3">Pos</th>
-                    <th className="py-2 px-3">Blader</th>
-                    <th className="py-2 px-3 text-center">Vit. Suíço</th>
-                    <th className="py-2 px-3 text-right">
-                      {tournament.category === "amistoso"
-                        ? "Modalidade"
-                        : "Pontos OBA"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {restRows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="py-2 px-3 font-black text-slate-300">
-                        {row.position}º
-                      </td>
-                      <td className="py-2 px-3 font-bold text-white">
-                        {row.nickname}
-                        {row.isSwissLeader && supportsLeaderBonus && (
-                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#edbd03]/20 text-[#edbd03] font-bold">
-                            +{OBA_SWISS_LEADER_BONUS} Líder
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-center tabular-nums text-slate-300">
-                        {row.swissWins}
-                      </td>
-                      <td className="py-2 px-3 text-right font-black text-[#e47aff] tabular-nums">
-                        {tournament.category === "amistoso" ? (
-                          <span className="text-sky-300 text-xs">Amistoso</span>
-                        ) : (
-                          `+${row.pointsEarned}`
-                        )}
-                      </td>
+          {restAllRows.length > 0 && (
+            <div className="space-y-2">
+              {standingsTotalPages > 1 && (
+                <div className="flex items-center justify-between text-[11px] text-slate-300 px-1">
+                  <span>
+                    Demais posições ({displayRows.length} participantes)
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setStandingsPage(
+                          (prev) =>
+                            (prev - 1 + standingsTotalPages) %
+                            standingsTotalPages
+                        )
+                      }
+                      className="p-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="font-bold tabular-nums px-1.5">
+                      Pág. {safeStandingsPage + 1}/{standingsTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setStandingsPage(
+                          (prev) => (prev + 1) % standingsTotalPages
+                        )
+                      }
+                      className="p-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                      aria-label="Próxima página"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-white/[0.06] text-slate-400 uppercase text-[11px]">
+                    <tr>
+                      <th className="py-2 px-3">Pos</th>
+                      <th className="py-2 px-3">Blader</th>
+                      <th className="py-2 px-3 text-center">Vit. Suíço</th>
+                      <th className="py-2 px-3 text-right">
+                        {tournament.category === "amistoso"
+                          ? "Modalidade"
+                          : "Pontos OBA"}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {restRows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="py-2 px-3 font-black text-slate-300">
+                          {row.position}º
+                        </td>
+                        <td className="py-2 px-3 font-bold text-white">
+                          {row.nickname}
+                          {row.isSwissLeader && supportsLeaderBonus && (
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#edbd03]/20 text-[#edbd03] font-bold">
+                              +{OBA_SWISS_LEADER_BONUS} Líder
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-center tabular-nums text-slate-300">
+                          {row.swissWins}
+                        </td>
+                        <td className="py-2 px-3 text-right font-black text-[#e47aff] tabular-nums">
+                          {tournament.category === "amistoso" ? (
+                            <span className="text-sky-300 text-xs">Amistoso</span>
+                          ) : (
+                            `+${row.pointsEarned}`
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       );
     }
 
-    // Classificação da Fase Suíça (Top 12)
-    const visibleStandings = swissSummary.standings.slice(0, 12);
-    return (
-      <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-white/[0.06] text-slate-400 uppercase text-[11px]">
-            <tr>
-              <th className="py-2.5 px-3">Pos</th>
-              <th className="py-2.5 px-3">Blader</th>
-              <th className="py-2.5 px-2 text-center">Vit</th>
-              <th className="py-2.5 px-2 text-center">Xtr</th>
-              <th className="py-2.5 px-2 text-center">Brs</th>
-              <th className="py-2.5 px-2 text-center">Ovr</th>
-              <th className="py-2.5 px-2 text-center">Spn</th>
-              <th className="py-2.5 px-3 text-right">Pts</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {visibleStandings.map((row) => {
-              const inCutZone =
-                topCutCutoff > 0 && row.position <= topCutCutoff;
-              const isLeader =
-                row.position === 1 && swissSummary.currentSwissRound > 0;
+    // Classificação da Fase Suíça (todos os participantes paginados, V-D e Saldo de Pontos)
+    const startIdx = safeStandingsPage * STANDINGS_PAGE_SIZE;
+    const visibleStandings = swissSummary.standings.slice(
+      startIdx,
+      startIdx + STANDINGS_PAGE_SIZE
+    );
 
-              return (
-                <tr
-                  key={row.bladerId}
-                  className={`${inCutZone ? "bg-[#bd08f5]/10" : ""} ${
-                    topCutCutoff > 0 && row.position === topCutCutoff
-                      ? "border-b-2 border-dashed border-[#edbd03]/60"
-                      : ""
-                  }`}
-                >
-                  <td className="py-2 px-3 font-black">
-                    <span className="inline-flex items-center gap-1">
-                      {row.position}º
-                      {isLeader && supportsLeaderBonus && (
-                        <Crown className="h-3.5 w-3.5 text-[#edbd03]" />
-                      )}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 font-bold text-white truncate max-w-[180px]">
-                    {row.blader?.nickname ?? row.bladerId}
-                  </td>
-                  <td className="py-2 px-2 text-center font-black tabular-nums">
-                    {row.wins}
-                  </td>
-                  <td className="py-2 px-2 text-center font-bold text-[#ff8e2b] tabular-nums">
-                    {row.xtremeFinishes}
-                  </td>
-                  <td className="py-2 px-2 text-center tabular-nums">
-                    {row.burstFinishes}
-                  </td>
-                  <td className="py-2 px-2 text-center tabular-nums">
-                    {row.overFinishes}
-                  </td>
-                  <td className="py-2 px-2 text-center text-slate-400 tabular-nums">
-                    {row.spinFinishes}
-                  </td>
-                  <td className="py-2 px-3 text-right font-black text-[#e47aff] tabular-nums">
-                    +{row.swissPoints}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    return (
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300 px-1">
+          <span>
+            {swissSummary.standings.length} competidor(es) na classificação
+          </span>
+          {standingsTotalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setStandingsPage(
+                    (prev) =>
+                      (prev - 1 + standingsTotalPages) % standingsTotalPages
+                  )
+                }
+                className="p-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <span className="font-bold tabular-nums px-1.5">
+                Pág. {safeStandingsPage + 1}/{standingsTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setStandingsPage((prev) => (prev + 1) % standingsTotalPages)
+                }
+                className="p-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                aria-label="Próxima página"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-white/[0.06] text-slate-400 uppercase text-[11px]">
+              <tr>
+                <th className="py-2.5 px-3">Pos</th>
+                <th className="py-2.5 px-3">Blader</th>
+                <th className="py-2.5 px-2 text-center">V</th>
+                <th className="py-2.5 px-2 text-center">D</th>
+                <th className="py-2.5 px-2 text-center">Saldo</th>
+                <th className="py-2.5 px-3 text-right">Pts</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {visibleStandings.map((row) => {
+                const inCutZone =
+                  topCutCutoff > 0 && row.position <= topCutCutoff;
+                const isLeader =
+                  row.position === 1 && swissSummary.currentSwissRound > 0;
+                const diffLabel =
+                  row.pointDiff > 0 ? `+${row.pointDiff}` : String(row.pointDiff);
+
+                return (
+                  <tr
+                    key={row.bladerId}
+                    className={`${inCutZone ? "bg-[#bd08f5]/10" : ""} ${
+                      topCutCutoff > 0 && row.position === topCutCutoff
+                        ? "border-b-2 border-dashed border-[#edbd03]/60"
+                        : ""
+                    } ${row.isDropped ? "opacity-50" : ""}`}
+                  >
+                    <td className="py-2 px-3 font-black">
+                      <span className="inline-flex items-center gap-1">
+                        {row.position}º
+                        {isLeader && supportsLeaderBonus && (
+                          <Crown className="h-3.5 w-3.5 text-[#edbd03]" />
+                        )}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 font-bold text-white truncate max-w-[200px]">
+                      {row.blader?.nickname ?? row.bladerId}
+                    </td>
+                    <td className="py-2 px-2 text-center font-black tabular-nums text-white">
+                      {row.wins}
+                    </td>
+                    <td className="py-2 px-2 text-center tabular-nums text-slate-400">
+                      {row.losses}
+                    </td>
+                    <td
+                      className={`py-2 px-2 text-center font-black tabular-nums ${
+                        row.pointDiff > 0
+                          ? "text-emerald-400"
+                          : row.pointDiff < 0
+                            ? "text-rose-400"
+                            : "text-slate-400"
+                      }`}
+                    >
+                      {diffLabel}
+                    </td>
+                    <td className="py-2 px-3 text-right font-black text-[#e47aff] tabular-nums">
+                      +{row.swissPoints}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };

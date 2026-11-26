@@ -19,6 +19,7 @@ import {
   Loader2,
   Radio,
   Unlock,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { QuickStartMatchDialog } from "@/components/arena/QuickStartMatchDialog";
+import { ArenaComboEditDialog } from "@/components/arena/ArenaComboEditDialog";
 import {
   assignExistingMatchToArenaAction,
   recordMatchGameAction,
@@ -55,6 +57,8 @@ import {
   type MatchGame,
   type MatchGameRow,
   type MatchRow,
+  type PartRow,
+  type UserRole,
 } from "@/types/domain";
 
 interface RefereeScoreboardProps {
@@ -65,6 +69,9 @@ interface RefereeScoreboardProps {
   initialPlayer2Combos?: ArenaPlayerComboOption[];
   pendingMatches: Match[];
   bladers: Blader[];
+  parts?: PartRow[];
+  bannedParts?: PartRow[];
+  userRole?: UserRole;
   canQuickStart?: boolean;
 }
 
@@ -86,15 +93,6 @@ function resolvePlayerById(
   return null;
 }
 
-function getSuggestedComboId(
-  combos: ArenaPlayerComboOption[],
-  roundIndex: number
-): string | null {
-  if (combos.length === 0) return null;
-  const cycleSize = Math.min(combos.length, 3);
-  return combos[roundIndex % cycleSize]?.id ?? combos[0].id;
-}
-
 export function RefereeScoreboard({
   initialArena,
   initialMatch,
@@ -103,6 +101,9 @@ export function RefereeScoreboard({
   initialPlayer2Combos = [],
   pendingMatches: initialPendingMatches,
   bladers,
+  parts = [],
+  bannedParts = [],
+  userRole = "judge",
   canQuickStart = true,
 }: RefereeScoreboardProps) {
   const supabase = React.useMemo(() => createClient(), []);
@@ -118,10 +119,12 @@ export function RefereeScoreboard({
   >(initialPlayer2Combos);
   const [selectedP1ComboId, setSelectedP1ComboId] = React.useState<
     string | null
-  >(() => getSuggestedComboId(initialPlayer1Combos, initialGames.length));
+  >(null);
   const [selectedP2ComboId, setSelectedP2ComboId] = React.useState<
     string | null
-  >(() => getSuggestedComboId(initialPlayer2Combos, initialGames.length));
+  >(null);
+  const [editingComboPlayer, setEditingComboPlayer] =
+    React.useState<BladerRow | null>(null);
   const [pendingMatches, setPendingMatches] = React.useState<Match[]>(
     initialPendingMatches
   );
@@ -136,35 +139,45 @@ export function RefereeScoreboard({
   const [resetConfirmOpen, setResetConfirmOpen] = React.useState(false);
 
   const submittingRef = React.useRef(false);
-
-  const syncComboSuggestions = React.useCallback(
-    (
-      p1List: ArenaPlayerComboOption[],
-      p2List: ArenaPlayerComboOption[],
-      roundCount: number
-    ) => {
-      setSelectedP1ComboId(getSuggestedComboId(p1List, roundCount));
-      setSelectedP2ComboId(getSuggestedComboId(p2List, roundCount));
-    },
-    []
-  );
+  const activeMatchIdRef = React.useRef<string | null>(initialMatch?.id ?? null);
 
   const refreshArenaData = React.useCallback(async () => {
     const snapshot = await fetchArenaLiveSnapshot(supabase, initialArena.id);
     if (!snapshot.schemaMissing && snapshot.arena) {
+      const nextMatchId = snapshot.arena.current_match?.id ?? null;
+      const matchChanged = activeMatchIdRef.current !== nextMatchId;
+      activeMatchIdRef.current = nextMatchId;
+
       setArena(snapshot.arena);
       setMatch(snapshot.arena.current_match ?? null);
       setGames(snapshot.games);
       setPlayer1Combos(snapshot.player1Combos);
       setPlayer2Combos(snapshot.player2Combos);
       setPendingMatches(snapshot.pendingMatches);
-      syncComboSuggestions(
-        snapshot.player1Combos,
-        snapshot.player2Combos,
-        snapshot.games.length
-      );
+
+      if (matchChanged) {
+        setSelectedP1ComboId(null);
+        setSelectedP2ComboId(null);
+      } else {
+        const p1AllowedIds = new Set(
+          snapshot.player1Combos
+            .filter((c) => c.slotNumber <= 3)
+            .map((c) => c.id)
+        );
+        const p2AllowedIds = new Set(
+          snapshot.player2Combos
+            .filter((c) => c.slotNumber <= 3)
+            .map((c) => c.id)
+        );
+        setSelectedP1ComboId((prev) =>
+          prev && p1AllowedIds.has(prev) ? prev : null
+        );
+        setSelectedP2ComboId((prev) =>
+          prev && p2AllowedIds.has(prev) ? prev : null
+        );
+      }
     }
-  }, [supabase, initialArena.id, syncComboSuggestions]);
+  }, [supabase, initialArena.id]);
 
   // Canal 1: mudanças na arena e nas partidas do torneio
   React.useEffect(() => {
@@ -290,7 +303,6 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
-      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -314,7 +326,6 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
-      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -338,7 +349,6 @@ export function RefereeScoreboard({
 
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
-      syncComboSuggestions(player1Combos, player2Combos, res.games.length);
     }
   };
 
@@ -399,6 +409,15 @@ export function RefereeScoreboard({
 
   const isBusy = pendingAction !== null;
 
+  const mainP1Combos = React.useMemo(
+    () => player1Combos.filter((c) => c.slotNumber <= 3),
+    [player1Combos]
+  );
+  const mainP2Combos = React.useMemo(
+    () => player2Combos.filter((c) => c.slotNumber <= 3),
+    [player2Combos]
+  );
+
   // Configuração parametrizada das 2 colunas (evita duplicação de JSX)
   const sides = React.useMemo(() => {
     if (!match) return [];
@@ -408,7 +427,7 @@ export function RefereeScoreboard({
       player: match.player1 ?? null,
       playerId: match.player1_id,
       score: match.player1_score,
-      combos: player1Combos,
+      combos: mainP1Combos,
       selectedComboId: selectedP1ComboId,
       onSelectCombo: (id: string | null) => setSelectedP1ComboId(id),
       accentText: "text-primary",
@@ -424,7 +443,7 @@ export function RefereeScoreboard({
       player: match.player2 ?? null,
       playerId: match.player2_id,
       score: match.player2_score,
-      combos: player2Combos,
+      combos: mainP2Combos,
       selectedComboId: selectedP2ComboId,
       onSelectCombo: (id: string | null) => setSelectedP2ComboId(id),
       accentText: "text-fire-orange",
@@ -439,8 +458,8 @@ export function RefereeScoreboard({
   }, [
     match,
     swappedSides,
-    player1Combos,
-    player2Combos,
+    mainP1Combos,
+    mainP2Combos,
     selectedP1ComboId,
     selectedP2ComboId,
   ]);
@@ -513,14 +532,20 @@ export function RefereeScoreboard({
             {match && (
               <Button
                 type="button"
-                variant="outline"
+                variant={swappedSides ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSwappedSides((prev) => !prev)}
-                title="Inverter lados esquerdo e direito"
-                className="h-9 px-2.5 text-xs font-semibold gap-1 border-border/80"
+                title="Inverter lados esquerdo e direito na tela"
+                className={`h-9 px-2.5 text-xs font-bold gap-1.5 ${
+                  swappedSides
+                    ? "bg-primary text-primary-foreground"
+                    : "border-border/80"
+                }`}
               >
-                <ArrowLeftRight className="h-3.5 w-3.5 text-primary" />
-                <span className="hidden sm:inline">Inverter</span>
+                <ArrowLeftRight
+                  className={`h-3.5 w-3.5 ${swappedSides ? "" : "text-primary"}`}
+                />
+                <span>Esq ↔ Dir</span>
               </Button>
             )}
 
@@ -795,58 +820,78 @@ export function RefereeScoreboard({
                       </CardContent>
                     </Card>
 
-                    {/* Seletor rápido 1-toque de Combo do Round (opcional) */}
-                    {side.combos.length > 0 && (
+                    {/* Seletor rápido 1-toque de Combo do Round (#1, #2 e #3) + Edição rápida na arena */}
+                    {(side.combos.length > 0 || (side.player && parts.length > 0)) && (
                       <div className="rounded-xl border border-border/50 bg-card/65 p-2 space-y-1.5">
                         <div className="flex items-center justify-between gap-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           <span>Bey R#{games.length + 1}</span>
-                          {side.selectedComboId && (
-                            <button
-                              type="button"
-                              disabled={isBusy || match.status !== "in_progress"}
-                              onClick={() => side.onSelectCombo(null)}
-                              className="text-[10px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
-                            >
-                              Limpar
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                          {side.combos.map((combo) => {
-                            const isSelected = side.selectedComboId === combo.id;
-                            return (
+                          <div className="flex items-center gap-2">
+                            {side.selectedComboId && (
                               <button
-                                key={combo.id}
                                 type="button"
-                                title={combo.summaryText}
-                                disabled={
-                                  isBusy || match.status !== "in_progress"
-                                }
-                                onClick={() =>
-                                  side.onSelectCombo(
-                                    isSelected ? null : combo.id
-                                  )
-                                }
-                                className={`min-h-[36px] px-2 py-1 rounded-lg border text-left transition-all touch-manipulation flex items-center gap-1.5 min-w-0 disabled:opacity-45 ${
-                                  isSelected
-                                    ? `${side.accentBorder} ${side.accentSoftBg} text-foreground font-bold`
-                                    : "border-border/50 bg-background/60 text-muted-foreground hover:text-foreground"
-                                }`}
+                                disabled={isBusy || match.status !== "in_progress"}
+                                onClick={() => side.onSelectCombo(null)}
+                                className="text-[10px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
                               >
-                                <span
-                                  className={`text-[10px] font-black shrink-0 ${
-                                    isSelected ? side.accentText : "text-muted-foreground"
+                                Limpar
+                              </button>
+                            )}
+                            {side.player && parts.length > 0 && (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => setEditingComboPlayer(side.player)}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline disabled:opacity-40 cursor-pointer"
+                                title={`Editar ou trocar combos de ${side.player.nickname}`}
+                              >
+                                <Pencil className="h-2.5 w-2.5" />
+                                Editar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {side.combos.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                            {side.combos.map((combo) => {
+                              const isSelected = side.selectedComboId === combo.id;
+                              return (
+                                <button
+                                  key={combo.id}
+                                  type="button"
+                                  title={combo.summaryText}
+                                  disabled={
+                                    isBusy || match.status !== "in_progress"
+                                  }
+                                  onClick={() =>
+                                    side.onSelectCombo(
+                                      isSelected ? null : combo.id
+                                    )
+                                  }
+                                  className={`min-h-[36px] px-2 py-1 rounded-lg border text-left transition-all touch-manipulation flex items-center gap-1.5 min-w-0 disabled:opacity-45 ${
+                                    isSelected
+                                      ? `${side.accentBorder} ${side.accentSoftBg} text-foreground font-bold`
+                                      : "border-border/50 bg-background/60 text-muted-foreground hover:text-foreground"
                                   }`}
                                 >
-                                  #{combo.slotNumber}
-                                </span>
-                                <span className="text-[11px] truncate">
-                                  {combo.shortLabel}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                                  <span
+                                    className={`text-[10px] font-black shrink-0 ${
+                                      isSelected ? side.accentText : "text-muted-foreground"
+                                    }`}
+                                  >
+                                    #{combo.slotNumber}
+                                  </span>
+                                  <span className="text-[11px] truncate">
+                                    {combo.shortLabel}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground px-0.5 py-1">
+                            Sem combos cadastrados. Toque em <strong>Editar</strong> para definir.
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -1055,6 +1100,23 @@ export function RefereeScoreboard({
           </div>
         </footer>
       )}
+
+      {/* Dialog Editar Combos na Arena (Juiz / Admin) */}
+      <ArenaComboEditDialog
+        open={Boolean(editingComboPlayer)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setEditingComboPlayer(null);
+        }}
+        arenaId={arena.id}
+        tournamentId={arena.tournament_id}
+        player={editingComboPlayer}
+        parts={parts}
+        bannedParts={bannedParts}
+        userRole={userRole}
+        onSaved={() => {
+          void refreshArenaData();
+        }}
+      />
 
       {/* Dialog Iniciar Partida Rápida */}
       {canQuickStart && (

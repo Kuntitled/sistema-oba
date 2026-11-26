@@ -284,7 +284,8 @@ export async function generateNextSwissRoundAction(tournamentId: string) {
 export async function createSwissLeaderTiebreakerAction(
   tournamentId: string,
   player1Id: string,
-  player2Id: string
+  player2Id: string,
+  bracketLabel?: string
 ) {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
@@ -313,7 +314,11 @@ export async function createSwissLeaderTiebreakerAction(
   const summary = computeSwissStandings(
     snapshot.participants,
     snapshot.matches,
-    snapshot.games
+    snapshot.games,
+    {
+      format: snapshot.tournament.format,
+      topCutSize: snapshot.tournament.top_cut_size,
+    }
   );
 
   if (summary.hasPendingTiebreaker) {
@@ -329,12 +334,14 @@ export async function createSwissLeaderTiebreakerAction(
       ? Math.max(...existingRoundMatches.map((m) => m.match_number)) + 1
       : 1;
 
+  const cleanLabel = bracketLabel?.trim() || "Desempate Suíço";
+
   const { error } = await auth.supabase.from("matches").insert({
     tournament_id: tournamentId,
     stage: "swiss",
     round,
     match_number: nextMatchNumber,
-    bracket_label: "Desempate Liderança Suíço",
+    bracket_label: cleanLabel,
     player1_id: player1Id,
     player2_id: player2Id,
     player1_score: 0,
@@ -355,7 +362,8 @@ export async function createSwissLeaderTiebreakerAction(
 
 export async function generateTopCutBracketAction(
   tournamentId: string,
-  topCutSize: 4 | 8 | 16
+  topCutSize: 4 | 8 | 16,
+  options?: { allowUnresolvedTie?: boolean }
 ) {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
@@ -394,7 +402,11 @@ export async function generateTopCutBracketAction(
   const summary = computeSwissStandings(
     snapshot.participants,
     snapshot.matches,
-    snapshot.games
+    snapshot.games,
+    {
+      format: snapshot.tournament.format,
+      topCutSize,
+    }
   );
 
   if (summary.currentSwissRound === 0) {
@@ -407,10 +419,13 @@ export async function generateTopCutBracketAction(
     };
   }
 
-  if (summary.hasAbsoluteLeaderTie) {
+  if (
+    (summary.hasAbsoluteLeaderTie || summary.hasUnresolvedDecisiveTie) &&
+    !options?.allowUnresolvedTie
+  ) {
     return {
       error:
-        "Há empate absoluto pela liderança do Suíço. Gere e conclua a partida de desempate antes do Top Cut.",
+        "Há empate em Vitórias/Derrotas e Saldo de Pontos em posição decisiva. Gere a partida extra de desempate ou confirme prosseguir mesmo assim.",
     };
   }
 
@@ -485,7 +500,10 @@ export async function generateTopCutBracketAction(
   return { success: true };
 }
 
-export async function finalizeAndPublishTournamentAction(tournamentId: string) {
+export async function finalizeAndPublishTournamentAction(
+  tournamentId: string,
+  options?: { allowUnresolvedTie?: boolean }
+) {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
 
@@ -514,7 +532,11 @@ export async function finalizeAndPublishTournamentAction(tournamentId: string) {
   const summary = computeSwissStandings(
     snapshot.participants,
     snapshot.matches,
-    snapshot.games
+    snapshot.games,
+    {
+      format: snapshot.tournament.format,
+      topCutSize: snapshot.tournament.top_cut_size,
+    }
   );
 
   if (summary.currentSwissRound === 0) {
@@ -523,10 +545,13 @@ export async function finalizeAndPublishTournamentAction(tournamentId: string) {
     };
   }
 
-  if (summary.hasAbsoluteLeaderTie) {
+  if (
+    (summary.hasAbsoluteLeaderTie || summary.hasUnresolvedDecisiveTie) &&
+    !options?.allowUnresolvedTie
+  ) {
     return {
       error:
-        "Há um empate absoluto pela liderança do Suíço. Resolva com a partida extra de desempate antes de publicar no ranking.",
+        "Há empate em Vitórias/Derrotas e Saldo de Pontos em posição decisiva. Resolva com partida extra de desempate ou confirme prosseguir mesmo assim.",
     };
   }
 

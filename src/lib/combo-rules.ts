@@ -339,13 +339,63 @@ export function validateComboCompatibility(
   };
 }
 
-export function validateTournamentDeckCombo(
+export function isComboEmpty(combo: ComboSelection): boolean {
+  return !(
+    combo.system ||
+    combo.bladeId ||
+    combo.lockChipId ||
+    combo.overBladeId ||
+    combo.assistBladeId ||
+    combo.ratchetId ||
+    combo.bitId
+  );
+}
+
+export function getMissingComboPartLabels(
+  combo: ComboSelection,
+  partsById: Map<string, PartRow>
+): string[] {
+  if (!combo.system || !isValidBeySystem(combo.system)) {
+    return ["Sistema do Beyblade"];
+  }
+
+  const cfg = BEY_SYSTEM_CONFIG[combo.system];
+  const missing: string[] = [];
+
+  if (cfg.needsLockChip && !combo.lockChipId) {
+    missing.push("Lock Chip");
+  }
+  if (cfg.needsOverBlade && !combo.overBladeId) {
+    missing.push("Over Blade");
+  }
+  if (!combo.bladeId) {
+    missing.push(cfg.bladeLabel);
+  }
+  if (cfg.needsAssistBlade && !combo.assistBladeId) {
+    missing.push("Assist Blade");
+  }
+  if (cfg.needsRatchet && !combo.ratchetId) {
+    missing.push("Ratchet");
+  }
+
+  const ratchet = combo.ratchetId ? partsById.get(combo.ratchetId) : undefined;
+  if (!ratchet?.blocks_bit && !combo.bitId) {
+    missing.push("Bit");
+  }
+
+  return missing;
+}
+
+export function validateCompleteCombo(
   combo: ComboSelection,
   partsById: Map<string, PartRow>,
-  bannedPartIds: Set<string>,
-  slotNumber?: number
+  options?: { allowEmpty?: boolean; slotNumber?: number }
 ): { valid: true; sanitized: ComboSelection } | { valid: false; error: string } {
-  const prefix = slotNumber ? `Combo #${slotNumber}: ` : "";
+  const prefix = options?.slotNumber ? `Combo #${options.slotNumber}: ` : "";
+  if (options?.allowEmpty && isComboEmpty(combo)) {
+    return { valid: true, sanitized: createEmptyComboSelection() };
+  }
+
   const compat = validateComboCompatibility(combo, partsById);
   if (!compat.valid) {
     return { valid: false, error: `${prefix}${compat.error}` };
@@ -359,46 +409,33 @@ export function validateTournamentDeckCombo(
     };
   }
 
-  const cfg = BEY_SYSTEM_CONFIG[s.system];
-
-  if (cfg.needsLockChip && !s.lockChipId) {
+  const missing = getMissingComboPartLabels(s, partsById);
+  if (missing.length > 0) {
     return {
       valid: false,
-      error: `${prefix}Selecione o Lock Chip do sistema ${s.system}.`,
-    };
-  }
-  if (cfg.needsOverBlade && !s.overBladeId) {
-    return {
-      valid: false,
-      error: `${prefix}Selecione a Over Blade do sistema ${s.system}.`,
-    };
-  }
-  if (!s.bladeId) {
-    return {
-      valid: false,
-      error: `${prefix}Selecione a ${cfg.bladeLabel} do combo.`,
-    };
-  }
-  if (cfg.needsAssistBlade && !s.assistBladeId) {
-    return {
-      valid: false,
-      error: `${prefix}Selecione a Assist Blade do sistema ${s.system}.`,
-    };
-  }
-  if (cfg.needsRatchet && !s.ratchetId) {
-    return {
-      valid: false,
-      error: `${prefix}Selecione a Ratchet do combo.`,
+      error: `${prefix}Complete todas as peças obrigatórias do sistema ${s.system} (faltando: ${missing.join(", ")}).`,
     };
   }
 
-  const ratchet = s.ratchetId ? partsById.get(s.ratchetId) : undefined;
-  if (!ratchet?.blocks_bit && !s.bitId) {
-    return {
-      valid: false,
-      error: `${prefix}Selecione a Bit do combo.`,
-    };
+  return { valid: true, sanitized: s };
+}
+
+export function validateTournamentDeckCombo(
+  combo: ComboSelection,
+  partsById: Map<string, PartRow>,
+  bannedPartIds: Set<string>,
+  slotNumber?: number
+): { valid: true; sanitized: ComboSelection } | { valid: false; error: string } {
+  const prefix = slotNumber ? `Combo #${slotNumber}: ` : "";
+  const completeCheck = validateCompleteCombo(combo, partsById, {
+    allowEmpty: false,
+    slotNumber,
+  });
+  if (!completeCheck.valid) {
+    return completeCheck;
   }
+
+  const s = completeCheck.sanitized;
 
   const selectedIds = [
     s.lockChipId,
