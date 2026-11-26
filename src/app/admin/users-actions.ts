@@ -20,7 +20,7 @@ async function requireAdminWithServiceRole() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user || user.user_metadata?.role !== "admin") {
+  if (error || !user || user.app_metadata?.role !== "admin") {
     return {
       user: null,
       adminClient: null,
@@ -55,7 +55,7 @@ async function countActiveAdmins(
     if (error) break;
     const users = data?.users ?? [];
     for (const u of users) {
-      if (u.user_metadata?.role === "admin") {
+      if (u.app_metadata?.role === "admin") {
         count += 1;
       }
     }
@@ -84,7 +84,8 @@ async function resolveActionOrigin(): Promise<string> {
 }
 
 /**
- * Atualiza o papel de acesso de um usuário (user_metadata.role = "admin" | "judge" | "blader").
+ * Atualiza o papel de acesso de um usuário exclusivamente em app_metadata.role
+ * ("admin" | "judge" | "blader") e limpa qualquer legado de role em user_metadata.
  */
 export async function setUserRoleAction(
   targetUserId: string,
@@ -119,7 +120,7 @@ export async function setUserRoleAction(
   }
 
   const targetUser = userRes.user;
-  const currentlyAdmin = targetUser.user_metadata?.role === "admin";
+  const currentlyAdmin = targetUser.app_metadata?.role === "admin";
 
   if (currentlyAdmin && nextRole !== "admin") {
     const adminCount = await countActiveAdmins(auth.adminClient);
@@ -130,14 +131,26 @@ export async function setUserRoleAction(
     }
   }
 
-  const nextMetadata = {
-    ...(targetUser.user_metadata ?? {}),
+  const nextAppMetadata = {
+    ...(targetUser.app_metadata ?? {}),
     role: nextRole,
   };
 
+  const hasLegacyRoleInUserMeta =
+    targetUser.user_metadata &&
+    Object.prototype.hasOwnProperty.call(targetUser.user_metadata, "role");
+
+  let nextUserMetadata: Record<string, unknown> | undefined;
+  if (hasLegacyRoleInUserMeta) {
+    const cleaned = { ...(targetUser.user_metadata ?? {}) };
+    delete cleaned.role;
+    nextUserMetadata = cleaned;
+  }
+
   const { error: updateError } =
     await auth.adminClient.auth.admin.updateUserById(targetUserId, {
-      user_metadata: nextMetadata,
+      app_metadata: nextAppMetadata,
+      ...(nextUserMetadata ? { user_metadata: nextUserMetadata } : {}),
     });
 
   if (updateError) {
@@ -153,7 +166,8 @@ export async function setUserRoleAction(
 }
 
 /**
- * Envia convite por e-mail atribuindo o papel escolhido ("admin" ou "judge").
+ * Envia convite por e-mail atribuindo o papel escolhido ("admin" ou "judge")
+ * diretamente em app_metadata.role (nunca em user_metadata).
  */
 export async function inviteAdminUserAction(formData: FormData) {
   const auth = await requireAdminWithServiceRole();
@@ -173,9 +187,8 @@ export async function inviteAdminUserAction(formData: FormData) {
   const origin = await resolveActionOrigin();
   const redirectTo = `${origin}/auth/callback?next=/auth/definir-senha`;
 
-  const { error: inviteError } =
+  const { data: inviteData, error: inviteError } =
     await auth.adminClient.auth.admin.inviteUserByEmail(rawEmail, {
-      data: { role: inviteRole },
       redirectTo,
     });
 
@@ -191,6 +204,22 @@ export async function inviteAdminUserAction(formData: FormData) {
       };
     }
     return { error: `Erro ao enviar convite: ${inviteError.message}` };
+  }
+
+  if (inviteData?.user?.id) {
+    const { error: roleError } =
+      await auth.adminClient.auth.admin.updateUserById(inviteData.user.id, {
+        app_metadata: {
+          ...(inviteData.user.app_metadata ?? {}),
+          role: inviteRole,
+        },
+      });
+
+    if (roleError) {
+      return {
+        error: `Convite enviado, mas falhou ao gravar papel em app_metadata: ${roleError.message}`,
+      };
+    }
   }
 
   revalidatePath("/admin/configuracoes");

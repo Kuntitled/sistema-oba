@@ -230,7 +230,8 @@ Sistema OBA/
 │   │   ├── 010_tournament_promo_fields.sql             ← Campos event_time, location_url (Google Maps) e prize_info em torneios
 │   │   ├── 011_tournament_friendly_category.sql        ← Modalidade amistoso em torneios (sem pontos/vitórias no ranking oficial)
 │   │   ├── 012_match_games_combo_tracking.sql          ← Rastreamento opcional de combos por round em match_games e leitura de decklists para juiz
-│   │   └── 013_decklist_reassembly.sql                 ← Pool imutável original_part_ids e versionamento is_active para remontagem entre rodadas
+│   │   ├── 013_decklist_reassembly.sql                 ← Pool imutável original_part_ids e versionamento is_active para remontagem entre rodadas
+│   │   └── 014_security_rls_hardening.sql              ← Hardening RLS em todas as tabelas e migração de role para app_metadata (helpers is_admin/is_judge)
 │   └── seed.sql                                        ← Dados de exemplo para desenvolvimento
 ├── public/
 │   ├── images/logo.jpg                 ← Logo oficial OBA (Curupira)
@@ -416,7 +417,8 @@ Sistema OBA/
 ## 🔐 Autenticação e Proteção de Rotas (`proxy.ts`)
 
 - O Next.js 16 descontinuou o `middleware.ts` e padronizou o `src/proxy.ts`.
-- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts` e `src/lib/auth-roles.ts`) intercepta `/admin/*` permitindo acesso total a `role = 'admin'`, acesso restrito a `/admin/arenas` e `/admin/arena/[id]` para `role = 'judge'` (redirecionando outras rotas `/admin/*` para `/admin/arenas`) e redirecionando `blader`/não-admins para `/meu-painel`; também protege `/meu-painel/*` exigindo usuário autenticado.
+- O `src/proxy.ts` (via `updateSession` em `src/lib/supabase/proxy.ts` e `src/lib/auth-roles.ts`) intercepta `/admin/*` permitindo acesso total a `app_metadata.role = 'admin'`, acesso restrito a `/admin/arenas` e `/admin/arena/[id]` para `app_metadata.role = 'judge'` (redirecionando outras rotas `/admin/*` para `/admin/arenas`) e redirecionando `blader`/não-admins para `/meu-painel`; também protege `/meu-painel/*` exigindo usuário autenticado.
+- As políticas de **RLS** no PostgreSQL validam permissões exclusivamente via `auth.jwt() -> 'app_metadata' ->> 'role'` através das funções `public.get_user_role()`, `public.is_admin()` e `public.is_judge()` (Migration `014`, sem nunca confiar em `user_metadata`).
 - O helper `getRequestOrigin` (`src/lib/supabase/route-cookies.ts`) resolve a origem real do request (`host` / `x-forwarded-host`, convertendo `0.0.0.0` em `localhost`) para callbacks OAuth e redirects.
 - O login (`/auth/login`) oferece **Entrar com Google (OAuth)** além de E-mail/Senha (`POST /api/auth/login`) e recuperação de senha, com página pública de privacidade em `/privacidade`.
 - O fluxo de **convite de novos admins e recuperação de senha** utiliza `/auth/callback` (PKCE `?code=` e OTP `?token_hash=`), o listener global `AuthHashListener` (tokens em `#access_token=` ou parâmetros na raiz), a tela `/auth/definir-senha` e a opção **"Esqueceu a senha?"** em `/auth/login`.

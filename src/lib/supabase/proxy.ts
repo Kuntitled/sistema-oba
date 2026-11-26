@@ -7,7 +7,7 @@ import {
 import {
   canRoleAccessPath,
   getDefaultHomeForRole,
-  normalizeUserRole,
+  getUserRoleFromUser,
 } from "@/lib/auth-roles";
 
 /**
@@ -69,7 +69,7 @@ export async function updateSession(request: NextRequest) {
 
   // Verifica papel (admin ou judge apenas em arenas) para acesso às rotas /admin
   if (user && pathname.startsWith("/admin")) {
-    const role = normalizeUserRole(user.user_metadata?.role);
+    const role = getUserRoleFromUser(user);
     if (!canRoleAccessPath(role, pathname)) {
       return NextResponse.redirect(
         new URL(getDefaultHomeForRole(role), origin)

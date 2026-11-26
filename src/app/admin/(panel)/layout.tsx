@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/auth/actions";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeUserRole } from "@/lib/auth-roles";
+import { getUserRoleFromUser } from "@/lib/auth-roles";
 
 export default async function AdminLayout({
   children,
@@ -28,7 +28,7 @@ export default async function AdminLayout({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const role = normalizeUserRole(user?.user_metadata?.role);
+  const role = getUserRoleFromUser(user);
   const isAdmin = role === "admin";
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">

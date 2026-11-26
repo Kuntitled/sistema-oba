@@ -5,7 +5,7 @@ import {
   getRequestOrigin,
 } from "@/lib/supabase/route-cookies";
 import {
-  normalizeUserRole,
+  getUserRoleFromUser,
   resolvePostLoginRedirect,
 } from "@/lib/auth-roles";
 
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   if (isPasswordFlow) {
     destination = "/auth/definir-senha";
   } else {
-    const role = normalizeUserRole(authenticatedUser?.user_metadata?.role);
+    const role = getUserRoleFromUser(authenticatedUser);
     destination = resolvePostLoginRedirect(role, safeNext);
   }
 

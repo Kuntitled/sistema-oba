@@ -28,7 +28,7 @@ async function requireAdmin() {
     return { supabase, error: "Sessão expirada. Faça login novamente." } as const;
   }
 
-  if (user.user_metadata?.role !== "admin") {
+  if (user.app_metadata?.role !== "admin") {
     return {
       supabase,
       error: "Apenas administradores podem gerenciar o motor de torneios.",

@@ -25,6 +25,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   getDefaultHomeForRole,
+  getUserRoleFromUser,
   normalizeUserRole,
   type ManagedUserRole,
 } from "@/lib/auth-roles";
@@ -109,7 +110,7 @@ export default function DefinirSenhaPage() {
       }
 
       setUserEmail(user.email ?? null);
-      setUserRole(normalizeUserRole(user.user_metadata?.role));
+      setUserRole(getUserRoleFromUser(user));
       setStatus("ready");
     }
 
@@ -150,7 +151,7 @@ export default function DefinirSenhaPage() {
 
       const confirmedEmail = data.user?.email ?? userEmail;
       const resolvedRole = normalizeUserRole(
-        data.user?.user_metadata?.role ?? userRole
+        data.user?.app_metadata?.role ?? userRole
       );
 
       if (

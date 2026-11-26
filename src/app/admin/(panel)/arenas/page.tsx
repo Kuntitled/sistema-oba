@@ -1,6 +1,6 @@
 import { Radio } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeUserRole } from "@/lib/auth-roles";
+import { getUserRoleFromUser } from "@/lib/auth-roles";
 import { getArenasOverview } from "@/lib/services/arenas";
 import { getBladers, getTournaments } from "@/lib/services/league";
 import { ArenaManagerClient } from "@/components/admin/ArenaManagerClient";
@@ -16,7 +16,7 @@ export default async function AdminArenasPage() {
       getBladers(),
     ]);
 
-  const role = normalizeUserRole(authData.user?.user_metadata?.role);
+  const role = getUserRoleFromUser(authData.user);
   const canManageArenas = role === "admin";
 
   return (

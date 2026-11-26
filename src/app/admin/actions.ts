@@ -28,7 +28,7 @@ async function requireAdmin() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user || user.user_metadata?.role !== "admin") {
+  if (error || !user || user.app_metadata?.role !== "admin") {
     return {
       supabase,
       user: null,

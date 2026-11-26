@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createRouteSupabaseClient } from "@/lib/supabase/route-cookies";
-import { getDefaultHomeForRole, normalizeUserRole } from "@/lib/auth-roles";
+import { getDefaultHomeForRole, getUserRoleFromUser } from "@/lib/auth-roles";
 
 export async function POST(request: NextRequest) {
   let body: { email?: unknown; password?: unknown };
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const role = normalizeUserRole(data.user.user_metadata?.role);
+  const role = getUserRoleFromUser(data.user);
   const redirectTo = getDefaultHomeForRole(role);
 
   return applyCookies(NextResponse.json({ ok: true, role, redirectTo }));

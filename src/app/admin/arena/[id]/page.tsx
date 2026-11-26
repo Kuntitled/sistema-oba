@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeUserRole } from "@/lib/auth-roles";
+import { getUserRoleFromUser } from "@/lib/auth-roles";
 import { getArenaLiveState } from "@/lib/services/arenas";
 import { RefereeScoreboard } from "@/components/arena/RefereeScoreboard";
 import { Phase2SchemaNotice } from "@/components/arena/Phase2SchemaNotice";
@@ -26,7 +26,7 @@ export default async function AdminArenaJudgePage({
     bladers,
     schemaMissing,
   } = liveState;
-  const role = normalizeUserRole(authData.user?.user_metadata?.role);
+  const role = getUserRoleFromUser(authData.user);
   const canQuickStart = role === "admin";
 
   if (schemaMissing) {

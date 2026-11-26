@@ -52,7 +52,7 @@ export async function getAdminManagedUsers(): Promise<{
   if (
     authError ||
     !currentUser ||
-    currentUser.user_metadata?.role !== "admin"
+    currentUser.app_metadata?.role !== "admin"
   ) {
     return {
       users: [],
@@ -118,6 +118,7 @@ export async function getAdminManagedUsers(): Promise<{
 
     const mapped: AdminManagedUser[] = authUsers.map((u) => {
       const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
+      const appMeta = (u.app_metadata ?? {}) as Record<string, unknown>;
       const fullName =
         (typeof meta.full_name === "string" && meta.full_name.trim()) ||
         (typeof meta.name === "string" && meta.name.trim()) ||
@@ -126,7 +127,7 @@ export async function getAdminManagedUsers(): Promise<{
         (typeof meta.avatar_url === "string" && meta.avatar_url.trim()) ||
         (typeof meta.picture === "string" && meta.picture.trim()) ||
         null;
-      const role = normalizeUserRole(meta.role);
+      const role = normalizeUserRole(appMeta.role);
       const isAdmin = role === "admin";
       const isJudge = role === "judge";
       const userWithLegacyConfirmed = u as User & { confirmed_at?: string };

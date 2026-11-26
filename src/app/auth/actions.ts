@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getDefaultHomeForRole, normalizeUserRole } from "@/lib/auth-roles";
+import { getDefaultHomeForRole, getUserRoleFromUser } from "@/lib/auth-roles";
 
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
@@ -24,7 +24,7 @@ export async function loginAction(formData: FormData) {
     return { error: "Credenciais inválidas. Verifique seu e-mail e senha." };
   }
 
-  const role = normalizeUserRole(data.user?.user_metadata?.role);
+  const role = getUserRoleFromUser(data.user);
   revalidatePath("/", "layout");
   redirect(getDefaultHomeForRole(role));
 }

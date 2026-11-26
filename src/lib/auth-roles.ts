@@ -13,6 +13,12 @@ export function normalizeUserRole(raw: unknown): ManagedUserRole {
   return "blader";
 }
 
+export function getUserRoleFromUser(
+  user?: { app_metadata?: Record<string, unknown> | null } | null
+): ManagedUserRole {
+  return normalizeUserRole(user?.app_metadata?.role);
+}
+
 export function isJudgeAllowedAdminPath(pathname: string): boolean {
   return (
     pathname === "/admin/arenas" ||

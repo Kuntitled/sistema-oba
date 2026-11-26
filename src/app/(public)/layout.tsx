@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getUserRoleFromUser } from "@/lib/auth-roles";
 import { Navbar, type NavbarUserInfo } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 
@@ -16,7 +17,7 @@ export default async function PublicLayout({
     } = await supabase.auth.getUser();
 
     if (user) {
-      const role = user.user_metadata?.role;
+      const role = getUserRoleFromUser(user);
       const isAdmin = role === "admin";
       const isJudge = role === "judge";
       let nickname: string =

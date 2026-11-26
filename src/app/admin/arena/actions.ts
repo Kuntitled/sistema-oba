@@ -32,7 +32,7 @@ async function requireRole(allowedRoles: AllowedRole[]) {
     } as const;
   }
 
-  const role = user.user_metadata?.role as string | undefined;
+  const role = user.app_metadata?.role as string | undefined;
   if (!role || !allowedRoles.includes(role as AllowedRole)) {
     return {
       supabase,
