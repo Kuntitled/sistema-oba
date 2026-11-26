@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast-provider";
 import { updateTournamentStatusAction } from "@/app/admin/actions";
-import { TournamentStatus } from "@/types/domain";
+import { TOURNAMENT_STATUS_LABELS, TournamentStatus } from "@/types/domain";
 
 interface TournamentStatusSelectProps {
   tournamentId: string;
@@ -16,16 +17,27 @@ export function TournamentStatusSelect({
   currentStatus,
 }: TournamentStatusSelectProps) {
   const router = useRouter();
+  const toast = useToast();
   const [status, setStatus] = React.useState<TournamentStatus>(currentStatus);
   const [loading, setLoading] = React.useState(false);
 
   const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const previous = status;
     const newStatus = e.target.value as TournamentStatus;
     setStatus(newStatus);
     setLoading(true);
 
-    await updateTournamentStatusAction(tournamentId, newStatus);
+    const res = await updateTournamentStatusAction(tournamentId, newStatus);
     setLoading(false);
+    if (res?.error) {
+      setStatus(previous);
+      toast.error(res.error);
+      return;
+    }
+
+    toast.success(
+      `Status do torneio alterado para "${TOURNAMENT_STATUS_LABELS[newStatus]}".`
+    );
     router.refresh();
   };
 

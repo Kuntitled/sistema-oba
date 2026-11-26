@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
 import { PixPaymentBox } from "@/components/tournament/PixPaymentBox";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   comboRowToSelection,
   createEmptyComboSelection,
@@ -95,6 +96,7 @@ export function TournamentRegistrationClient({
   initialReceiptSignedUrl,
 }: TournamentRegistrationClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const receiptInputRef = React.useRef<HTMLInputElement>(null);
 
   const partsById = React.useMemo(() => {
@@ -296,12 +298,14 @@ export function TournamentRegistrationClient({
       setReceiptNotice(
         `Comprovante enviado (${uploaded.sizeKb} KB). Clique em "${initialRegistration ? "Atualizar Inscrição" : "Enviar Inscrição"}" abaixo para concluir.`
       );
+      toast.success(`Comprovante anexado (${uploaded.sizeKb} KB)!`);
     } catch (err) {
-      setReceiptError(
+      const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível enviar o comprovante."
-      );
+          : "Não foi possível enviar o comprovante.";
+      setReceiptError(msg);
+      toast.error(msg);
     } finally {
       setUploadingReceipt(false);
     }
@@ -321,6 +325,7 @@ export function TournamentRegistrationClient({
       );
       if (!check.valid) {
         setSubmitError(check.error);
+        toast.error(check.error);
         return;
       }
     }
@@ -330,9 +335,9 @@ export function TournamentRegistrationClient({
       !receiptPath &&
       !initialRegistration?.payment_verified
     ) {
-      setSubmitError(
-        "Anexe o comprovante do pagamento PIX antes de enviar sua inscrição."
-      );
+      const msg = "Anexe o comprovante do pagamento PIX antes de enviar sua inscrição.";
+      setSubmitError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -346,14 +351,15 @@ export function TournamentRegistrationClient({
 
     if (res.error) {
       setSubmitError(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setSubmitSuccess(
-      initialRegistration
-        ? "Inscrição e decklist atualizadas e enviadas para análise da organização!"
-        : "Inscrição enviada! Acompanhe a aprovação aqui ou em Meu Painel."
-    );
+    const msg = initialRegistration
+      ? "Inscrição e decklist atualizadas e enviadas para análise da organização!"
+      : "Inscrição enviada! Acompanhe a aprovação aqui ou em Meu Painel.";
+    setSubmitSuccess(msg);
+    toast.success(msg);
     router.refresh();
   };
 
@@ -367,6 +373,7 @@ export function TournamentRegistrationClient({
 
     if (res.error) {
       setSubmitError(res.error);
+      toast.error(res.error);
       return;
     }
 
@@ -375,6 +382,7 @@ export function TournamentRegistrationClient({
     setReceiptLocalName(null);
     setCombos([createEmptyComboSelection()]);
     setSubmitSuccess("Sua inscrição foi cancelada.");
+    toast.info("Sua inscrição foi cancelada.");
     router.refresh();
   };
 

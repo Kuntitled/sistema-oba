@@ -206,6 +206,26 @@
   html {
     @apply font-sans;
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.98);
+  }
+}
+
+@keyframes oba-nav-progress {
+  0% {
+    transform: translateX(-65%) scaleX(0.35);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.75);
+  }
+  100% {
+    transform: translateX(95%) scaleX(0.35);
+  }
 }
 
 /* ─── Utilitários customizados OBA ──────────────────────── */

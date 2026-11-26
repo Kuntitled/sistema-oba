@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast-provider";
 import { saveTournamentResultsAction } from "@/app/admin/actions";
 import {
   calculateOfficialTournamentPoints,
@@ -60,6 +61,7 @@ export function TournamentResultsEditor({
   existingResults,
 }: TournamentResultsEditorProps) {
   const router = useRouter();
+  const toast = useToast();
   const category: ObaTournamentCategory = normalizeTournamentCategory(
     tournament.category
   );
@@ -196,10 +198,16 @@ export function TournamentResultsEditor({
 
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
       setLoading(false);
     } else {
       setSuccess(true);
       setLoading(false);
+      toast.success(
+        isFriendly
+          ? "Resultados do amistoso salvos!"
+          : "Resultados salvos e ranking recalculado!"
+      );
       setTimeout(() => {
         router.push("/admin/torneios");
         router.refresh();

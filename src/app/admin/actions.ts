@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   calculateOfficialTournamentPoints,
   DEFAULT_SWISS_ROUNDS,
@@ -14,6 +15,7 @@ import {
   recalculateAllSeasonsRanking,
   recalculateSeasonRanking,
 } from "@/lib/services/ranking-recalc";
+import type { Database } from "@/types/database";
 import type {
   TournamentCategory,
   TournamentFormat,
@@ -890,6 +892,8 @@ export async function saveTournamentResultsAction(
 
 /**
  * Aprova uma solicitação de vínculo entre conta autenticada e Blader existente.
+ * Se o usuário já havia criado um perfil temporário antes, transfere e mescla
+ * dados/inventário/torneios para o perfil histórico solicitado com segurança.
  */
 export async function approveBladerClaimAction(claimId: string) {
   const auth = await requireAdmin();
@@ -901,7 +905,9 @@ export async function approveBladerClaimAction(claimId: string) {
     return { error: "Solicitação de vínculo inválida." };
   }
 
-  const { data: claim, error: claimError } = await auth.supabase
+  const client = createAdminClient() ?? auth.supabase;
+
+  const { data: claim, error: claimError } = await client
     .from("blader_claim_requests")
     .select("*")
     .eq("id", claimId)
@@ -917,14 +923,14 @@ export async function approveBladerClaimAction(claimId: string) {
 
   const [{ data: targetBlader }, { data: alreadyLinkedBlader }] =
     await Promise.all([
-      auth.supabase
+      client
         .from("bladers")
-        .select("id, nickname, user_id, avatar_url")
+        .select("*")
         .eq("id", claim.blader_id)
         .maybeSingle(),
-      auth.supabase
+      client
         .from("bladers")
-        .select("id, nickname")
+        .select("*")
         .eq("user_id", claim.user_id)
         .neq("id", claim.blader_id)
         .maybeSingle(),
@@ -940,33 +946,225 @@ export async function approveBladerClaimAction(claimId: string) {
     };
   }
 
-  if (alreadyLinkedBlader) {
-    return {
-      error: `Esta conta já está vinculada ao Blader "${alreadyLinkedBlader.nickname}".`,
-    };
-  }
-
-  const bladerUpdate: { user_id: string; avatar_url?: string } = {
+  const bladerUpdate: Database["public"]["Tables"]["bladers"]["Update"] = {
     user_id: claim.user_id,
   };
-  if (!targetBlader.avatar_url && claim.user_avatar_url) {
+
+  if (alreadyLinkedBlader) {
+    // Preserva personalizações feitas no perfil novo caso o perfil histórico não tenha
+    if (!targetBlader.avatar_url) {
+      bladerUpdate.avatar_url =
+        alreadyLinkedBlader.avatar_url || claim.user_avatar_url || null;
+    }
+    if (!targetBlader.bio && alreadyLinkedBlader.bio) {
+      bladerUpdate.bio = alreadyLinkedBlader.bio;
+    }
+    if (!targetBlader.city && alreadyLinkedBlader.city) {
+      bladerUpdate.city = alreadyLinkedBlader.city;
+    }
+    if (!targetBlader.favorite_anime && alreadyLinkedBlader.favorite_anime) {
+      bladerUpdate.favorite_anime = alreadyLinkedBlader.favorite_anime;
+    }
+    if (!targetBlader.favorite_blade_id && alreadyLinkedBlader.favorite_blade_id) {
+      bladerUpdate.favorite_system = alreadyLinkedBlader.favorite_system;
+      bladerUpdate.favorite_blade_id = alreadyLinkedBlader.favorite_blade_id;
+      bladerUpdate.favorite_lock_chip_id =
+        alreadyLinkedBlader.favorite_lock_chip_id;
+      bladerUpdate.favorite_over_blade_id =
+        alreadyLinkedBlader.favorite_over_blade_id;
+      bladerUpdate.favorite_assist_blade_id =
+        alreadyLinkedBlader.favorite_assist_blade_id;
+      bladerUpdate.favorite_ratchet_id = alreadyLinkedBlader.favorite_ratchet_id;
+      bladerUpdate.favorite_bit_id = alreadyLinkedBlader.favorite_bit_id;
+    }
+
+    // 1. Migra inventário pessoal sem duplicar peças
+    const { data: oldInv } = await client
+      .from("blader_inventory")
+      .select("part_id")
+      .eq("blader_id", alreadyLinkedBlader.id);
+    if (oldInv && oldInv.length > 0) {
+      await client.from("blader_inventory").upsert(
+        oldInv.map((row) => ({
+          blader_id: targetBlader.id,
+          part_id: row.part_id,
+        })),
+        { onConflict: "blader_id,part_id", ignoreDuplicates: true }
+      );
+      await client
+        .from("blader_inventory")
+        .delete()
+        .eq("blader_id", alreadyLinkedBlader.id);
+    }
+
+    // 2. Migra inscrições, participantes e resultados que não conflitem por torneio
+    const [
+      { data: targetRegs },
+      { data: oldRegs },
+      { data: targetParts },
+      { data: oldParts },
+      { data: targetRes },
+      { data: oldRes },
+    ] = await Promise.all([
+      client
+        .from("tournament_registrations")
+        .select("tournament_id")
+        .eq("blader_id", targetBlader.id),
+      client
+        .from("tournament_registrations")
+        .select("id, tournament_id")
+        .eq("blader_id", alreadyLinkedBlader.id),
+      client
+        .from("tournament_participants")
+        .select("tournament_id")
+        .eq("blader_id", targetBlader.id),
+      client
+        .from("tournament_participants")
+        .select("id, tournament_id")
+        .eq("blader_id", alreadyLinkedBlader.id),
+      client
+        .from("tournament_results")
+        .select("tournament_id")
+        .eq("blader_id", targetBlader.id),
+      client
+        .from("tournament_results")
+        .select("id, tournament_id")
+        .eq("blader_id", alreadyLinkedBlader.id),
+    ]);
+
+    const targetRegTours = new Set((targetRegs ?? []).map((r) => r.tournament_id));
+    const regIdsToMove = (oldRegs ?? [])
+      .filter((r) => !targetRegTours.has(r.tournament_id))
+      .map((r) => r.id);
+    if (regIdsToMove.length > 0) {
+      await client
+        .from("tournament_registrations")
+        .update({ blader_id: targetBlader.id })
+        .in("id", regIdsToMove);
+    }
+
+    const targetPartTours = new Set(
+      (targetParts ?? []).map((r) => r.tournament_id)
+    );
+    const partIdsToMove = (oldParts ?? [])
+      .filter((r) => !targetPartTours.has(r.tournament_id))
+      .map((r) => r.id);
+    if (partIdsToMove.length > 0) {
+      await client
+        .from("tournament_participants")
+        .update({ blader_id: targetBlader.id })
+        .in("id", partIdsToMove);
+    }
+
+    const targetResTours = new Set((targetRes ?? []).map((r) => r.tournament_id));
+    const resIdsToMove = (oldRes ?? [])
+      .filter((r) => !targetResTours.has(r.tournament_id))
+      .map((r) => r.id);
+    if (resIdsToMove.length > 0) {
+      await client
+        .from("tournament_results")
+        .update({ blader_id: targetBlader.id })
+        .in("id", resIdsToMove);
+    }
+
+    // 3. Migra partidas e lances onde não houve confronto direto entre os 2 perfis
+    await Promise.all([
+      client
+        .from("matches")
+        .update({ player1_id: targetBlader.id })
+        .eq("player1_id", alreadyLinkedBlader.id)
+        .neq("player2_id", targetBlader.id),
+      client
+        .from("matches")
+        .update({ player2_id: targetBlader.id })
+        .eq("player2_id", alreadyLinkedBlader.id)
+        .neq("player1_id", targetBlader.id),
+      client
+        .from("matches")
+        .update({ winner_id: targetBlader.id })
+        .eq("winner_id", alreadyLinkedBlader.id),
+      client
+        .from("match_games")
+        .update({ scoring_player_id: targetBlader.id })
+        .eq("scoring_player_id", alreadyLinkedBlader.id),
+    ]);
+
+    // 4. Desvincula o perfil temporário antes de atribuir user_id ao perfil histórico
+    const { error: unlinkErr } = await client
+      .from("bladers")
+      .update({ user_id: null })
+      .eq("id", alreadyLinkedBlader.id);
+
+    if (unlinkErr) {
+      return {
+        error: `Erro ao desvincular perfil temporário durante mesclagem: ${unlinkErr.message}`,
+      };
+    }
+  } else if (!targetBlader.avatar_url && claim.user_avatar_url) {
     bladerUpdate.avatar_url = claim.user_avatar_url;
   }
 
-  const { error: updateBladerError } = await auth.supabase
+  const { error: updateBladerError } = await client
     .from("bladers")
     .update(bladerUpdate)
     .eq("id", claim.blader_id);
 
   if (updateBladerError) {
+    if (alreadyLinkedBlader) {
+      await client
+        .from("bladers")
+        .update({ user_id: claim.user_id })
+        .eq("id", alreadyLinkedBlader.id);
+    }
     return {
       error: `Erro ao vincular perfil: ${updateBladerError.message}`,
     };
   }
 
+  // 5. Remove ou inativa o perfil temporário excedente se havia mesclagem
+  if (alreadyLinkedBlader) {
+    const [remRegs, remParts, remRes, remMatches] = await Promise.all([
+      client
+        .from("tournament_registrations")
+        .select("id", { count: "exact", head: true })
+        .eq("blader_id", alreadyLinkedBlader.id),
+      client
+        .from("tournament_participants")
+        .select("id", { count: "exact", head: true })
+        .eq("blader_id", alreadyLinkedBlader.id),
+      client
+        .from("tournament_results")
+        .select("id", { count: "exact", head: true })
+        .eq("blader_id", alreadyLinkedBlader.id),
+      client
+        .from("matches")
+        .select("id", { count: "exact", head: true })
+        .or(
+          `player1_id.eq.${alreadyLinkedBlader.id},player2_id.eq.${alreadyLinkedBlader.id}`
+        ),
+    ]);
+
+    const hasRemainingHistory =
+      (remRegs.count ?? 0) > 0 ||
+      (remParts.count ?? 0) > 0 ||
+      (remRes.count ?? 0) > 0 ||
+      (remMatches.count ?? 0) > 0;
+
+    if (!hasRemainingHistory) {
+      await client.from("bladers").delete().eq("id", alreadyLinkedBlader.id);
+    } else {
+      await client
+        .from("bladers")
+        .update({ is_active: false })
+        .eq("id", alreadyLinkedBlader.id);
+    }
+
+    await recalculateAllSeasonsRanking(client);
+  }
+
   const nowIso = new Date().toISOString();
 
-  await auth.supabase
+  await client
     .from("blader_claim_requests")
     .update({
       status: "approved",
@@ -976,7 +1174,7 @@ export async function approveBladerClaimAction(claimId: string) {
     .eq("id", claimId);
 
   // Rejeita outras solicitações pendentes concorrentes para o mesmo blader ou usuário
-  await auth.supabase
+  await client
     .from("blader_claim_requests")
     .update({
       status: "rejected",

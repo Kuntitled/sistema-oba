@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   comboRowToSelection,
   createEmptyComboSelection,
@@ -33,12 +34,7 @@ import {
   getArenaPlayerDecklistForEditAction,
   updateArenaPlayerCombosAction,
 } from "@/app/admin/arena/actions";
-import type {
-  BladerRow,
-  ComboSelection,
-  PartRow,
-  UserRole,
-} from "@/types/domain";
+import { BladerRow, ComboSelection, PartRow, UserRole } from "@/types/domain";
 
 interface ArenaComboEditDialogProps {
   open: boolean;
@@ -62,6 +58,7 @@ function ArenaComboEditDialogBody({
   userRole,
   onSaved,
 }: Omit<ArenaComboEditDialogProps, "open"> & { player: BladerRow }) {
+  const toast = useToast();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -255,10 +252,12 @@ function ArenaComboEditDialogBody({
 
     if (res.error) {
       setSaveError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setSuccessMsg("Combos atualizados no Placar da Arena!");
+    toast.success(`Combos de ${player.nickname} atualizados na arena!`);
     onSaved();
     setTimeout(() => {
       onOpenChange(false);

@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   createOwnBladerProfileAction,
   requestBladerClaimAction,
@@ -46,6 +47,7 @@ export function BladerOnboardingClient({
   pendingClaim,
 }: BladerOnboardingClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [tab, setTab] = React.useState<"claim" | "create">(
     unclaimedBladers.length > 0 ? "claim" : "create"
   );
@@ -75,6 +77,7 @@ export function BladerOnboardingClient({
     try {
       await navigator.clipboard.writeText(userId);
       setCopiedId(true);
+      toast.success("ID da conta copiado!");
       setTimeout(() => setCopiedId(false), 1800);
     } catch {
       // ignora erro de clipboard em contexto restrito
@@ -84,7 +87,9 @@ export function BladerOnboardingClient({
   const handleClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBladerId) {
-      setError("Selecione o seu perfil na lista antes de solicitar o vínculo.");
+      const msg = "Selecione o seu perfil na lista antes de solicitar o vínculo.";
+      setError(msg);
+      toast.error(msg);
       return;
     }
     setLoading(true);
@@ -95,9 +100,11 @@ export function BladerOnboardingClient({
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success("Solicitação de vínculo enviada! Aguarde aprovação do admin.");
     router.refresh();
   };
 
@@ -111,9 +118,11 @@ export function BladerOnboardingClient({
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.info("Solicitação cancelada.");
     router.refresh();
   };
 
@@ -132,9 +141,11 @@ export function BladerOnboardingClient({
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success("Perfil de Blader criado com sucesso!");
     router.refresh();
   };
 

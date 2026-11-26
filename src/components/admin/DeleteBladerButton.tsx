@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast-provider";
 import { deleteBladerAction } from "@/app/admin/actions";
 
 export function DeleteBladerButton({
@@ -14,6 +15,7 @@ export function DeleteBladerButton({
   bladerNickname: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = React.useState(false);
 
   const handleDelete = async () => {
@@ -26,8 +28,13 @@ export function DeleteBladerButton({
     }
 
     setLoading(true);
-    await deleteBladerAction(bladerId);
+    const res = await deleteBladerAction(bladerId);
     setLoading(false);
+    if (res?.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Blader "${bladerNickname}" removido.`);
     router.refresh();
   };
 

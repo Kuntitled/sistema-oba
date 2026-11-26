@@ -30,6 +30,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { QuickStartMatchDialog } from "@/components/arena/QuickStartMatchDialog";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   createArenaAction,
   deleteArenaAction,
@@ -60,6 +61,7 @@ export function ArenaManagerClient({
   canManageArenas = true,
 }: ArenaManagerClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const supabase = React.useMemo(() => createClient(), []);
 
   const [arenas, setArenas] = React.useState<Arena[]>(initialArenas);
@@ -155,11 +157,13 @@ export function ArenaManagerClient({
 
     if (result.error) {
       setCreateError(result.error);
+      toast.error(result.error);
       return;
     }
 
     formElement.reset();
     setCreateOpen(false);
+    toast.success(`Arena "${result.arena?.name ?? "nova"}" criada!`);
     if (
       selectedTournamentId !== "all" &&
       result.arena?.tournament_id &&
@@ -180,8 +184,14 @@ export function ArenaManagerClient({
     setBusyArenaId(null);
     if (res.error) {
       setActionError(res.error);
+      toast.error(res.error);
       return;
     }
+    toast.info(
+      nextStatus === "maintenance"
+        ? `Arena "${arena.name}" colocada em manutenção.`
+        : `Arena "${arena.name}" liberada para uso.`
+    );
     await refreshArenas();
   };
 
@@ -194,8 +204,10 @@ export function ArenaManagerClient({
     setBusyArenaId(null);
     if (res.error) {
       setActionError(res.error);
+      toast.error(res.error);
       return;
     }
+    toast.success(`Arena "${arena.name}" liberada!`);
     await refreshArenas();
   };
 
@@ -207,8 +219,10 @@ export function ArenaManagerClient({
     setBusyArenaId(null);
     if (res.error) {
       setActionError(res.error);
+      toast.error(res.error);
       return;
     }
+    toast.success(`Arena "${arena.name}" excluída.`);
     await refreshArenas();
   };
 

@@ -164,20 +164,30 @@ export async function getPendingBladerClaimRequests(): Promise<{
     }
 
     const bladerIds = Array.from(new Set(rows.map((c) => c.blader_id)));
-    const { data: bladerRows } = await supabase
-      .from("bladers")
-      .select("*")
-      .in("id", bladerIds);
+    const userIds = Array.from(new Set(rows.map((c) => c.user_id)));
+
+    const [{ data: bladerRows }, { data: currentBladerRows }] = await Promise.all([
+      supabase.from("bladers").select("*").in("id", bladerIds),
+      supabase.from("bladers").select("*").in("user_id", userIds),
+    ]);
 
     const bladersById = new Map<string, BladerRow>();
     for (const b of bladerRows ?? []) {
       bladersById.set(b.id, b);
     }
 
+    const currentByUserId = new Map<string, BladerRow>();
+    for (const b of currentBladerRows ?? []) {
+      if (b.user_id) {
+        currentByUserId.set(b.user_id, b);
+      }
+    }
+
     return {
       claims: rows.map((c) => ({
         ...c,
         blader: bladersById.get(c.blader_id) ?? null,
+        currentBlader: currentByUserId.get(c.user_id) ?? null,
       })),
       schemaMissing: false,
     };

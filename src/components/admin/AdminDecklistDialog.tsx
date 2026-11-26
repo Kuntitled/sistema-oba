@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   createEmptyComboSelection,
   getMissingComboPartLabels,
@@ -73,6 +74,7 @@ function AdminDecklistDialogBody({
   onSaved,
 }: Omit<AdminDecklistDialogProps, "open">) {
   const router = useRouter();
+  const toast = useToast();
   const [selectedBladerId, setSelectedBladerId] = React.useState<string>(
     () => blader?.id ?? availableBladers[0]?.id ?? ""
   );
@@ -152,10 +154,12 @@ function AdminDecklistDialogBody({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
     setSuccessMsg("Decklist salva e aprovada para o Placar do Juiz!");
+    toast.success("Decklist salva e aprovada para o Placar do Juiz!");
     onSaved?.(targetBladerId);
     router.refresh();
     setTimeout(() => {

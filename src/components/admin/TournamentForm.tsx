@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createTournamentAction } from "@/app/admin/actions";
+import { useToast } from "@/components/ui/toast-provider";
 import { DEFAULT_SWISS_ROUNDS } from "@/lib/constants";
 import type {
   RulesetRow,
@@ -37,6 +38,7 @@ export function TournamentForm({
   pixConfigured?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const defaultRulesetId = React.useMemo(() => {
     const livre = rulesets.find((r) => r.name.toLowerCase() === "livre");
     return livre?.id ?? rulesets[0]?.id ?? "";
@@ -86,10 +88,12 @@ export function TournamentForm({
 
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
       setLoading(false);
     } else {
       setSuccess(true);
       setLoading(false);
+      toast.success(`Torneio "${result.tournament?.name ?? "novo"}" criado!`);
       setTimeout(() => {
         setOpen(false);
         setSuccess(false);

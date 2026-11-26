@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   comboRowToSelection,
   createEmptyComboSelection,
@@ -73,6 +74,7 @@ export function ComboReassemblyClient({
   bannedParts,
 }: ComboReassemblyClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const supabase = React.useMemo(() => createClient(), []);
 
   const partsById = React.useMemo(() => {
@@ -311,6 +313,7 @@ export function ComboReassemblyClient({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
@@ -320,9 +323,10 @@ export function ComboReassemblyClient({
     }
 
     setEditorOpen(false);
-    setSuccessMsg(
-      "Combos remontados com sucesso! O Placar do Juiz já está atualizado para sua próxima rodada."
-    );
+    const msg =
+      "Combos remontados com sucesso! O Placar do Juiz já está atualizado para sua próxima rodada.";
+    setSuccessMsg(msg);
+    toast.success(msg);
     router.refresh();
   };
 

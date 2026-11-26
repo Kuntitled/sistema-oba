@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   inviteAdminUserAction,
   setUserRoleAction,
@@ -59,6 +60,7 @@ export function AdminUsersManagerClient({
   loadError,
 }: AdminUsersManagerClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [roleFilter, setRoleFilter] = React.useState<"all" | ManagedUserRole>(
     "all"
   );
@@ -106,12 +108,13 @@ export function AdminUsersManagerClient({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setSuccessMsg(
-      `${targetUser.email} atualizado para ${MANAGED_ROLE_LABELS[nextRole]}. Caso já esteja logado, peça para sair e entrar novamente para atualizar a sessão.`
-    );
+    const msg = `${targetUser.email} atualizado para ${MANAGED_ROLE_LABELS[nextRole]}. Caso já esteja logado, peça para sair e entrar novamente para atualizar a sessão.`;
+    setSuccessMsg(msg);
+    toast.success(msg);
     router.refresh();
   };
 
@@ -130,11 +133,14 @@ export function AdminUsersManagerClient({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
     setInviteEmail("");
-    setSuccessMsg(res.message ?? "Convite enviado!");
+    const msg = res.message ?? "Convite enviado!";
+    setSuccessMsg(msg);
+    toast.success(msg);
     router.refresh();
   };
 

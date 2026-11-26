@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   MATCH_POINT_OFFSET,
   OBA_SWISS_LEADER_BONUS,
@@ -98,6 +99,7 @@ export function BroadcastBoardClient({
   results,
 }: BroadcastBoardClientProps) {
   const supabase = React.useMemo(() => createClient(), []);
+  const toast = useToast();
   const rootRef = React.useRef<HTMLDivElement | null>(null);
 
   const [tournament, setTournament] =
@@ -1314,7 +1316,11 @@ export function BroadcastBoardClient({
             size="xs"
             variant="outline"
             disabled={isRefreshing}
-            onClick={() => void refresh()}
+            onClick={() => {
+              void refresh().then(() => {
+                toast.success("Painel sincronizado com o servidor!");
+              });
+            }}
             className="border-white/20 bg-white/[0.04] text-slate-200 hover:bg-white/10 text-[11px] gap-1"
             title="Sincronizar agora"
           >

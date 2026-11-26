@@ -1,19 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
-import {
-  LayoutDashboard,
-  Users,
-  Swords,
-  Radio,
-  CalendarRange,
-  Layers,
-  ShieldBan,
-  Settings,
-  ExternalLink,
-  LogOut,
-  User,
-} from "lucide-react";
+import { ExternalLink, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AdminSidebarNav } from "@/components/admin/AdminSidebarNav";
 import { logoutAction } from "@/app/auth/actions";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { createClient } from "@/lib/supabase/server";
@@ -92,93 +81,7 @@ export default async function AdminLayout({
           </div>
 
           {/* Navegação */}
-          <nav className="p-3 sm:p-4 flex flex-row md:flex-col gap-1 overflow-x-auto">
-            {isAdmin ? (
-              <>
-                <Link
-                  href="/admin"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <LayoutDashboard className="h-4 w-4 text-primary" />
-                  <span>Dashboard</span>
-                </Link>
-
-                <Link
-                  href="/admin/bladers"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Users className="h-4 w-4 text-fire-orange" />
-                  <span>Bladers</span>
-                </Link>
-
-                <Link
-                  href="/admin/torneios"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Swords className="h-4 w-4 text-fire-yellow" />
-                  <span>Torneios</span>
-                </Link>
-
-                <Link
-                  href="/admin/arenas"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Radio className="h-4 w-4 text-emerald-500" />
-                  <span>Arenas ao Vivo</span>
-                </Link>
-
-                <Link
-                  href="/admin/temporadas"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <CalendarRange className="h-4 w-4 text-primary" />
-                  <span>Temporadas</span>
-                </Link>
-
-                <Link
-                  href="/admin/pecas"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Layers className="h-4 w-4 text-primary" />
-                  <span>Peças</span>
-                </Link>
-
-                <Link
-                  href="/admin/formatos"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <ShieldBan className="h-4 w-4 text-fire-orange" />
-                  <span>Formatos</span>
-                </Link>
-
-                <Link
-                  href="/admin/configuracoes"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Settings className="h-4 w-4 text-primary" />
-                  <span>Configurações &amp; Admins</span>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/admin/arenas"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <Radio className="h-4 w-4 text-emerald-500" />
-                  <span>Arenas ao Vivo</span>
-                </Link>
-
-                <Link
-                  href="/meu-painel"
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-foreground hover:bg-muted transition-colors shrink-0"
-                >
-                  <User className="h-4 w-4 text-primary" />
-                  <span>Meu Painel</span>
-                </Link>
-              </>
-            )}
-          </nav>
+          <AdminSidebarNav isAdmin={isAdmin} />
         </div>
 
         {/* Rodapé da Sidebar */}

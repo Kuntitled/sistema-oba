@@ -108,26 +108,33 @@ export async function requestBladerClaimAction(
     return { error: "Blader selecionado é inválido." };
   }
 
-  const { data: existingOwn } = await auth.supabase
-    .from("bladers")
-    .select("id")
-    .eq("user_id", auth.user.id)
-    .maybeSingle();
+  const [{ data: existingOwn }, { data: existingClaims }] = await Promise.all([
+    auth.supabase
+      .from("bladers")
+      .select("id")
+      .eq("user_id", auth.user.id)
+      .maybeSingle(),
+    auth.supabase
+      .from("blader_claim_requests")
+      .select("id, status")
+      .eq("user_id", auth.user.id),
+  ]);
 
-  if (existingOwn) {
-    return { error: "Sua conta já possui um perfil de Blader vinculado." };
+  if (existingClaims?.some((c) => c.status === "approved")) {
+    return {
+      error: "Sua conta já possui um vínculo histórico aprovado.",
+    };
   }
 
-  const { data: existingPending } = await auth.supabase
-    .from("blader_claim_requests")
-    .select("id")
-    .eq("user_id", auth.user.id)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (existingPending) {
+  if (existingClaims?.some((c) => c.status === "pending")) {
     return {
       error: "Você já possui uma solicitação de vínculo aguardando aprovação.",
+    };
+  }
+
+  if (existingOwn && existingOwn.id === bladerId) {
+    return {
+      error: "Este perfil já está vinculado à sua conta.",
     };
   }
 

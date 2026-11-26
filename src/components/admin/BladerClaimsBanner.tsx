@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   approveBladerClaimAction,
   rejectBladerClaimAction,
@@ -19,12 +20,13 @@ interface BladerClaimsBannerProps {
 
 export function BladerClaimsBanner({ claims }: BladerClaimsBannerProps) {
   const router = useRouter();
+  const toast = useToast();
   const [processingId, setProcessingId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   if (claims.length === 0) return null;
 
-  const handleApprove = async (claimId: string) => {
+  const handleApprove = async (claimId: string, targetNickname?: string) => {
     setProcessingId(claimId);
     setError(null);
 
@@ -33,9 +35,15 @@ export function BladerClaimsBanner({ claims }: BladerClaimsBannerProps) {
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success(
+      targetNickname
+        ? `Vínculo aprovado para "${targetNickname}"!`
+        : "Vínculo de perfil aprovado!"
+    );
     router.refresh();
   };
 
@@ -48,9 +56,11 @@ export function BladerClaimsBanner({ claims }: BladerClaimsBannerProps) {
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.info("Solicitação de vínculo recusada.");
     router.refresh();
   };
 
@@ -106,6 +116,12 @@ export function BladerClaimsBanner({ claims }: BladerClaimsBannerProps) {
                       </strong>
                       {claim.blader?.name ? ` (${claim.blader.name})` : ""}
                     </div>
+                    {claim.currentBlader && (
+                      <div className="text-[11px] text-amber-500 font-medium">
+                        Mesclagem: o perfil temporário{" "}
+                        <strong>{claim.currentBlader.nickname}</strong> será transferido e consolidado neste cadastro histórico.
+                      </div>
+                    )}
                     {claim.note && (
                       <div className="text-[11px] text-muted-foreground italic">
                         &ldquo;{claim.note}&rdquo;
@@ -119,7 +135,9 @@ export function BladerClaimsBanner({ claims }: BladerClaimsBannerProps) {
                     type="button"
                     size="sm"
                     disabled={busy}
-                    onClick={() => void handleApprove(claim.id)}
+                    onClick={() =>
+                      void handleApprove(claim.id, claim.blader?.nickname)
+                    }
                     className="h-8 bg-emerald-600 hover:bg-emerald-600/90 text-white font-semibold text-xs gap-1"
                   >
                     {busy ? (

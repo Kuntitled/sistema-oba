@@ -51,6 +51,7 @@ import {
 } from "@/components/admin/AdminDecklistDialog";
 import { formatCurrencyBRL } from "@/lib/pix";
 import { isReceiptPdfPath } from "@/lib/receipt-upload";
+import { useToast } from "@/components/ui/toast-provider";
 import { updateTournamentRegistrationStatusAction } from "@/app/admin/actions";
 import {
   approveRegistrationAction,
@@ -102,6 +103,7 @@ export function TournamentRegistrationsClient({
   bladers = [],
 }: TournamentRegistrationsClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [statusFilter, setStatusFilter] = React.useState<
     "all" | RegistrationStatus
   >("all");
@@ -226,12 +228,13 @@ export function TournamentRegistrationsClient({
     if (res.error) {
       setRegStatus(tournament.registration_status);
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setFeedbackMessage(
-      `Status de inscrição atualizado para: ${TOURNAMENT_REGISTRATION_STATUS_LABELS[nextStatus]}.`
-    );
+    const msg = `Status de inscrição atualizado para: ${TOURNAMENT_REGISTRATION_STATUS_LABELS[nextStatus]}.`;
+    setFeedbackMessage(msg);
+    toast.success(msg);
     router.refresh();
   };
 
@@ -253,9 +256,19 @@ export function TournamentRegistrationsClient({
 
     if (res.error) {
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success(
+      field === "payment_verified"
+        ? nextValue
+          ? "Pagamento PIX marcado como verificado."
+          : "Verificação de PIX removida."
+        : nextValue
+          ? "Decklist marcada como conferida."
+          : "Conferência de decklist removida."
+    );
     router.refresh();
   };
 
@@ -269,12 +282,13 @@ export function TournamentRegistrationsClient({
 
     if (res.error) {
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setFeedbackMessage(
-      "Inscrição aprovada e Blader confirmado na lista de participantes!"
-    );
+    const msg = "Inscrição aprovada e Blader confirmado na lista de participantes!";
+    setFeedbackMessage(msg);
+    toast.success(msg);
     router.refresh();
   };
 
@@ -288,12 +302,13 @@ export function TournamentRegistrationsClient({
 
     if (res.error) {
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setFeedbackMessage(
-      res.warning ?? "Inscrição retornada para Em Análise (pendente)."
-    );
+    const msg = res.warning ?? "Inscrição retornada para Em Análise (pendente).";
+    setFeedbackMessage(msg);
+    toast.info(msg);
     router.refresh();
   };
 
@@ -310,14 +325,16 @@ export function TournamentRegistrationsClient({
 
     if (res.error) {
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setRejectModalItem(null);
     setRejectReason("");
-    setFeedbackMessage(
-      res.warning ?? "Inscrição rejeitada e motivo enviado ao painel do Blader."
-    );
+    const msg =
+      res.warning ?? "Inscrição rejeitada e motivo enviado ao painel do Blader.";
+    setFeedbackMessage(msg);
+    toast.info(msg);
     router.refresh();
   };
 
@@ -328,6 +345,7 @@ export function TournamentRegistrationsClient({
 
     if (res.error) {
       setFeedbackError(res.error);
+      toast.error(res.error);
       return;
     }
     if (res.signedUrl) {
@@ -335,6 +353,7 @@ export function TournamentRegistrationsClient({
         ...prev,
         [registrationId]: res.signedUrl,
       }));
+      toast.success("Link do comprovante renovado!");
     }
   };
 

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PixPaymentBox } from "@/components/tournament/PixPaymentBox";
+import { useToast } from "@/components/ui/toast-provider";
 import { updateLeagueSettingsAction } from "@/app/admin/registrations-actions";
 import { sanitizePixText } from "@/lib/pix";
 import type { LeagueSettingsRow } from "@/types/domain";
@@ -33,6 +34,7 @@ export function LeagueSettingsClient({
   initialSettings,
 }: LeagueSettingsClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [pixKey, setPixKey] = React.useState(initialSettings?.pix_key ?? "");
   const [receiverName, setReceiverName] = React.useState(
     initialSettings?.pix_receiver_name ?? ""
@@ -68,6 +70,7 @@ export function LeagueSettingsClient({
 
     if (res.error) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
 
@@ -78,6 +81,7 @@ export function LeagueSettingsClient({
     }
 
     setSuccess(true);
+    toast.success("Configurações PIX salvas com sucesso!");
     router.refresh();
     setTimeout(() => setSuccess(false), 3000);
   };

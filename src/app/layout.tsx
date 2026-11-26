@@ -1,8 +1,11 @@
+import * as React from "react";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthHashListener } from "@/components/auth/AuthHashListener";
+import { ToastProvider } from "@/components/ui/toast-provider";
+import { NavigationProgressBar } from "@/components/shared/NavigationProgressBar";
 import {
   APP_NAME,
   APP_FULL_NAME,
@@ -78,8 +81,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AuthHashListener />
-          {children}
+          <ToastProvider>
+            <React.Suspense fallback={null}>
+              <NavigationProgressBar />
+            </React.Suspense>
+            <AuthHashListener />
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

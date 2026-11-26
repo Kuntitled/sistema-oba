@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Users,
   Wrench,
+  Link2,
 } from "lucide-react";
 import {
   Card,
@@ -40,6 +41,8 @@ import { Badge } from "@/components/ui/badge";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { ComboBuilder } from "@/components/blader/ComboBuilder";
+import { RetroactiveClaimDialog } from "@/components/blader/RetroactiveClaimDialog";
+import { useToast } from "@/components/ui/toast-provider";
 import { uploadBladerAvatar } from "@/lib/avatar-upload";
 import {
   formatComboDisplay,
@@ -50,6 +53,7 @@ import {
 import { formatCurrencyBRL } from "@/lib/pix";
 import { partMatchesQuery } from "@/lib/parts-search";
 import {
+  cancelBladerClaimAction,
   toggleInventoryPartAction,
   updateOwnAvatarUrlAction,
   updateOwnBladerProfileAction,
@@ -62,6 +66,7 @@ import {
   REGISTRATION_STATUS_LABELS,
   TOURNAMENT_FORMAT_LABELS,
   type BladerCardProfile,
+  type BladerClaimRequest,
   type BladerRegistrationSummary,
   type BladerRow,
   type ComboSelection,
@@ -69,6 +74,7 @@ import {
   type PartRow,
   type PartType,
   type Tournament,
+  type UnclaimedBladerOption,
 } from "@/types/domain";
 
 interface BladerPanelClientProps {
@@ -81,6 +87,9 @@ interface BladerPanelClientProps {
   openTournaments?: Array<Tournament & { confirmedCount: number }>;
   googleAvatarUrl: string | null;
   userEmail: string | null;
+  hasApprovedClaim?: boolean;
+  unclaimedBladers?: UnclaimedBladerOption[];
+  pendingClaim?: BladerClaimRequest | null;
 }
 
 export function BladerPanelClient({
@@ -93,11 +102,17 @@ export function BladerPanelClient({
   openTournaments = [],
   googleAvatarUrl,
   userEmail,
+  hasApprovedClaim = false,
+  unclaimedBladers = [],
+  pendingClaim = null,
 }: BladerPanelClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [activeTab, setActiveTab] = React.useState<
     "profile" | "collection" | "registrations"
   >("profile");
+  const [claimDialogOpen, setClaimDialogOpen] = React.useState(false);
+  const [cancellingClaim, setCancellingClaim] = React.useState(false);
 
   const partsById = React.useMemo(() => {
     const map = new Map<string, PartRow>();
@@ -282,17 +297,20 @@ export function BladerPanelClient({
       const res = await updateOwnAvatarUrlAction(publicUrl);
       if (res.error) {
         setAvatarError(res.error);
+        toast.error(res.error);
         return;
       }
 
       setAvatarNotice(`Foto enviada e salva (${sizeKb} KB).`);
+      toast.success(`Foto de perfil atualizada (${sizeKb} KB).`);
       router.refresh();
     } catch (err) {
-      setAvatarError(
+      const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível processar a imagem."
-      );
+          : "Não foi possível processar a imagem.";
+      setAvatarError(msg);
+      toast.error(msg);
     } finally {
       setUploadingAvatar(false);
     }
@@ -303,12 +321,25 @@ export function BladerPanelClient({
     return getMissingComboPartLabels(favoriteCombo, partsById);
   }, [favoriteCombo, partsById]);
 
+  const handleCancelPendingClaim = async () => {
+    if (!pendingClaim) return;
+    setCancellingClaim(true);
+    const res = await cancelBladerClaimAction(pendingClaim.id);
+    setCancellingClaim(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.info("Solicitação de vínculo cancelada.");
+    router.refresh();
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (favoriteComboMissing.length > 0) {
-      setProfileError(
-        `Complete todas as peças obrigatórias do seu Combo Favorito (faltando: ${favoriteComboMissing.join(", ")}) ou clique em "Limpar combo".`
-      );
+      const msg = `Complete todas as peças obrigatórias do seu Combo Favorito (faltando: ${favoriteComboMissing.join(", ")}) ou clique em "Limpar combo".`;
+      setProfileError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -335,10 +366,12 @@ export function BladerPanelClient({
 
     if (res.error) {
       setProfileError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setProfileSuccess(true);
+    toast.success("Perfil e Combo Favorito salvos com sucesso!");
     router.refresh();
     setTimeout(() => setProfileSuccess(false), 2500);
   };
@@ -348,6 +381,7 @@ export function BladerPanelClient({
 
     const currentlyOwned = inventoryIds.has(partId);
     const nextOwned = !currentlyOwned;
+    const partName = partsById.get(partId)?.name ?? "Peça";
 
     setCollectionError(null);
     setPendingPartIds((prev) => {
@@ -379,6 +413,13 @@ export function BladerPanelClient({
         return next;
       });
       setCollectionError(res.error);
+      toast.error(res.error);
+    } else {
+      toast.success(
+        nextOwned
+          ? `"${partName}" adicionada à sua coleção.`
+          : `"${partName}" removida da sua coleção.`
+      );
     }
   };
 
@@ -414,6 +455,19 @@ export function BladerPanelClient({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {!hasApprovedClaim && !pendingClaim && unclaimedBladers.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClaimDialogOpen(true)}
+                className="text-xs font-bold gap-1.5 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Vincular perfil retroativo ({unclaimedBladers.length})
+              </Button>
+            )}
+
             <Button
               type="button"
               variant="outline"
@@ -439,6 +493,69 @@ export function BladerPanelClient({
           </div>
         </CardContent>
       </Card>
+
+      {/* Aviso de Solicitação de Vínculo Pendente ou Disponível */}
+      {!hasApprovedClaim && pendingClaim && (
+        <Card className="border-amber-500/45 bg-amber-500/10">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <Clock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-black text-foreground">
+                  Vínculo para &ldquo;{pendingClaim.blader?.nickname ?? "perfil retroativo"}&rdquo; aguardando aprovação
+                </div>
+                <p className="text-muted-foreground">
+                  Assim que a organização aprovar, seu histórico de torneios e pontos desse perfil serão mesclados à sua conta.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={cancellingClaim}
+              onClick={() => void handleCancelPendingClaim()}
+              className="text-xs border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0 gap-1.5"
+            >
+              {cancellingClaim && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Cancelar solicitação
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasApprovedClaim && !pendingClaim && unclaimedBladers.length > 0 && (
+        <Card className="border-primary/35 bg-primary/5">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <Link2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-black text-foreground">
+                  Já competiu em algum torneio retroativo ou avulso da OBA?
+                </div>
+                <p className="text-muted-foreground">
+                  Há{" "}
+                  <strong className="text-foreground">
+                    {unclaimedBladers.length}
+                  </strong>{" "}
+                  perfil(is) cadastrado(s) sem conta vinculada. Você pode solicitar o vínculo para puxar sua pontuação e histórico para este login.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setClaimDialogOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5 shrink-0"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Vincular Perfil Retroativo
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Navegação por Abas */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
@@ -1184,6 +1301,13 @@ export function BladerPanelClient({
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         previewProfile={livePreviewProfile}
+      />
+
+      <RetroactiveClaimDialog
+        open={claimDialogOpen}
+        onOpenChange={setClaimDialogOpen}
+        currentNickname={blader.nickname}
+        unclaimedBladers={unclaimedBladers}
       />
     </div>
   );

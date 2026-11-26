@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { isUniversalPartType } from "@/lib/combo-rules";
 import { partMatchesQuery } from "@/lib/parts-search";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   createPartAction,
   deletePartAction,
@@ -60,6 +61,7 @@ function defaultLineForPartType(partType: PartType): PartLine | "" {
 
 export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<"all" | PartType>("all");
   const [lineFilter, setLineFilter] = React.useState<
@@ -192,10 +194,14 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
 
     if (res.error) {
       setFormError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setFormSuccess(true);
+    toast.success(
+      editingPart ? `Peça "${name}" atualizada!` : `Peça "${name}" criada!`
+    );
     router.refresh();
     setTimeout(() => {
       setDialogOpen(false);
@@ -217,9 +223,11 @@ export function PartsCatalogClient({ initialParts }: PartsCatalogClientProps) {
 
     if (res.error) {
       setActionError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success(`Peça "${part.name}" excluída.`);
     router.refresh();
   };
 

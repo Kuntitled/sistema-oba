@@ -117,7 +117,8 @@ A identidade visual foi extraída com precisão do logotipo oficial da **Organiz
   - [x] **Migrations `005` e `006` aplicadas em produção:** catálogo `parts_catalog` (288 peças únicas deduplicadas dos CSVs TT/Hasbro via `scripts/generate-parts-seed.ts`), `rulesets` (seed inicial `Livre`) e `ruleset_banned_parts`, `league_settings`, colunas de perfil/combo em `bladers`, `blader_inventory`, `blader_claim_requests`, além da base de `tournament_registrations` / `registration_combos` e ajustes em `tournaments`.
   - [x] **Gestão Admin de Peças & Formatos:** rotas `/admin/pecas` e `/admin/formatos` para CRUD do catálogo e ban-lists independentes por formato, integradas à criação/edição de torneios.
   - [x] **Auth Google OAuth & Vínculo de Perfis:** botão Entrar com Google em `/auth/login`, `/privacidade` pública para consentimento OAuth, redirecionamento adaptativo (`getRequestOrigin`), fluxo de primeiro acesso/vínculo em `/meu-painel` e aprovação/vínculo manual em `/admin/bladers`.
-  - [x] **Painel Pessoal (`/meu-painel`) & Card Público (`BladerCardModal`):** edição de perfil, bio (160 chars), combo favorito pesquisável por nome TT/Hasbro, inventário de coleção pessoal e modal público interativo no Ranking, Bladers e Torneios.
+  - [x] **Painel Pessoal (`/meu-painel`) & Card Público (`BladerCardModal`):** edição de perfil, bio (160 chars), combo favorito pesquisável por nome TT/Hasbro, inventário de coleção pessoal, modal público interativo no Ranking, Bladers e Torneios, e botão/modal contínuo **Vincular perfil retroativo** (`RetroactiveClaimDialog`) para quem já possui perfil recém-criado e deseja consolidar um cadastro retroativo sem conta vinculada (com mesclagem segura em `approveBladerClaimAction`).
+- [x] **Feedback Visual Global de Ações & Navegação:** feedback tátil em `Button` e elementos clicáveis (`globals.css`), indicador de rota ativa e carregamento em `AdminSidebarNav`, barra global de progresso de navegação (`NavigationProgressBar` no `RootLayout`) e sistema de notificações Toast (`ToastProvider` / `useToast`) integrado às ações de Admin e Torneios.
 - **Etapa 3A.5 — Sistemas de Combo, Upload Leve de Avatar & Unificação de Vagas (Concluída):**
   - [x] **Migrations `007` e `008`:** unificação de `max_participants` → `max_players` em `tournaments`, expansão de `parts_catalog` para 8 tipos (`blade`, `main_blade`, `metal_blade`, `over_blade`, `lock_chip`, `assist_blade`, `ratchet`, `bit`), 6 sistemas (`BX`, `BXE`, `UX`, `UXE`, `CX`, `CXE`) + `NULL` universal (para Ratchets/Bits) e flags de compatibilidade (`is_simple_ratchet`, `requires_simple_ratchet`, `blocks_bit`), colunas de combo completo em `bladers` e `registration_combos`, e bucket público `avatars` com RLS por `{auth.uid()}/avatar.webp`.
   - [x] **Reclassificação das 288 peças:** atualização idempotente via `scripts/generate-parts-seed.ts` (preservando UUIDs, movendo `Operate`/`Turbo` para Ratchets com `blocks_bit = true`, marcando `ClockMirage` com `requires_simple_ratchet = true` e 6 Simple Ratchets terminadas em `5`) e suporte completo em `/admin/pecas` e `/admin/formatos`.
@@ -295,6 +296,8 @@ Sistema OBA/
     │       └── login/page.tsx          ← Login Google OAuth + E-mail/Senha + "Esqueceu a senha?"
     ├── components/
     │   ├── admin/                      ← Componentes do painel, catálogo, formatos, PIX, admins e inscrições
+    │   │   ├── AdminDecklistDialog.tsx
+    │   │   ├── AdminSidebarNav.tsx
     │   │   ├── AdminUsersManagerClient.tsx
     │   │   ├── ArenaManagerClient.tsx
     │   │   ├── BladerClaimsBanner.tsx
@@ -326,12 +329,14 @@ Sistema OBA/
     │   │   ├── BladerPanelClient.tsx
     │   │   ├── BladersGridClient.tsx
     │   │   ├── ComboBuilder.tsx
-    │   │   └── PartSearchSelect.tsx
+    │   │   ├── PartSearchSelect.tsx
+    │   │   └── RetroactiveClaimDialog.tsx
     │   ├── layout/                     ← Navbar (com estado da sessão), Footer e ThemeToggle
     │   ├── ranking/                    ← RankingTable com filtro por temporada, busca e Card do Blader
     │   ├── shared/
     │   │   ├── BanlistCardModal.tsx    ← Modal gerador de card PNG da ban-list (Feed 4:5, Quadrado 1:1, Story 9:16)
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
+    │   │   ├── NavigationProgressBar.tsx ← Barra superior global de progresso durante transições de rota
     │   │   ├── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
     │   │   └── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
     │   ├── stats/                      ← Dashboard público de estatísticas regionais (Recharts v3)
@@ -352,7 +357,7 @@ Sistema OBA/
     │   │   ├── TournamentMetaSection.tsx
     │   │   ├── TournamentPromoCardButton.tsx
     │   │   └── TournamentRegistrationClient.tsx
-    │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react)
+    │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react) e toast-provider.tsx
     ├── lib/
     │   ├── auth-roles.ts               ← Papéis (admin, judge, blader), regras de acesso e redirects pós-login
     │   ├── avatar-upload.ts            ← Crop quadrado, compressão WebP 400x400 e upload no bucket avatars

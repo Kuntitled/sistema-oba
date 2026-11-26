@@ -14,10 +14,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { updateBladerAction } from "@/app/admin/actions";
+import { useToast } from "@/components/ui/toast-provider";
 import type { BladerRow } from "@/types/domain";
 
 export function EditBladerButton({ blader }: { blader: BladerRow }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -62,10 +64,12 @@ export function EditBladerButton({ blader }: { blader: BladerRow }) {
 
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
       setLoading(false);
     } else {
       setSuccess(true);
       setLoading(false);
+      toast.success(`Blader "${nickname}" atualizado!`);
       router.refresh();
       setTimeout(() => {
         setOpen(false);

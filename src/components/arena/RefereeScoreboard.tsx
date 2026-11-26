@@ -33,6 +33,7 @@ import {
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { QuickStartMatchDialog } from "@/components/arena/QuickStartMatchDialog";
 import { ArenaComboEditDialog } from "@/components/arena/ArenaComboEditDialog";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   assignExistingMatchToArenaAction,
   recordMatchGameAction,
@@ -107,6 +108,7 @@ export function RefereeScoreboard({
   canQuickStart = true,
 }: RefereeScoreboardProps) {
   const supabase = React.useMemo(() => createClient(), []);
+  const toast = useToast();
 
   const [arena, setArena] = React.useState<Arena>(initialArena);
   const [match, setMatch] = React.useState<Match | null>(initialMatch);
@@ -298,6 +300,7 @@ export function RefereeScoreboard({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
@@ -321,9 +324,11 @@ export function RefereeScoreboard({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.info("Último lance desfeito.");
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
     }
@@ -344,9 +349,11 @@ export function RefereeScoreboard({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.info("Placar reiniciado para 0 × 0.");
     if (res.match && res.games) {
       applyMatchSync(res.match, res.games);
     }
@@ -367,9 +374,15 @@ export function RefereeScoreboard({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success(
+      returnPendingIfUnfinished
+        ? "Partida devolvida para a fila e arena liberada."
+        : "Arena liberada!"
+    );
     await refreshArenaData();
   };
 
@@ -386,9 +399,11 @@ export function RefereeScoreboard({
 
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success("Partida iniciada na arena!");
     await refreshArenaData();
   };
 
@@ -402,8 +417,10 @@ export function RefereeScoreboard({
     setPendingAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
+    toast.success("Arena reativada!");
     await refreshArenaData();
   };
 

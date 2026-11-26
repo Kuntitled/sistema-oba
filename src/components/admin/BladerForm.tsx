@@ -15,9 +15,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createBladerAction } from "@/app/admin/actions";
+import { useToast } from "@/components/ui/toast-provider";
 
 export function BladerForm() {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -34,10 +36,14 @@ export function BladerForm() {
 
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
       setLoading(false);
     } else {
       setSuccess(true);
       setLoading(false);
+      toast.success(
+        `Blader "${result.blader?.nickname ?? "novo"}" cadastrado!`
+      );
       setTimeout(() => {
         setOpen(false);
         setSuccess(false);

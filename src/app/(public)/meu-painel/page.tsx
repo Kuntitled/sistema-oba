@@ -11,7 +11,11 @@ import {
 import { getBladerRegistrationsOverview } from "@/lib/services/registrations";
 import { BladerOnboardingClient } from "@/components/blader/BladerOnboardingClient";
 import { BladerPanelClient } from "@/components/blader/BladerPanelClient";
-import type { BladerClaimRequest, BladerRow } from "@/types/domain";
+import type {
+  BladerClaimRequest,
+  BladerRow,
+  UnclaimedBladerOption,
+} from "@/types/domain";
 
 export default async function MeuPainelPage() {
   const supabase = await createClient();
@@ -104,11 +108,91 @@ export default async function MeuPainelPage() {
     );
   }
 
-  const [inventoryIds, cardProfile, registrationsOverview] = await Promise.all([
+  const [
+    inventoryIds,
+    cardProfile,
+    registrationsOverview,
+    claimRequestsRes,
+  ] = await Promise.all([
     getBladerInventoryPartIds(ownBlader.id),
     getBladerCardProfile(supabase, ownBlader.id),
     getBladerRegistrationsOverview(ownBlader.id),
+    supabase
+      .from("blader_claim_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
   ]);
+
+  const userClaims = claimRequestsRes.data ?? [];
+  const hasApprovedClaim = userClaims.some((c) => c.status === "approved");
+  const pendingClaimRow = userClaims.find((c) => c.status === "pending") ?? null;
+
+  let unclaimedBladers: UnclaimedBladerOption[] = [];
+  let pendingClaim: BladerClaimRequest | null = null;
+
+  if (!hasApprovedClaim) {
+    const { data: unclaimedRows } = await supabase
+      .from("bladers")
+      .select("*")
+      .is("user_id", null)
+      .eq("is_active", true)
+      .neq("id", ownBlader.id)
+      .order("nickname", { ascending: true });
+
+    const rows = (unclaimedRows ?? []) as BladerRow[];
+    const statsByBlader = new Map<
+      string,
+      { tournamentsPlayed: number; totalPoints: number }
+    >();
+
+    if (rows.length > 0) {
+      const { data: rankRows } = await supabase
+        .from("ranking")
+        .select("blader_id, tournaments_played, total_points")
+        .in(
+          "blader_id",
+          rows.map((r) => r.id)
+        );
+
+      for (const rk of rankRows ?? []) {
+        const cur = statsByBlader.get(rk.blader_id) ?? {
+          tournamentsPlayed: 0,
+          totalPoints: 0,
+        };
+        cur.tournamentsPlayed += rk.tournaments_played ?? 0;
+        cur.totalPoints += rk.total_points ?? 0;
+        statsByBlader.set(rk.blader_id, cur);
+      }
+    }
+
+    unclaimedBladers = rows.map((b) => {
+      const st = statsByBlader.get(b.id);
+      return {
+        ...b,
+        tournamentsPlayed: st?.tournamentsPlayed ?? 0,
+        totalPoints: st?.totalPoints ?? 0,
+      };
+    });
+
+    if (pendingClaimRow) {
+      let targetBlader: BladerRow | null =
+        unclaimedBladers.find((b) => b.id === pendingClaimRow.blader_id) ??
+        null;
+      if (!targetBlader) {
+        const { data: singleBlader } = await supabase
+          .from("bladers")
+          .select("*")
+          .eq("id", pendingClaimRow.blader_id)
+          .maybeSingle();
+        targetBlader = singleBlader ?? null;
+      }
+      pendingClaim = {
+        ...pendingClaimRow,
+        blader: targetBlader,
+      };
+    }
+  }
 
   const fallbackProfile = cardProfile ?? {
     blader: ownBlader,
@@ -144,6 +228,9 @@ export default async function MeuPainelPage() {
       openTournaments={registrationsOverview.openTournaments}
       googleAvatarUrl={googleAvatarUrl}
       userEmail={user.email ?? null}
+      hasApprovedClaim={hasApprovedClaim}
+      unclaimedBladers={unclaimedBladers}
+      pendingClaim={pendingClaim}
     />
   );
 }

@@ -30,6 +30,7 @@ import {
   activateSeasonAction,
   createSeasonAction,
 } from "@/app/admin/torneios/engine-actions";
+import { useToast } from "@/components/ui/toast-provider";
 import type { SeasonWithStats } from "@/lib/services/league";
 
 function formatShortDate(dateStr: string): string {
@@ -44,6 +45,7 @@ export function SeasonManagerClient({
   initialSeasons: SeasonWithStats[];
 }) {
   const router = useRouter();
+  const toast = useToast();
 
   const suggestedYear = React.useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -102,13 +104,14 @@ export function SeasonManagerClient({
 
     if (res.error) {
       setCreateError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setCreateOpen(false);
-    setActionSuccess(
-      `Temporada "${res.season?.name ?? nameInput}" criada com sucesso!`
-    );
+    const createdMsg = `Temporada "${res.season?.name ?? nameInput}" criada com sucesso!`;
+    setActionSuccess(createdMsg);
+    toast.success(createdMsg);
     router.refresh();
   };
 
@@ -129,10 +132,13 @@ export function SeasonManagerClient({
 
     if (res.error) {
       setActionError(res.error);
+      toast.error(res.error);
       return;
     }
 
-    setActionSuccess(`${season.name} agora é a temporada ativa da liga OBA.`);
+    const msg = `${season.name} agora é a temporada ativa da liga OBA.`;
+    setActionSuccess(msg);
+    toast.success(msg);
     router.refresh();
   };
 

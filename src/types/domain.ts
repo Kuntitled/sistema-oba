@@ -252,8 +252,14 @@ export type BladerInventoryRow =
 export type BladerClaimRequestRow =
   Database["public"]["Tables"]["blader_claim_requests"]["Row"];
 
+export interface UnclaimedBladerOption extends BladerRow {
+  tournamentsPlayed?: number;
+  totalPoints?: number;
+}
+
 export interface BladerClaimRequest extends BladerClaimRequestRow {
   blader?: BladerRow | null;
+  currentBlader?: BladerRow | null;
 }
 
 // ─── Inscrições Online, Decklists & PIX (Etapa 3B) ────────────────────────────

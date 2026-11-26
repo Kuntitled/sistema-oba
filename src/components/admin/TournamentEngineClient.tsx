@@ -51,6 +51,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchTournamentEngineSnapshot } from "@/lib/services/tournament-queries";
 import { comboRowToSelection } from "@/lib/combo-rules";
 import { AdminDecklistDialog } from "@/components/admin/AdminDecklistDialog";
+import { useToast } from "@/components/ui/toast-provider";
 import { assignExistingMatchToArenaAction } from "@/app/admin/arena/actions";
 import {
   createSwissLeaderTiebreakerAction,
@@ -102,6 +103,7 @@ export function TournamentEngineClient({
   initialCombosByBlader = {},
 }: TournamentEngineClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const supabase = React.useMemo(() => createClient(), []);
 
   const [tournament, setTournament] = React.useState<Tournament>(initialTournament);
@@ -373,9 +375,11 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
     setSuccessMsg("Lista de participantes atualizada.");
+    toast.success("Lista de participantes atualizada!");
     await refreshSnapshot();
   };
 
@@ -391,8 +395,10 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
+    toast.info(!currentDrop ? "Desistência (Drop) aplicada." : "Blader reativado no torneio.");
     await refreshSnapshot();
   };
 
@@ -404,15 +410,16 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
-    setSuccessMsg(
-      `Rodada ${res.round} da Fase Suíça gerada!${
-        res.hadForcedRematch
-          ? " (Obs: alguns confrontos repetidos foram inevitáveis.)"
-          : ""
-      }`
-    );
+    const msg = `Rodada ${res.round} da Fase Suíça gerada!${
+      res.hadForcedRematch
+        ? " (Obs: alguns confrontos repetidos foram inevitáveis.)"
+        : ""
+    }`;
+    setSuccessMsg(msg);
+    toast.success(msg);
     setActiveTab("swiss");
     await refreshSnapshot();
   };
@@ -423,7 +430,9 @@ export function TournamentEngineClient({
     const p2 = overrideP2 || tiePlayer2Id || firstGroup[1]?.bladerId || "";
 
     if (!p1 || !p2 || p1 === p2) {
-      setErrorMsg("Selecione dois Bladers empatados diferentes para o desempate.");
+      const msg = "Selecione dois Bladers empatados diferentes para o desempate.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
 
@@ -439,13 +448,15 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
     setTieWarningAction(null);
     setActiveTab("swiss");
-    setSuccessMsg(
-      "Partida extra de desempate criada! Despache para uma arena livre na Fase Suíça."
-    );
+    const msg =
+      "Partida extra de desempate criada! Despache para uma arena livre na Fase Suíça.";
+    setSuccessMsg(msg);
+    toast.success(msg);
     await refreshSnapshot();
   };
 
@@ -459,10 +470,13 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
     setTieWarningAction(null);
-    setSuccessMsg(`Chave Top ${topCutSize} gerada com sucesso!`);
+    const msg = `Chave Top ${topCutSize} gerada com sucesso!`;
+    setSuccessMsg(msg);
+    toast.success(msg);
     setActiveTab("top_cut");
     await refreshSnapshot();
   };
@@ -479,7 +493,9 @@ export function TournamentEngineClient({
     const chosenArenaId =
       arenaChoiceByMatch[matchId] || availableArenas[0]?.id || "";
     if (!chosenArenaId) {
-      setErrorMsg("Nenhuma arena livre selecionada ou disponível.");
+      const msg = "Nenhuma arena livre selecionada ou disponível.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
     setErrorMsg(null);
@@ -489,9 +505,11 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
     setSuccessMsg("Partida enviada para a arena!");
+    toast.success("Partida despachada para a arena!");
     await refreshSnapshot();
   };
 
@@ -506,14 +524,15 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setErrorMsg(res.error);
+      toast.error(res.error);
       return;
     }
     setTieWarningAction(null);
-    setSuccessMsg(
-      isFriendly
-        ? "Torneio amistoso encerrado! Resultados salvos para o histórico sem pontuar no ranking."
-        : "Torneio encerrado e pontuação oficial OBA publicada no Ranking!"
-    );
+    const msg = isFriendly
+      ? "Torneio amistoso encerrado! Resultados salvos para o histórico sem pontuar no ranking."
+      : "Torneio encerrado e pontuação oficial OBA publicada no Ranking!";
+    setSuccessMsg(msg);
+    toast.success(msg);
     await refreshSnapshot();
     router.refresh();
   };
@@ -581,6 +600,7 @@ export function TournamentEngineClient({
     setBusyAction(null);
     if (res.error) {
       setManualError(res.error);
+      toast.error(res.error);
       return;
     }
 
@@ -590,11 +610,12 @@ export function TournamentEngineClient({
         : manualMatch.player2?.nickname;
 
     setManualMatch(null);
-    setSuccessMsg(
+    const msg =
       manualMode === "wo"
         ? `W.O. registrado com sucesso (${winnerNick ?? "Vencedor"} avança).`
-        : `Resultado registrado manualmente (${winnerNick ?? "Vencedor"} venceu).`
-    );
+        : `Resultado registrado manualmente (${winnerNick ?? "Vencedor"} venceu).`;
+    setSuccessMsg(msg);
+    toast.success(msg);
     await refreshSnapshot();
     router.refresh();
   };

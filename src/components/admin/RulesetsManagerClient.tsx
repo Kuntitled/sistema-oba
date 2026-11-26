@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { partMatchesQuery } from "@/lib/parts-search";
 import { BanlistCardModal } from "@/components/shared/BanlistCardModal";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   createRulesetAction,
   deleteRulesetAction,
@@ -56,6 +57,7 @@ export function RulesetsManagerClient({
   parts,
 }: RulesetsManagerClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [selectedRulesetId, setSelectedRulesetId] = React.useState<string>(
     initialRulesets[0]?.id ?? ""
   );
@@ -204,10 +206,16 @@ export function RulesetsManagerClient({
 
     if (res.error) {
       setFormError(res.error);
+      toast.error(res.error);
       return;
     }
 
     setFormSuccess(true);
+    toast.success(
+      editingRuleset
+        ? `Formato "${name}" atualizado!`
+        : `Formato "${name}" criado!`
+    );
     if (!editingRuleset && res.ruleset) {
       setSelectedRulesetId(res.ruleset.id);
     }
@@ -232,9 +240,11 @@ export function RulesetsManagerClient({
 
     if (res.error) {
       setBanError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.success(`Formato "${rs.name}" excluído.`);
     router.refresh();
   };
 
@@ -243,6 +253,7 @@ export function RulesetsManagerClient({
 
     const currentlyBanned = currentBannedSet.has(partId);
     const shouldBan = !currentlyBanned;
+    const partName = partsById.get(partId)?.name ?? "Peça";
 
     setBanError(null);
     setPendingPartIds((prev) => {
@@ -281,9 +292,15 @@ export function RulesetsManagerClient({
         };
       });
       setBanError(res.error);
+      toast.error(res.error);
       return;
     }
 
+    toast.info(
+      shouldBan
+        ? `"${partName}" banida em ${selectedRuleset.name}.`
+        : `"${partName}" liberada em ${selectedRuleset.name}.`
+    );
     router.refresh();
   };
 
