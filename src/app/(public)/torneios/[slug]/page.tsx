@@ -29,6 +29,7 @@ import { formatCurrencyBRL } from "@/lib/pix";
 import { sanitizeHttpUrl } from "@/lib/tournament-card-canvas";
 import { PublicTournamentLive } from "@/components/tournament/PublicTournamentLive";
 import { TournamentBanlistButton } from "@/components/tournament/TournamentBanlistButton";
+import { TournamentPodiumCardButton } from "@/components/tournament/TournamentPodiumCardButton";
 import { TournamentPromoCardButton } from "@/components/tournament/TournamentPromoCardButton";
 import { TournamentRegistrationClient } from "@/components/tournament/TournamentRegistrationClient";
 import { ComboReassemblyClient } from "@/components/tournament/ComboReassemblyClient";
@@ -261,6 +262,14 @@ export default async function TorneioDetalhePage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {(tournament.status === "finished" || results.length > 0) && (
+                <TournamentPodiumCardButton
+                  variant="public"
+                  tournamentId={tournament.id}
+                  tournamentName={tournament.name}
+                />
+              )}
+
               <TournamentPromoCardButton
                 variant="public"
                 tournament={{

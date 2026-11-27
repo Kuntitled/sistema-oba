@@ -52,6 +52,7 @@ import { fetchTournamentEngineSnapshot } from "@/lib/services/tournament-queries
 import { comboRowToSelection } from "@/lib/combo-rules";
 import { AdminDecklistDialog } from "@/components/admin/AdminDecklistDialog";
 import { MatchEditorDialog } from "@/components/admin/MatchEditorDialog";
+import { TournamentPodiumCardButton } from "@/components/tournament/TournamentPodiumCardButton";
 import { useToast } from "@/components/ui/toast-provider";
 import { assignExistingMatchToArenaAction } from "@/app/admin/arena/actions";
 import {
@@ -1450,30 +1451,40 @@ export function TournamentEngineClient({
                 </p>
               </div>
 
-              <Button
-                type="button"
-                disabled={
-                  busyAction !== null ||
-                  openMatchesCount > 0 ||
-                  swissSummary.currentSwissRound === 0 ||
-                  (tournament.format === "swiss_top_cut" && !hasTopCutMatches)
-                }
-                onClick={() => void handleFinalizeTournament()}
-                className="bg-emerald-600 hover:bg-emerald-600/90 text-white font-black text-xs gap-1.5 h-10 px-5 shadow-md"
-              >
-                {busyAction === "finalize" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trophy className="h-4 w-4" />
+              <div className="flex flex-wrap items-center gap-2">
+                {(tournament.status === "finished" || finalPreview.length > 0) && (
+                  <TournamentPodiumCardButton
+                    variant="admin"
+                    tournamentId={tournament.id}
+                    tournamentName={tournament.name}
+                  />
                 )}
-                {tournament.category === "amistoso"
-                  ? tournament.status === "finished"
-                    ? "Republicar Torneio Amistoso"
-                    : "Encerrar Torneio Amistoso"
-                  : tournament.status === "finished"
-                    ? "Republicar Resultados no Ranking"
-                    : "Encerrar Torneio e Publicar no Ranking"}
-              </Button>
+
+                <Button
+                  type="button"
+                  disabled={
+                    busyAction !== null ||
+                    openMatchesCount > 0 ||
+                    swissSummary.currentSwissRound === 0 ||
+                    (tournament.format === "swiss_top_cut" && !hasTopCutMatches)
+                  }
+                  onClick={() => void handleFinalizeTournament()}
+                  className="bg-emerald-600 hover:bg-emerald-600/90 text-white font-black text-xs gap-1.5 h-10 px-5 shadow-md"
+                >
+                  {busyAction === "finalize" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trophy className="h-4 w-4" />
+                  )}
+                  {tournament.category === "amistoso"
+                    ? tournament.status === "finished"
+                      ? "Republicar Torneio Amistoso"
+                      : "Encerrar Torneio Amistoso"
+                    : tournament.status === "finished"
+                      ? "Republicar Resultados no Ranking"
+                      : "Encerrar Torneio e Publicar no Ranking"}
+                </Button>
+              </div>
             </CardHeader>
 
             <CardContent className="p-0 overflow-x-auto">

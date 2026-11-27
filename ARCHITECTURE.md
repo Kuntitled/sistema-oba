@@ -286,9 +286,12 @@ Sistema OBA/
     │   │               └── resultados/page.tsx  ← Lançamento manual/retroativo de colocações e pontos
     │   ├── api/
     │   │   ├── auth/login/route.ts     ← Endpoint same-origin de login com gravação segura de cookies
+    │   │   ├── bladers/[id]/avatar/route.ts ← Proxy same-origin de avatar para renderização PNG sem taint
     │   │   ├── bladers/[id]/card/route.ts ← Endpoint público do Card do Blader
     │   │   ├── stats/head-to-head/route.ts ← Endpoint JSON de confrontos diretos (H2H) entre Bladers
-    │   │   └── torneios/[id]/live-combo-labels/route.ts ← Labels compactos dos combos já usados no Telão TV (restrito a ongoing/finished)
+    │   │   └── torneios/[id]/
+    │   │       ├── live-combo-labels/route.ts ← Labels compactos dos combos já usados no Telão TV (restrito a ongoing/finished)
+    │   │       └── podium-card/route.ts ← Dados do Pódio, fotos, combos iniciais e Líder do Suíço para Card PNG
     │   └── auth/
     │       ├── actions.ts              ← Server Actions de logout
     │       ├── callback/route.ts       ← Callback SSR para OAuth Google, PKCE (?code=) e OTP (?token_hash=)
@@ -338,8 +341,10 @@ Sistema OBA/
     │   │   ├── BanlistCardModal.tsx    ← Modal gerador de card PNG da ban-list (Feed 4:5, Quadrado 1:1, Story 9:16)
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
     │   │   ├── NavigationProgressBar.tsx ← Barra superior global de progresso durante transições de rota
+    │   │   ├── RankingCardModal.tsx    ← Modal gerador de card PNG do Ranking Top 10 (Feed, Quadrado, Story)
     │   │   ├── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
-    │   │   └── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
+    │   │   ├── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
+    │   │   └── TournamentPodiumCardModal.tsx ← Modal gerador de card PNG do Pódio (fotos, combos iniciais e Líder do Suíço)
     │   ├── stats/                      ← Dashboard público de estatísticas regionais (Recharts v3)
     │   │   ├── CollectionCensusSection.tsx
     │   │   ├── HeadToHeadSection.tsx
@@ -356,6 +361,7 @@ Sistema OBA/
     │   │   ├── PublicTournamentLive.tsx
     │   │   ├── TournamentBanlistButton.tsx
     │   │   ├── TournamentMetaSection.tsx
+    │   │   ├── TournamentPodiumCardButton.tsx
     │   │   ├── TournamentPromoCardButton.tsx
     │   │   └── TournamentRegistrationClient.tsx
     │   └── ui/                         ← Componentes base shadcn/ui (@base-ui/react) e toast-provider.tsx
@@ -368,6 +374,8 @@ Sistema OBA/
     │   ├── deck-reassembly.ts          ← Validação de pool original (multiset) e elegibilidade entre rodadas
     │   ├── parts-search.ts             ← Normalização e busca de peças por nome TT + aliases Hasbro
     │   ├── pix.ts                      ← Gerador PIX estático EMVCo/BACEN (BR Code + CRC16) e formatador BRL
+    │   ├── podium-card-canvas.ts       ← Renderizador Canvas 2D do Card de Pódio (1º-3º, fotos, combos iniciais e Líder Suíço)
+    │   ├── ranking-card-canvas.ts      ← Renderizador Canvas 2D do Card Top 10 Ranking Geral + helpers de avatar no canvas
     │   ├── receipt-upload.ts           ← Compressão client-side e upload privado no bucket receipts
     │   ├── tournament-card-canvas.ts   ← Renderizador Canvas 2D e legenda de cards de torneio OBA (4:5, 1:1, 9:16) + QR Code
     │   ├── utils.ts                    ← Helper cn()
@@ -382,6 +390,7 @@ Sistema OBA/
     │   │   ├── bracket-advancement.ts
     │   │   ├── league.ts
     │   │   ├── parts.ts
+    │   │   ├── podium-card.ts
     │   │   ├── ranking-recalc.ts
     │   │   ├── registrations.ts
     │   │   ├── stats.ts

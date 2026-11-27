@@ -311,6 +311,7 @@ export default async function HomePage({
           selectedSeason={selectedSeason}
           activeSeason={activeSeason}
           totalRankedCount={ranking.length}
+          finishedTournamentsCount={finishedCount}
         />
       </section>
 

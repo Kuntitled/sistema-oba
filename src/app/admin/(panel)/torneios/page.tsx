@@ -26,6 +26,7 @@ import { TournamentForm } from "@/components/admin/TournamentForm";
 import { EditTournamentButton } from "@/components/admin/EditTournamentButton";
 import { TournamentStatusSelect } from "@/components/admin/TournamentStatusSelect";
 import { DeleteTournamentButton } from "@/components/admin/DeleteTournamentButton";
+import { TournamentPodiumCardButton } from "@/components/tournament/TournamentPodiumCardButton";
 import { TournamentPromoCardButton } from "@/components/tournament/TournamentPromoCardButton";
 import {
   TOURNAMENT_CATEGORY_LABELS,
@@ -277,6 +278,14 @@ export default async function AdminTorneiosPage() {
                         description: tournament.description,
                       }}
                     />
+
+                    {tournament.status === "finished" && (
+                      <TournamentPodiumCardButton
+                        variant="admin"
+                        tournamentId={tournament.id}
+                        tournamentName={tournament.name}
+                      />
+                    )}
                   </div>
 
                   {/* Links & Gestão */}

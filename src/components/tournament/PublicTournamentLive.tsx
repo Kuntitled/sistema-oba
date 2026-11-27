@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveArenaCard } from "@/components/tournament/LiveArenaCard";
 import { TournamentMetaSection } from "@/components/tournament/TournamentMetaSection";
+import { TournamentPodiumCardButton } from "@/components/tournament/TournamentPodiumCardButton";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
 import { OBA_SWISS_LEADER_BONUS } from "@/lib/constants";
@@ -798,11 +799,21 @@ export function PublicTournamentLive({
         {/* ─── ABA: CLASSIFICAÇÃO FINAL ──────────────────────────────── */}
         {resolvedTab === "results" && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-500" />
-              <h2 className="text-xl font-black text-foreground">
-                Classificação Final do Torneio
-              </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-500" />
+                <h2 className="text-xl font-black text-foreground">
+                  Classificação Final do Torneio
+                </h2>
+              </div>
+
+              {(tournament.status === "finished" || results.length > 0) && (
+                <TournamentPodiumCardButton
+                  variant="public"
+                  tournamentId={tournament.id}
+                  tournamentName={tournament.name}
+                />
+              )}
             </div>
 
             {results.length === 0 ? (
