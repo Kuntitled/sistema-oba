@@ -104,6 +104,34 @@ function drawCrownIcon(
   ctx.restore();
 }
 
+function measureComboPillRequiredWidth(params: {
+  ctx: CanvasRenderingContext2D;
+  combo: PodiumComboItem;
+  slotFontSize: number;
+  sysFontSize: number;
+  textFontSize: number;
+}): number {
+  const { ctx, combo, slotFontSize, sysFontSize, textFontSize } = params;
+  const isDeposit = combo.slotNumber === 4;
+  const slotText = isDeposit ? "#4" : `#${combo.slotNumber}`;
+
+  ctx.save();
+  ctx.font = `900 ${slotFontSize}px ${FONT_SANS}`;
+  const slotBadgeW = ctx.measureText(slotText).width + 12;
+
+  let sysArea = 0;
+  if (combo.system) {
+    ctx.font = `900 ${sysFontSize}px ${FONT_SANS}`;
+    sysArea = ctx.measureText(combo.system).width + 12 + 7;
+  }
+
+  ctx.font = `700 ${textFontSize}px ${FONT_SANS}`;
+  const textW = ctx.measureText(combo.summaryText).width;
+  ctx.restore();
+
+  return 8 + slotBadgeW + 6 + sysArea + textW + 14;
+}
+
 function drawComboPillsGrid(params: {
   ctx: CanvasRenderingContext2D;
   combos: PodiumComboItem[];
@@ -139,80 +167,124 @@ function drawComboPillsGrid(params: {
   }
 
   const shownCombos = combos.slice(0, 4);
-  const cols = Math.min(columns, shownCombos.length === 1 ? 1 : columns);
-  const rows = Math.ceil(shownCombos.length / cols);
   const gapX = 10;
-  const gapY = compact ? 7 : 10;
-  const cellW = (width - gapX * (cols - 1)) / cols;
-  const rawCellH = (height - gapY * (rows - 1)) / rows;
-  const cellH = Math.min(compact ? 44 : 58, Math.max(30, rawCellH));
+  const halfColW = columns > 1 ? (width - gapX) / 2 : width;
 
-  shownCombos.forEach((combo, idx) => {
-    const col = idx % cols;
-    const row = Math.floor(idx / cols);
-    const cx = x + col * (cellW + gapX);
-    const cy = y + row * (cellH + gapY);
+  // Empacota combos preservando a ordem: combos extensos ganham linha própria inteira
+  const baseSlotFont = compact ? 12 : 13;
+  const baseSysFont = compact ? 11 : 12;
+  const baseTextFont = compact ? 14 : 16;
+
+  const fitsHalfColumn = (combo: PodiumComboItem) =>
+    columns > 1 &&
+    measureComboPillRequiredWidth({
+      ctx,
+      combo,
+      slotFontSize: baseSlotFont,
+      sysFontSize: baseSysFont,
+      textFontSize: baseTextFont,
+    }) <= halfColW;
+
+  const packedRows: PodiumComboItem[][] = [];
+  let i = 0;
+  while (i < shownCombos.length) {
+    const current = shownCombos[i];
+    const next = shownCombos[i + 1];
+    if (fitsHalfColumn(current) && next && fitsHalfColumn(next)) {
+      packedRows.push([current, next]);
+      i += 2;
+    } else {
+      packedRows.push([current]);
+      i += 1;
+    }
+  }
+
+  const rowCount = packedRows.length;
+  let gapY = compact ? (rowCount >= 3 ? 5 : 7) : rowCount >= 3 ? 7 : 10;
+  let rawCellH = Math.floor((height - gapY * (rowCount - 1)) / rowCount);
+  if (rawCellH < 24 && rowCount > 1) {
+    gapY = 4;
+    rawCellH = Math.floor((height - gapY * (rowCount - 1)) / rowCount);
+  }
+  const cellH = Math.min(compact ? 44 : 58, Math.max(20, rawCellH));
+
+  const dense = cellH < 30;
+  const slotFontSize = dense ? 10.5 : baseSlotFont;
+  const sysFontSize = dense ? 10 : baseSysFont;
+  const textFontSize = dense ? 12.5 : baseTextFont;
+  const badgeH = dense ? 17 : compact ? 20 : 22;
+
+  const totalBlockH = rowCount * cellH + Math.max(0, rowCount - 1) * gapY;
+  const startY = y + Math.max(0, Math.floor((height - totalBlockH) / 2));
+
+  packedRows.forEach((rowItems, rowIdx) => {
+    const cy = startY + rowIdx * (cellH + gapY);
     const midY = cy + cellH / 2;
-    const isDeposit = combo.slotNumber === 4;
+    const colsInRow = rowItems.length;
+    const cellW = colsInRow === 1 ? width : (width - gapX) / 2;
 
-    ctx.save();
-    traceRoundedRect(ctx, cx, cy, cellW, cellH, 10);
-    ctx.fillStyle = isDeposit
-      ? "rgba(245, 158, 11, 0.08)"
-      : "rgba(9, 7, 16, 0.72)";
-    ctx.fill();
-    ctx.strokeStyle = isDeposit
-      ? "rgba(245, 158, 11, 0.42)"
-      : "rgba(255, 255, 255, 0.12)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    rowItems.forEach((combo, colIdx) => {
+      const cx = x + colIdx * (cellW + gapX);
+      const isDeposit = combo.slotNumber === 4;
 
-    // Slot badge (#1, #2, #3, #4 Dep.)
-    const slotText = isDeposit ? "#4" : `#${combo.slotNumber}`;
-    ctx.font = `900 ${compact ? 12 : 13}px ${FONT_SANS}`;
-    const slotBadgeW = ctx.measureText(slotText).width + 12;
-    const slotX = cx + 8;
-    const badgeH = compact ? 20 : 22;
-    traceRoundedRect(ctx, slotX, midY - badgeH / 2, slotBadgeW, badgeH, 6);
-    ctx.fillStyle = isDeposit
-      ? "rgba(245, 158, 11, 0.2)"
-      : "rgba(255, 255, 255, 0.09)";
-    ctx.fill();
-    ctx.fillStyle = isDeposit ? "#fbbf24" : "#e4e4e7";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(slotText, slotX + slotBadgeW / 2, midY + 0.5);
-
-    let textCursorX = slotX + slotBadgeW + 6;
-
-    if (combo.system) {
-      const sysTheme = getSystemBadgeColors(combo.system);
-      ctx.font = `900 ${compact ? 11 : 12}px ${FONT_SANS}`;
-      const sysW = ctx.measureText(combo.system).width + 12;
-      traceRoundedRect(ctx, textCursorX, midY - badgeH / 2, sysW, badgeH, 6);
-      ctx.fillStyle = sysTheme.bg;
+      ctx.save();
+      traceRoundedRect(ctx, cx, cy, cellW, cellH, dense ? 8 : 10);
+      ctx.fillStyle = isDeposit
+        ? "rgba(245, 158, 11, 0.08)"
+        : "rgba(9, 7, 16, 0.72)";
       ctx.fill();
-      ctx.strokeStyle = sysTheme.border;
+      ctx.strokeStyle = isDeposit
+        ? "rgba(245, 158, 11, 0.42)"
+        : "rgba(255, 255, 255, 0.12)";
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = sysTheme.text;
+
+      // Slot badge (#1, #2, #3, #4 Dep.)
+      const slotText = isDeposit ? "#4" : `#${combo.slotNumber}`;
+      ctx.font = `900 ${slotFontSize}px ${FONT_SANS}`;
+      const slotBadgeW = ctx.measureText(slotText).width + 12;
+      const slotX = cx + 8;
+      traceRoundedRect(ctx, slotX, midY - badgeH / 2, slotBadgeW, badgeH, 6);
+      ctx.fillStyle = isDeposit
+        ? "rgba(245, 158, 11, 0.2)"
+        : "rgba(255, 255, 255, 0.09)";
+      ctx.fill();
+      ctx.fillStyle = isDeposit ? "#fbbf24" : "#e4e4e7";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(combo.system, textCursorX + sysW / 2, midY + 0.5);
-      textCursorX += sysW + 7;
-    }
+      ctx.fillText(slotText, slotX + slotBadgeW / 2, midY + 0.5);
 
-    const availableTextW = cx + cellW - 10 - textCursorX;
-    ctx.fillStyle = "#f4f4f5";
-    ctx.font = `700 ${compact ? 14 : 16}px ${FONT_SANS}`;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(
-      truncateCanvasText(ctx, combo.summaryText, availableTextW),
-      textCursorX,
-      midY + 0.5
-    );
-    ctx.restore();
+      let textCursorX = slotX + slotBadgeW + 6;
+
+      if (combo.system) {
+        const sysTheme = getSystemBadgeColors(combo.system);
+        ctx.font = `900 ${sysFontSize}px ${FONT_SANS}`;
+        const sysW = ctx.measureText(combo.system).width + 12;
+        traceRoundedRect(ctx, textCursorX, midY - badgeH / 2, sysW, badgeH, 6);
+        ctx.fillStyle = sysTheme.bg;
+        ctx.fill();
+        ctx.strokeStyle = sysTheme.border;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = sysTheme.text;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(combo.system, textCursorX + sysW / 2, midY + 0.5);
+        textCursorX += sysW + 7;
+      }
+
+      const availableTextW = cx + cellW - 10 - textCursorX;
+      ctx.fillStyle = "#f4f4f5";
+      ctx.font = `700 ${textFontSize}px ${FONT_SANS}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        truncateCanvasText(ctx, combo.summaryText, availableTextW),
+        textCursorX,
+        midY + 0.5
+      );
+      ctx.restore();
+    });
   });
 }
 
@@ -477,10 +549,10 @@ export function renderPodiumCardToCanvas(
   // Calcula alturas proporcionais para 1º, 2º, 3º e Menção Honrosa
   const swissBannerH = hasSwissLeader
     ? isStory
-      ? 248
+      ? 262
       : isSquare
-        ? 148
-        : 184
+        ? 158
+        : 196
     : 0;
   const podiumCount = Math.max(1, data.podium.length);
   const totalGaps = gap * ((hasSwissLeader ? podiumCount : podiumCount - 1));
@@ -889,8 +961,13 @@ export function renderPodiumCardToCanvas(
       });
     } else {
       const pad = isSquare ? 14 : 16;
-      const leftW = visibleLeaderCombos.length > 0 ? 430 : contentW - pad * 2;
-      const avatarR = isSquare ? 31 : 36;
+      const leftW =
+        visibleLeaderCombos.length > 0
+          ? isSquare
+            ? 364
+            : 388
+          : contentW - pad * 2;
+      const avatarR = isSquare ? 29 : 34;
       const avatarCx = paddingX + pad + 4 + avatarR;
       const avatarCy = cursorY + h / 2 + 12;
 
