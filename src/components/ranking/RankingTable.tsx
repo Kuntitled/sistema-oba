@@ -11,7 +11,6 @@ import {
   Info,
   Flame,
   ChevronRight,
-  ImageDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +18,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BladerAvatar } from "@/components/shared/BladerAvatar";
 import { BladerCardModal } from "@/components/blader/BladerCardModal";
-import { RankingCardModal } from "@/components/shared/RankingCardModal";
-import type { RankingCardEntry } from "@/lib/ranking-card-canvas";
 import type { RankingEntry, Season } from "@/types/domain";
 
 interface RankingTableProps {
@@ -29,7 +26,6 @@ interface RankingTableProps {
   selectedSeason?: Season | null;
   activeSeason?: Season | null;
   totalRankedCount?: number;
-  finishedTournamentsCount?: number;
 }
 
 const MEDAL_BY_POSITION: Record<number, string> = {
@@ -49,34 +45,12 @@ export function RankingTable({
   selectedSeason = null,
   activeSeason = null,
   totalRankedCount,
-  finishedTournamentsCount = 0,
 }: RankingTableProps) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedBladerId, setSelectedBladerId] = React.useState<string | null>(
     null
   );
-  const [rankingCardOpen, setRankingCardOpen] = React.useState(false);
-
-  const rankingCardEntries = React.useMemo<RankingCardEntry[]>(() => {
-    return initialRanking.slice(0, 10).map((entry, idx) => ({
-      position: entry.position ?? idx + 1,
-      bladerId: entry.blader?.id ?? entry.blader_id,
-      nickname: entry.blader?.nickname ?? "Blader",
-      name: entry.blader?.name ?? entry.blader?.nickname ?? "Blader",
-      avatarUrl: entry.blader?.avatar_url ?? null,
-      totalPoints: entry.total_points,
-      swissWins: entry.swiss_wins,
-      podiumsCount: entry.podiums_count,
-      bestPodium: entry.best_podium,
-      favoriteComboText: entry.favoriteCombo
-        ? `${entry.favoriteCombo.system ? `[${entry.favoriteCombo.system}] ` : ""}${entry.favoriteCombo.summaryText}`
-        : null,
-      mostUsedComboText: entry.mostUsedCombo
-        ? `${entry.mostUsedCombo.system ? `[${entry.mostUsedCombo.system}] ` : ""}${entry.mostUsedCombo.summaryText}`
-        : null,
-    }));
-  }, [initialRanking]);
 
   const filteredRanking = React.useMemo(() => {
     if (!search.trim()) return initialRanking;
@@ -190,35 +164,19 @@ export function RankingTable({
           </div>
         )}
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          {rankingCardEntries.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setRankingCardOpen(true)}
-              className="h-10 text-xs font-bold gap-1.5 border-primary/45 text-primary hover:bg-primary/10 shrink-0 rounded-xl"
-              title="Gerar arte PNG do Top 10 do Ranking"
-            >
-              <ImageDown className="h-4 w-4" />
-              Card Top 10 (PNG)
-            </Button>
-          )}
-
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder={
-                isLimitedToTop10
-                  ? "Buscar no Top 10 por nome ou apelido..."
-                  : "Buscar por nome ou apelido..."
-              }
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-card/60 border-border/60 focus-visible:ring-primary h-10 text-sm rounded-xl"
-            />
-          </div>
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder={
+              isLimitedToTop10
+                ? "Buscar no Top 10 por nome ou apelido..."
+                : "Buscar por nome ou apelido..."
+            }
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-card/60 border-border/60 focus-visible:ring-primary h-10 text-sm rounded-xl"
+          />
         </div>
       </div>
 
@@ -617,15 +575,6 @@ export function RankingTable({
           if (!isOpen) setSelectedBladerId(null);
         }}
         bladerId={selectedBladerId}
-      />
-
-      <RankingCardModal
-        open={rankingCardOpen}
-        onOpenChange={setRankingCardOpen}
-        seasonName={selectedSeason?.name ?? activeSeason?.name ?? "Temporada Atual"}
-        entries={rankingCardEntries}
-        totalRankedCount={totalRankedCount ?? initialRanking.length}
-        finishedTournamentsCount={finishedTournamentsCount}
       />
     </div>
   );

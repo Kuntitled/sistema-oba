@@ -277,7 +277,7 @@ Sistema OBA/
     │   │       ├── configuracoes/page.tsx ← Configuração PIX global e gestão de administradores
     │   │       ├── formatos/page.tsx   ← CRUD de Formatos, Ban-lists independentes e Gerador de Card PNG
     │   │       ├── pecas/page.tsx      ← Gestão do Catálogo de Peças (TT + aliases Hasbro)
-    │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais e histórico
+    │   │       ├── temporadas/page.tsx ← Gestão de Temporadas anuais, histórico e Card Top 10 PNG
     │   │       └── torneios/
     │   │           ├── page.tsx        ← Gestão de Torneios (cadastro, edição, card PNG, taxas/vagas e ações)
     │   │           └── [id]/
@@ -341,7 +341,7 @@ Sistema OBA/
     │   │   ├── BanlistCardModal.tsx    ← Modal gerador de card PNG da ban-list (Feed 4:5, Quadrado 1:1, Story 9:16)
     │   │   ├── BladerAvatar.tsx        ← Avatar seguro com fallback para URLs externas/Google
     │   │   ├── NavigationProgressBar.tsx ← Barra superior global de progresso durante transições de rota
-    │   │   ├── RankingCardModal.tsx    ← Modal gerador de card PNG do Ranking Top 10 (Feed, Quadrado, Story)
+    │   │   ├── RankingCardModal.tsx    ← Modal admin (/admin/temporadas) gerador de card PNG do Ranking Top 10
     │   │   ├── SocialIcons.tsx         ← Ícones SVG das redes sociais oficiais (Instagram, WhatsApp, Discord)
     │   │   ├── TournamentCardModal.tsx ← Modal gerador de card PNG de torneio com QR Code (inscrição/Maps) e legenda
     │   │   └── TournamentPodiumCardModal.tsx ← Modal gerador de card PNG do Pódio (fotos, combos iniciais e Líder do Suíço)

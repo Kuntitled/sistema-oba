@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   Sparkles,
+  ImageDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RankingCardModal } from "@/components/shared/RankingCardModal";
 import {
   activateSeasonAction,
   createSeasonAction,
 } from "@/app/admin/torneios/engine-actions";
 import { useToast } from "@/components/ui/toast-provider";
 import type { SeasonWithStats } from "@/lib/services/league";
+import type { SeasonRankingCardSnapshot } from "@/app/admin/(panel)/temporadas/page";
 
 function formatShortDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -41,11 +44,16 @@ function formatShortDate(dateStr: string): string {
 
 export function SeasonManagerClient({
   initialSeasons,
+  rankingCardDataBySeasonId = {},
 }: {
   initialSeasons: SeasonWithStats[];
+  rankingCardDataBySeasonId?: Record<string, SeasonRankingCardSnapshot>;
 }) {
   const router = useRouter();
   const toast = useToast();
+  const [cardSeason, setCardSeason] = React.useState<SeasonWithStats | null>(
+    null
+  );
 
   const suggestedYear = React.useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -270,17 +278,40 @@ export function SeasonManagerClient({
 
                 {/* Ações */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <Link href={`/?season=${season.year}`} target="_blank">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/?season=${season.year}`} target="_blank">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-semibold gap-1.5"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Ver Ranking
+                      </Button>
+                    </Link>
+
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 text-xs font-semibold gap-1.5"
+                      disabled={
+                        (rankingCardDataBySeasonId[season.id]?.entries.length ??
+                          0) === 0
+                      }
+                      onClick={() => setCardSeason(season)}
+                      className="h-8 text-xs font-semibold gap-1.5 border-primary/45 text-primary hover:bg-primary/10"
+                      title={
+                        (rankingCardDataBySeasonId[season.id]?.entries.length ??
+                          0) > 0
+                          ? "Gerar arte PNG do Top 10 desta temporada"
+                          : "Sem dados de ranking nesta temporada"
+                      }
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Ver Ranking
+                      <ImageDown className="h-3.5 w-3.5" />
+                      Card Top 10 (PNG)
                     </Button>
-                  </Link>
+                  </div>
 
                   {!season.is_active && (
                     <Button
@@ -396,6 +427,25 @@ export function SeasonManagerClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Gerador de Card PNG do Ranking Top 10 */}
+      {cardSeason && (
+        <RankingCardModal
+          open={Boolean(cardSeason)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setCardSeason(null);
+          }}
+          seasonName={cardSeason.name}
+          entries={rankingCardDataBySeasonId[cardSeason.id]?.entries ?? []}
+          totalRankedCount={
+            rankingCardDataBySeasonId[cardSeason.id]?.totalRankedCount ?? 0
+          }
+          finishedTournamentsCount={
+            rankingCardDataBySeasonId[cardSeason.id]
+              ?.finishedTournamentsCount ?? cardSeason.finishedTournamentsCount
+          }
+        />
+      )}
     </div>
   );
 }
