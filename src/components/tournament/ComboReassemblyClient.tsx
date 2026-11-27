@@ -15,6 +15,7 @@ import {
   Loader2,
   Sparkles,
   PackageCheck,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -178,10 +179,36 @@ export function ComboReassemblyClient({
     [combos]
   );
 
+  const sortedSavedCombos = React.useMemo(
+    () => [...savedCombos].sort((a, b) => a.slot_number - b.slot_number),
+    [savedCombos]
+  );
+
+  const activeBattleCombosCount = React.useMemo(
+    () => sortedSavedCombos.filter((c) => c.slot_number <= 3).length,
+    [sortedSavedCombos]
+  );
+
+  const sparePartsCountInPool = React.useMemo(() => {
+    const usedInSaved = sortedSavedCombos.reduce((acc, row) => {
+      const count = [
+        row.lock_chip_id,
+        row.over_blade_id,
+        row.blade_id,
+        row.assist_blade_id,
+        row.ratchet_id,
+        row.bit_id,
+      ].filter(Boolean).length;
+      return acc + count;
+    }, 0);
+    return Math.max(0, originalPartIds.length - usedInSaved);
+  }, [sortedSavedCombos, originalPartIds.length]);
+
   const incompleteCombos = React.useMemo(() => {
     return combos
       .map((combo, index) => ({
         slot: index + 1,
+        isDeposit: index === 3,
         missing: getMissingComboPartLabels(combo, partsById),
       }))
       .filter((item) => item.missing.length > 0);
@@ -253,7 +280,23 @@ export function ComboReassemblyClient({
   };
 
   const handleDisassembleAll = () => {
-    setCombos((prev) => prev.map(() => createEmptyComboSelection()));
+    const mainSlotsCount = Math.max(1, Math.min(combos.length, 3));
+    setCombos(
+      Array.from({ length: mainSlotsCount }, () => createEmptyComboSelection())
+    );
+    setErrorMsg(null);
+    setSuccessMsg(null);
+  };
+
+  const handleSwapReserveWithSlot = (targetIdx: number) => {
+    if (combos.length < 4 || targetIdx < 0 || targetIdx >= 3) return;
+    setCombos((prev) => {
+      const next = [...prev];
+      const reserve = next[3];
+      next[3] = next[targetIdx];
+      next[targetIdx] = reserve;
+      return next;
+    });
     setErrorMsg(null);
     setSuccessMsg(null);
   };
@@ -406,13 +449,20 @@ export function ComboReassemblyClient({
               <strong className="text-foreground">
                 #{reassemblyState.latestRound}
               </strong>
-              . Enquanto a próxima rodada não é gerada, você pode remontar seus
-              combos utilizando{" "}
+              . Selecione{" "}
+              <strong className="text-foreground">
+                apenas seus 3 combos principais (#1, #2 e #3)
+              </strong>{" "}
+              para a arena utilizando{" "}
               <strong className="text-foreground">
                 somente as peças originalmente cadastradas por você neste
                 torneio
               </strong>
-              .
+              . O 4º slot (ou peças sobrando no pool) funciona só como{" "}
+              <strong className="text-amber-500">
+                depósito de peças extras
+              </strong>{" "}
+              e não entra no placar do juiz.
             </>
           ) : reassemblyState.status === "waiting_match" ? (
             <>
@@ -423,14 +473,15 @@ export function ComboReassemblyClient({
                   : "na fila"}
               </strong>{" "}
               na rodada atual. Assim que o placar for encerrado, esta área será
-              liberada automaticamente para você remontar seus combos usando o
-              seu pool original de peças.
+              liberada automaticamente para você remontar seus 3 combos
+              principais usando as peças do seu pool/depósito original.
             </>
           ) : (
             <>
               A remontagem entre rodadas é liberada automaticamente após você
-              concluir sua primeira partida neste torneio, mantendo estritamente
-              as peças cadastradas originalmente na sua inscrição.
+              concluir sua primeira partida neste torneio, permitindo ajustar
+              seus 3 combos principais com as peças cadastradas originalmente
+              (incluindo o depósito #4).
             </>
           )}
         </p>
@@ -493,14 +544,31 @@ export function ComboReassemblyClient({
 
         {/* Visualização compacta dos combos ativos atuais */}
         {!editorOpen && (
-          <div className="space-y-2">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-fire-yellow" />
-              Sua Montagem Atual ({savedCombos.length}{" "}
-              {savedCombos.length === 1 ? "combo" : "combos"})
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-fire-yellow" />
+                Sua Montagem Atual ({activeBattleCombosCount}{" "}
+                {activeBattleCombosCount === 1
+                  ? "combo principal"
+                  : "combos principais"}
+                {sortedSavedCombos.some((c) => c.slot_number === 4)
+                  ? " + Depósito #4"
+                  : ""}
+                )
+              </div>
+              {sparePartsCountInPool > 0 && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/45 bg-amber-500/10 text-amber-500 font-bold"
+                >
+                  +{sparePartsCountInPool} peça(s) extra(s) no depósito
+                </Badge>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {savedCombos.map((row) => {
+              {sortedSavedCombos.map((row) => {
+                const isDeposit = row.slot_number === 4;
                 const display = formatComboDisplay({
                   system: row.system,
                   blade: row.blade_id
@@ -524,14 +592,24 @@ export function ComboReassemblyClient({
                 return (
                   <div
                     key={row.id}
-                    className="rounded-lg border border-border/55 bg-background/60 p-2.5 space-y-1.5 text-xs"
+                    className={`rounded-lg border p-2.5 space-y-1.5 text-xs ${
+                      isDeposit
+                        ? "border-dashed border-amber-500/45 bg-amber-500/5"
+                        : "border-border/55 bg-background/60"
+                    }`}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge
-                        variant="secondary"
-                        className="text-[10px] font-black px-1.5 py-0"
+                        variant={isDeposit ? "outline" : "secondary"}
+                        className={`text-[10px] font-black px-1.5 py-0 ${
+                          isDeposit
+                            ? "border-amber-500/50 text-amber-500"
+                            : ""
+                        }`}
                       >
-                        #{row.slot_number}
+                        {isDeposit
+                          ? "#4 • Depósito (Reserva)"
+                          : `Principal #${row.slot_number}`}
                       </Badge>
                       {display.system && (
                         <Badge
@@ -545,6 +623,11 @@ export function ComboReassemblyClient({
                         {display.summaryText}
                       </span>
                     </div>
+                    {isDeposit && (
+                      <p className="text-[10px] text-amber-500/90 font-medium">
+                        Apenas depósito de peças extras — não aparece no placar do juiz.
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-1">
                       {display.chips.map((chip, idx) => (
                         <Badge
@@ -566,15 +649,25 @@ export function ComboReassemblyClient({
         {/* Editor de Remontagem (somente quando janela aberta e editor ativo) */}
         {isWindowOpen && editorOpen && (
           <form onSubmit={handleSaveReassembly} className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/5 p-3">
-              <p className="text-xs text-muted-foreground">
-                Os seletores abaixo exibem{" "}
-                <strong className="text-foreground">
-                  exclusivamente as peças livres do seu cadastro original
-                </strong>{" "}
-                neste torneio.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/35 bg-emerald-500/5 p-3.5">
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>
+                  <strong className="text-foreground">
+                    Monte seus 3 combos principais (#1, #2 e #3)
+                  </strong>{" "}
+                  usando exclusivamente as peças livres do seu pool acima.
+                </p>
+                <p className="text-[11px]">
+                  O <strong className="text-amber-500">4º slot (#4)</strong> é{" "}
+                  <strong>opcional</strong> e serve apenas como{" "}
+                  <strong className="text-amber-500">
+                    depósito de peças extras
+                  </strong>{" "}
+                  (não aparece para batalha no Placar do Juiz) — você também pode
+                  remover o slot #4 e deixar peças sobrando guardadas no pool.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Button
                   type="button"
                   size="xs"
@@ -600,54 +693,110 @@ export function ComboReassemblyClient({
               </div>
             </div>
 
-            <div className="space-y-3">
-              {combos.map((combo, index) => (
-                <div
-                  key={index}
-                  className="rounded-xl border border-border/60 bg-background/50 p-3.5 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge
-                      variant="outline"
-                      className="text-xs font-black border-primary/40 text-primary"
-                    >
-                      Combo #{index + 1}
-                    </Badge>
-                    {combos.length > 1 && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        disabled={saving}
-                        onClick={() => handleRemoveCombo(index)}
-                        className="text-destructive hover:text-destructive text-[11px] gap-1"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Remover
-                      </Button>
-                    )}
-                  </div>
-
-                  <ComboBuilder
-                    parts={getAvailablePartsForSlot(index)}
-                    value={combo}
-                    onChange={(next) => handleComboChange(index, next)}
-                    bannedPartIds={bannedPartIds}
-                    disabled={saving}
-                    title={`Remontar Combo #${index + 1} (somente peças do seu pool original)`}
-                  />
+            {/* Troca rápida do Depósito (#4) para um dos 3 combos principais */}
+            {combos.length >= 4 && (
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Promover combo do Depósito (#4) para Principal:</span>
                 </div>
-              ))}
+                <div className="flex items-center gap-1.5">
+                  {[0, 1, 2].map((slotIdx) => (
+                    <Button
+                      key={slotIdx}
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => handleSwapReserveWithSlot(slotIdx)}
+                      className="text-[11px] font-bold border-amber-500/50 text-amber-500 hover:bg-amber-500/15"
+                    >
+                      #4 ↔ Principal #{slotIdx + 1}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {combos.map((combo, index) => {
+                const isDeposit = index === 3;
+                return (
+                  <div
+                    key={index}
+                    className={`rounded-xl border p-3.5 space-y-3 ${
+                      isDeposit
+                        ? "border-dashed border-amber-500/50 bg-amber-500/5"
+                        : "border-border/60 bg-background/50"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs font-black ${
+                            isDeposit
+                              ? "border-amber-500/50 text-amber-500 bg-amber-500/10"
+                              : "border-primary/40 text-primary"
+                          }`}
+                        >
+                          {isDeposit
+                            ? "Combo #4 — Depósito de Peças Extras (Opcional)"
+                            : `Combo Principal #${index + 1}`}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground font-medium">
+                          {isDeposit
+                            ? "Não entra no placar do juiz — apenas reserva"
+                            : "Ativo para batalha na arena"}
+                        </span>
+                      </div>
+
+                      {combos.length > 1 && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          disabled={saving}
+                          onClick={() => handleRemoveCombo(index)}
+                          className="text-destructive hover:text-destructive text-[11px] gap-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {isDeposit
+                            ? "Remover #4 (deixar peças no depósito)"
+                            : "Remover"}
+                        </Button>
+                      )}
+                    </div>
+
+                    <ComboBuilder
+                      parts={getAvailablePartsForSlot(index)}
+                      value={combo}
+                      onChange={(next) => handleComboChange(index, next)}
+                      bannedPartIds={bannedPartIds}
+                      disabled={saving}
+                      title={
+                        isDeposit
+                          ? "Depósito #4 (opcional — reserva de peças extras)"
+                          : `Combo Principal #${index + 1} (somente peças do seu pool original)`
+                      }
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {incompleteCombos.length > 0 && (
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500 space-y-1">
                 <div className="font-bold">
-                  Complete todos os combos antes de confirmar a remontagem:
+                  Complete todos os slots abertos antes de confirmar a remontagem:
                 </div>
                 {incompleteCombos.map((item) => (
                   <div key={item.slot} className="text-[11px]">
-                    • Combo #{item.slot}: falta {item.missing.join(", ")}
+                    •{" "}
+                    {item.isDeposit
+                      ? "Depósito #4"
+                      : `Combo Principal #${item.slot}`}
+                    : falta {item.missing.join(", ")}
                   </div>
                 ))}
               </div>
@@ -662,10 +811,16 @@ export function ComboReassemblyClient({
                     variant="outline"
                     disabled={saving}
                     onClick={handleAddCombo}
-                    className="text-xs font-bold gap-1.5"
+                    className={`text-xs font-bold gap-1.5 ${
+                      combos.length === 3
+                        ? "border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                        : ""
+                    }`}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Adicionar Combo ({combos.length}/4)
+                    {combos.length < 3
+                      ? `Adicionar Combo Principal (${combos.length}/3)`
+                      : "Adicionar Depósito de Peças Extras (#4 — opcional)"}
                   </Button>
                 )}
               </div>

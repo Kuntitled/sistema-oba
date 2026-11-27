@@ -727,14 +727,24 @@ export function TournamentRegistrationClient({
                   return (
                     <div
                       key={idx}
-                      className="rounded-lg border border-border/60 bg-background/50 p-3 space-y-1.5 text-xs"
+                      className={`rounded-lg border p-3 space-y-1.5 text-xs ${
+                        idx === 3
+                          ? "border-dashed border-amber-500/45 bg-amber-500/5"
+                          : "border-border/60 bg-background/50"
+                      }`}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <Badge
-                          variant="secondary"
-                          className="text-[10px] font-black px-1.5 py-0"
+                          variant={idx === 3 ? "outline" : "secondary"}
+                          className={`text-[10px] font-black px-1.5 py-0 ${
+                            idx === 3
+                              ? "border-amber-500/50 text-amber-500"
+                              : ""
+                          }`}
                         >
-                          #{idx + 1}
+                          {idx === 3
+                            ? "#4 • Depósito (Reserva)"
+                            : `Principal #${idx + 1}`}
                         </Badge>
                         {display.system && (
                           <Badge
@@ -748,6 +758,11 @@ export function TournamentRegistrationClient({
                           {display.summaryText}
                         </span>
                       </div>
+                      {idx === 3 && (
+                        <p className="text-[10px] text-amber-500/90 font-medium">
+                          Apenas depósito de peças extras — não aparece diretamente no placar do juiz.
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-1">
                         {display.chips.map((chip) => (
                           <Badge
@@ -783,16 +798,21 @@ export function TournamentRegistrationClient({
                 </div>
               )}
 
-              {/* Passo 1: Decklist (1 a 4 combos) */}
+              {/* Passo 1: Decklist (até 3 combos principais + 1 depósito de peças extras) */}
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-black text-foreground flex items-center gap-1.5">
                       <Sparkles className="h-4 w-4 text-fire-yellow" />
-                      Decklist ({combos.length} / 4 combos)
+                      Decklist ({Math.min(combos.length, 3)} / 3 principais
+                      {combos.length === 4 ? " + Depósito #4" : ""})
                     </h3>
                     <p className="text-[11px] text-muted-foreground">
-                      Inscreva até 4 combos completos. Peças banidas pelo formato ficam automaticamente ocultas.
+                      Monte até <strong>3 combos principais</strong> para a arena +{" "}
+                      <strong className="text-amber-500">
+                        1 slot opcional (#4) como depósito de peças extras
+                      </strong>{" "}
+                      para trocas entre rodadas. Peças banidas ficam ocultas.
                     </p>
                   </div>
 
@@ -802,10 +822,16 @@ export function TournamentRegistrationClient({
                       size="sm"
                       variant="outline"
                       onClick={handleAddCombo}
-                      className="text-xs font-bold gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                      className={`text-xs font-bold gap-1 ${
+                        combos.length === 3
+                          ? "border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                          : "border-primary/40 text-primary hover:bg-primary/10"
+                      }`}
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Adicionar Combo ({combos.length}/4)
+                      {combos.length < 3
+                        ? `Adicionar Combo Principal (${combos.length}/3)`
+                        : "Adicionar Depósito de Peças Extras (#4)"}
                     </Button>
                   )}
                 </div>
@@ -821,50 +847,77 @@ export function TournamentRegistrationClient({
                 )}
 
                 <div className="space-y-4">
-                  {combos.map((combo, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-primary/20 text-primary border border-primary/40 text-xs font-black">
-                            Combo #{index + 1}
-                          </Badge>
-                          {favoriteComboSelection && !combo.bladeId && (
+                  {combos.map((combo, index) => {
+                    const isDeposit = index === 3;
+                    return (
+                      <div
+                        key={index}
+                        className={`space-y-2 ${
+                          isDeposit
+                            ? "rounded-xl border border-dashed border-amber-500/50 bg-amber-500/5 p-3"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              className={`text-xs font-black border ${
+                                isDeposit
+                                  ? "bg-amber-500/15 text-amber-500 border-amber-500/50"
+                                  : "bg-primary/20 text-primary border-primary/40"
+                              }`}
+                            >
+                              {isDeposit
+                                ? "Combo #4 — Depósito de Peças Extras (Reserva)"
+                                : `Combo Principal #${index + 1}`}
+                            </Badge>
+                            {isDeposit && (
+                              <span className="text-[11px] text-amber-500/90 font-medium">
+                                Não aparece no placar do juiz — uso opcional entre rodadas
+                              </span>
+                            )}
+                            {favoriteComboSelection && !combo.bladeId && (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleApplyFavoriteCombo(index)}
+                                className="text-[11px] text-primary hover:bg-primary/10 gap-1"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                Usar meu Combo Favorito
+                              </Button>
+                            )}
+                          </div>
+
+                          {combos.length > 1 && (
                             <Button
                               type="button"
                               size="xs"
                               variant="ghost"
-                              onClick={() => handleApplyFavoriteCombo(index)}
-                              className="text-[11px] text-primary hover:bg-primary/10 gap-1"
+                              onClick={() => handleRemoveCombo(index)}
+                              className="text-[11px] text-muted-foreground hover:text-destructive gap-1"
                             >
-                              <Sparkles className="h-3 w-3" />
-                              Usar meu Combo Favorito
+                              <Trash2 className="h-3 w-3" />
+                              {isDeposit ? "Remover depósito #4" : "Remover combo"}
                             </Button>
                           )}
                         </div>
 
-                        {combos.length > 1 && (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => handleRemoveCombo(index)}
-                            className="text-[11px] text-muted-foreground hover:text-destructive gap-1"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Remover combo
-                          </Button>
-                        )}
+                        <ComboBuilder
+                          parts={parts}
+                          value={combo}
+                          onChange={(next) => handleComboChange(index, next)}
+                          bannedPartIds={bannedPartIds}
+                          title={
+                            isDeposit
+                              ? "Depósito #4 (Reserva) — Peças extras para remontagem"
+                              : `Combo Principal #${index + 1} — Busca por nome Takara Tomy ou Hasbro`
+                          }
+                        />
                       </div>
-
-                      <ComboBuilder
-                        parts={parts}
-                        value={combo}
-                        onChange={(next) => handleComboChange(index, next)}
-                        bannedPartIds={bannedPartIds}
-                        title={`Combo #${index + 1} — Busca por nome Takara Tomy ou Hasbro`}
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

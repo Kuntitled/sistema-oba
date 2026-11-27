@@ -16,6 +16,8 @@ import {
   recalculateSeasonRanking,
 } from "@/lib/services/ranking-recalc";
 import { fetchTournamentEngineSnapshot } from "@/lib/services/tournament-queries";
+import type { Database } from "@/types/database";
+import { FINISH_POINTS, type FinishType } from "@/types/domain";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -759,6 +761,374 @@ export async function recordManualMatchResultAction(params: {
   }
 
   return { success: true, match: updatedMatch };
+}
+
+export interface EditableMatchGameInput {
+  scoringPlayerId: string;
+  finishType: Exclude<FinishType, "draw">;
+  player1ComboId?: string | null;
+  player2ComboId?: string | null;
+}
+
+export interface EditMatchResultInput {
+  matchId: string;
+  mode: "finishes" | "direct" | "wo";
+  winnerId: string;
+  games?: EditableMatchGameInput[];
+  player1Score?: number;
+  player2Score?: number;
+}
+
+const VALID_EDITABLE_FINISHES = new Set<string>([
+  "spin",
+  "over",
+  "burst",
+  "xtreme",
+]);
+
+/**
+ * Permite que administradores editem qualquer partida válida (Suíça ou Top Cut)
+ * antes ou depois da publicação do torneio, com seleção por finishes ou vitória
+ * direta/W.O., atualizando lances, chave mata-mata e ranking automaticamente.
+ */
+export async function editMatchResultAction(params: EditMatchResultInput) {
+  const auth = await requireAdmin();
+  if (auth.error) return { error: auth.error };
+
+  if (!isValidUuid(params.matchId) || !isValidUuid(params.winnerId)) {
+    return { error: "Partida ou Blader vencedor inválido." };
+  }
+
+  const { data: match, error: matchError } = await auth.supabase
+    .from("matches")
+    .select("*")
+    .eq("id", params.matchId)
+    .maybeSingle();
+
+  if (matchError || !match) {
+    return { error: "Partida não encontrada." };
+  }
+
+  if (match.is_bye) {
+    return { error: "Partidas BYE já são computadas automaticamente." };
+  }
+
+  if (match.status === "cancelled") {
+    return { error: "Esta partida foi cancelada e não pode ser editada." };
+  }
+
+  if (!match.player1_id || !match.player2_id) {
+    return {
+      error: "Os dois Bladers precisam estar definidos para editar o resultado.",
+    };
+  }
+
+  if (
+    params.winnerId !== match.player1_id &&
+    params.winnerId !== match.player2_id
+  ) {
+    return { error: "O vencedor selecionado não pertence a esta partida." };
+  }
+
+  const isP1Winner = params.winnerId === match.player1_id;
+  let finalP1Score = 0;
+  let finalP2Score = 0;
+  const sanitizedGames: Array<{
+    scoringPlayerId: string;
+    finishType: Exclude<FinishType, "draw">;
+    pointsAwarded: number;
+    player1ComboId: string | null;
+    player2ComboId: string | null;
+  }> = [];
+
+  if (params.mode === "finishes") {
+    const rawGames = params.games ?? [];
+    if (!Array.isArray(rawGames) || rawGames.length === 0) {
+      return {
+        error:
+          "Adicione pelo menos 1 finish para salvar no modo Por Finish, ou use Vitória Direta / W.O.",
+      };
+    }
+
+    for (let idx = 0; idx < rawGames.length; idx += 1) {
+      const g = rawGames[idx];
+      if (
+        g.scoringPlayerId !== match.player1_id &&
+        g.scoringPlayerId !== match.player2_id
+      ) {
+        return { error: `Lance #${idx + 1} com Blader inválido.` };
+      }
+
+      if (!VALID_EDITABLE_FINISHES.has(g.finishType)) {
+        return { error: `Lance #${idx + 1} com tipo de finish inválido.` };
+      }
+
+      const pts = FINISH_POINTS[g.finishType];
+      if (g.scoringPlayerId === match.player1_id) {
+        finalP1Score += pts;
+      } else {
+        finalP2Score += pts;
+      }
+
+      sanitizedGames.push({
+        scoringPlayerId: g.scoringPlayerId,
+        finishType: g.finishType,
+        pointsAwarded: pts,
+        player1ComboId:
+          g.player1ComboId && isValidUuid(g.player1ComboId)
+            ? g.player1ComboId
+            : null,
+        player2ComboId:
+          g.player2ComboId && isValidUuid(g.player2ComboId)
+            ? g.player2ComboId
+            : null,
+      });
+    }
+
+    const winnerScore = isP1Winner ? finalP1Score : finalP2Score;
+    const loserScore = isP1Winner ? finalP2Score : finalP1Score;
+    if (winnerScore <= loserScore) {
+      return {
+        error:
+          "A soma de pontos dos finishes do vencedor precisa ser maior que a do adversário (ou use Vitória Direta).",
+      };
+    }
+  } else if (params.mode === "wo") {
+    finalP1Score = isP1Winner ? match.target_score : 0;
+    finalP2Score = isP1Winner ? 0 : match.target_score;
+  } else {
+    finalP1Score = Math.floor(Number(params.player1Score));
+    finalP2Score = Math.floor(Number(params.player2Score));
+
+    if (
+      !Number.isFinite(finalP1Score) ||
+      !Number.isFinite(finalP2Score) ||
+      finalP1Score < 0 ||
+      finalP2Score < 0 ||
+      finalP1Score > 20 ||
+      finalP2Score > 20
+    ) {
+      return { error: "Informe placares inteiros válidos entre 0 e 20." };
+    }
+
+    const winnerScore = isP1Winner ? finalP1Score : finalP2Score;
+    const loserScore = isP1Winner ? finalP2Score : finalP1Score;
+    if (winnerScore <= loserScore) {
+      return {
+        error: "O placar do vencedor precisa ser maior que o do adversário.",
+      };
+    }
+  }
+
+  const [{ data: tournament }, { data: previousGames }] = await Promise.all([
+    auth.supabase
+      .from("tournaments")
+      .select("id, slug, status, category, format, season_id, event_date")
+      .eq("id", match.tournament_id)
+      .maybeSingle(),
+    auth.supabase
+      .from("match_games")
+      .select("*")
+      .eq("match_id", match.id)
+      .order("round_number", { ascending: true }),
+  ]);
+
+  if (match.arena_id) {
+    await auth.supabase
+      .from("arenas")
+      .update({
+        status: "available",
+        current_match_id: null,
+      })
+      .eq("id", match.arena_id)
+      .eq("current_match_id", match.id);
+  }
+
+  const { error: deleteGamesError } = await auth.supabase
+    .from("match_games")
+    .delete()
+    .eq("match_id", match.id);
+
+  if (deleteGamesError) {
+    return {
+      error: `Erro ao atualizar lances da partida: ${deleteGamesError.message}`,
+    };
+  }
+
+  if (sanitizedGames.length > 0) {
+    const gamesPayload: Database["public"]["Tables"]["match_games"]["Insert"][] =
+      sanitizedGames.map((g, idx) => ({
+        match_id: match.id,
+        round_number: idx + 1,
+        scoring_player_id: g.scoringPlayerId,
+        finish_type: g.finishType,
+        points_awarded: g.pointsAwarded,
+        player1_combo_id: g.player1ComboId,
+        player2_combo_id: g.player2ComboId,
+      }));
+
+    const { error: insertGamesError } = await auth.supabase
+      .from("match_games")
+      .insert(gamesPayload);
+
+    if (insertGamesError) {
+      // Rollback defensivo dos lances anteriores caso o insert falhe
+      if ((previousGames ?? []).length > 0) {
+        await auth.supabase.from("match_games").insert(
+          (previousGames ?? []).map((prev) => ({
+            id: prev.id,
+            match_id: prev.match_id,
+            round_number: prev.round_number,
+            scoring_player_id: prev.scoring_player_id,
+            finish_type: prev.finish_type,
+            points_awarded: prev.points_awarded,
+            player1_combo_id: prev.player1_combo_id,
+            player2_combo_id: prev.player2_combo_id,
+            created_at: prev.created_at,
+          }))
+        );
+      }
+      return {
+        error: `Erro ao salvar finishes da partida: ${insertGamesError.message}`,
+      };
+    }
+  }
+
+  const previousWinnerId = match.winner_id;
+  const nowIso = new Date().toISOString();
+
+  const { data: updatedMatch, error: updateError } = await auth.supabase
+    .from("matches")
+    .update({
+      player1_score: finalP1Score,
+      player2_score: finalP2Score,
+      winner_id: params.winnerId,
+      status: "finished",
+      started_at: match.started_at ?? nowIso,
+      finished_at: match.finished_at ?? nowIso,
+    })
+    .eq("id", match.id)
+    .select("*")
+    .single();
+
+  if (updateError || !updatedMatch) {
+    return {
+      error: `Erro ao atualizar partida: ${updateError?.message ?? "tente novamente"}`,
+    };
+  }
+
+  await syncTopCutAdvancement(auth.supabase, updatedMatch);
+
+  let warning: string | null = null;
+  if (
+    match.stage === "top_cut" &&
+    previousWinnerId &&
+    previousWinnerId !== params.winnerId
+  ) {
+    const nextIds = [match.next_match_id, match.loser_next_match_id].filter(
+      (id): id is string => Boolean(id)
+    );
+    if (nextIds.length > 0) {
+      const { data: finishedFollowers } = await auth.supabase
+        .from("matches")
+        .select("id")
+        .in("id", nextIds)
+        .eq("status", "finished");
+
+      if ((finishedFollowers ?? []).length > 0) {
+        warning =
+          "O vencedor desta partida eliminatória mudou, mas uma partida seguinte do Top Cut já estava finalizada. Revise a próxima chave na aba Top Cut se necessário.";
+      }
+    }
+  }
+
+  // Se o torneio já foi publicado/encerrado (ou já tem resultados gravados), recalcula pódio e ranking automaticamente
+  let recalculatedRanking = false;
+  const { count: existingResultsCount } = await auth.supabase
+    .from("tournament_results")
+    .select("id", { count: "exact", head: true })
+    .eq("tournament_id", match.tournament_id);
+
+  if (tournament?.status === "finished" || (existingResultsCount ?? 0) > 0) {
+    const updatedSnapshot = await fetchTournamentEngineSnapshot(
+      auth.supabase,
+      match.tournament_id
+    );
+
+    if (!updatedSnapshot.schemaMissing && updatedSnapshot.tournament) {
+      const previewResults = computeFinalTournamentResults(
+        updatedSnapshot.tournament,
+        updatedSnapshot.participants,
+        updatedSnapshot.matches,
+        updatedSnapshot.games
+      );
+
+      if (previewResults.length > 0) {
+        await auth.supabase
+          .from("tournament_results")
+          .delete()
+          .eq("tournament_id", match.tournament_id);
+
+        const { error: resultsInsertError } = await auth.supabase
+          .from("tournament_results")
+          .insert(
+            previewResults.map((r) => ({
+              tournament_id: match.tournament_id,
+              blader_id: r.bladerId,
+              final_position: r.finalPosition,
+              swiss_wins: r.swissWins,
+              swiss_points: r.swissPoints,
+              is_swiss_leader: r.isSwissLeader,
+              swiss_leader_bonus: r.swissLeaderBonus,
+              podium_points: r.podiumPoints,
+              points_earned: r.pointsEarned,
+            }))
+          );
+
+        if (resultsInsertError) {
+          return {
+            error: `Partida salva, mas houve erro ao recalcular resultados publicados: ${resultsInsertError.message}`,
+          };
+        }
+
+        let seasonId = updatedSnapshot.tournament.season_id;
+        if (!seasonId) {
+          seasonId = await ensureSeasonForDate(
+            auth.supabase,
+            updatedSnapshot.tournament.event_date
+          );
+          if (seasonId) {
+            await auth.supabase
+              .from("tournaments")
+              .update({ season_id: seasonId })
+              .eq("id", match.tournament_id);
+          }
+        }
+
+        if (seasonId) {
+          await recalculateSeasonRanking(auth.supabase, seasonId);
+        }
+        recalculatedRanking = true;
+      }
+    }
+  }
+
+  revalidateTournamentViews(match.tournament_id);
+  revalidatePath("/estatisticas");
+  if (tournament?.slug) {
+    revalidatePath(`/torneios/${tournament.slug}`);
+    revalidatePath(`/torneios/${tournament.slug}/telao`);
+  }
+  if (match.arena_id) {
+    revalidatePath(`/admin/arena/${match.arena_id}`);
+  }
+
+  return {
+    success: true,
+    match: updatedMatch,
+    recalculatedRanking,
+    warning,
+  };
 }
 
 export async function createSeasonAction(formData: FormData) {
